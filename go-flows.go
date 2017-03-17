@@ -435,35 +435,62 @@ type PacketBuffer struct {
 	packet gopacket.Packet
 }
 
-func handleFile(fname string, packets, empty chan *PacketBuffer) {
-	fhandle, err := pcap.OpenOffline(fname)
-	if err != nil {
-		log.Fatalf("Couldn't open file %s", fname)
-	}
-	defer fhandle.Close()
-	decoder := fhandle.LinkType()
-	options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
+func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
+	result := make(chan *PacketBuffer, 1000)
+	empty := make(chan *PacketBuffer, 1000)
 
-	for {
-		data, ci, err := fhandle.ZeroCopyReadPacketData()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			log.Println("Error:", err)
-			continue
+	go func() {
+		defer close(result)
+		for i := 0; i < 1000; i++ {
+			empty <- &PacketBuffer{}
 		}
-		buffer := <-empty
-		copy(buffer.buffer[:], data)
-		plen := len(data)
-		if plen > MAXLEN {
-			plen = MAXLEN
+		for _, fname := range fnames {
+			fhandle, err := pcap.OpenOffline(fname)
+			if err != nil {
+				log.Fatalf("Couldn't open file %s", fname)
+			}
+			decoder := fhandle.LinkType()
+			options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
+
+			for {
+				data, ci, err := fhandle.ZeroCopyReadPacketData()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					log.Println("Error:", err)
+					continue
+				}
+				buffer := <-empty
+				copy(buffer.buffer[:], data)
+				plen := len(data)
+				if plen > MAXLEN {
+					plen = MAXLEN
+				}
+				buffer.packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
+				m := buffer.packet.Metadata()
+				m.CaptureInfo = ci
+				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || plen < len(data)
+				result <- buffer
+			}
+			fhandle.Close()
 		}
-		buffer.packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
-		m := buffer.packet.Metadata()
-		m.CaptureInfo = ci
-		m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || plen < len(data)
-		packets <- buffer
-	}
+	}()
+
+	return result, empty
+}
+
+func parsePacket(in <-chan *PacketBuffer) <-chan *PacketBuffer {
+	out := make(chan *PacketBuffer, 1000)
+
+	go func() {
+		for packet := range in {
+			packet.packet.TransportLayer()
+			out <- packet
+		}
+		close(out)
+	}()
+
+	return out
 }
 
 func main() {
@@ -480,22 +507,11 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	packets := make(chan *PacketBuffer, 1000)
-	empty := make(chan *PacketBuffer, 1000)
-
-	for i := 0; i < 1000; i++ {
-		empty <- &PacketBuffer{}
-	}
-
-	go func() {
-		for _, fname := range flag.Args() {
-			handleFile(fname, packets, empty)
-		}
-		close(packets)
-	}()
+	packets, empty := readFiles(flag.Args())
+	parsed := parsePacket(packets)
 
 	flowtable := NewFlowTable(fivetuple)
-	for buffer := range packets {
+	for buffer := range parsed {
 		flowtable.Event(buffer.packet)
 		empty <- buffer
 	}
