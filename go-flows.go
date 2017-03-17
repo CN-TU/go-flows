@@ -11,6 +11,8 @@ import (
 	"runtime/pprof"
 	"sort"
 
+	"bytes"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -24,14 +26,30 @@ const ACTIVE_TIMEOUT int64 = 1800e9
 const IDLE_TIMEOUT int64 = 300e9
 
 type FlowKey interface {
+	SrcIP() []byte
+	DstIP() []byte
+	Proto() []byte
+	SrcPort() []byte
+	DstPort() []byte
 }
 
-type FiveTuple struct {
-	SrcIP, DstIP     gopacket.Endpoint
-	proto            gopacket.LayerType
-	SrcPort, DstPort gopacket.Endpoint
-	ICMPTypeCode     uint16
-}
+// src 4 dst 4 proto 1 src 2 dst 2
+type FiveTuple4 [13]byte
+
+func (t FiveTuple4) SrcIP() []byte   { return t[0:4] }
+func (t FiveTuple4) DstIP() []byte   { return t[4:8] }
+func (t FiveTuple4) Proto() []byte   { return t[8:9] }
+func (t FiveTuple4) SrcPort() []byte { return t[9:11] }
+func (t FiveTuple4) DstPort() []byte { return t[11:13] }
+
+// src 16 dst 16 proto 1 src 2 dst 2
+type FiveTuple6 [37]byte
+
+func (t FiveTuple6) SrcIP() []byte   { return t[0:16] }
+func (t FiveTuple6) DstIP() []byte   { return t[16:32] }
+func (t FiveTuple6) Proto() []byte   { return t[32:32] }
+func (t FiveTuple6) SrcPort() []byte { return t[33:35] }
+func (t FiveTuple6) DstPort() []byte { return t[35:37] }
 
 func fivetuple(packet gopacket.Packet) FlowKey {
 	network := packet.NetworkLayer()
@@ -39,43 +57,57 @@ func fivetuple(packet gopacket.Packet) FlowKey {
 		return nil
 	}
 	transport := packet.TransportLayer()
-	var srcPort, dstPort gopacket.Endpoint
-	var icmpCode uint16
+	var srcPort, dstPort []byte
+	var icmpCode []byte
 	var proto gopacket.LayerType
 	if transport == nil {
 		if icmp := packet.Layer(layers.LayerTypeICMPv4); icmp != nil {
-			icmpCode = uint16(icmp.(*layers.ICMPv4).TypeCode)
+			icmpCode = icmp.(*layers.ICMPv4).Contents[0:2]
 			proto = layers.LayerTypeICMPv4
 		} else if icmp := packet.Layer(layers.LayerTypeICMPv6); icmp != nil {
-			icmpCode = uint16(icmp.(*layers.ICMPv6).TypeCode)
+			icmpCode = icmp.(*layers.ICMPv6).Contents[0:2]
 			proto = layers.LayerTypeICMPv6
 		} else {
 			return nil
 		}
 	} else {
-		srcPort = transport.TransportFlow().Src()
-		dstPort = transport.TransportFlow().Dst()
+		proto = transport.LayerType()
+		srcPort = transport.TransportFlow().Src().Raw()
+		dstPort = transport.TransportFlow().Dst().Raw()
 	}
-	srcip, dstip := network.NetworkFlow().Endpoints()
-	if dstip.LessThan(srcip) {
+	srcip := network.NetworkFlow().Src().Raw()
+	dstip := network.NetworkFlow().Dst().Raw()
+	if bytes.Compare(srcip, dstip) > 0 {
 		srcip, dstip = dstip, srcip
 		srcPort, dstPort = dstPort, srcPort
 	}
-	ret := FiveTuple{}
-	//copy(ret.SrcIP[:], srcip.Raw())
-	//copy(ret.DstIP[:], dstip.Raw())
-	ret.SrcIP = srcip
-	ret.DstIP = dstip
-	if proto == layers.LayerTypeICMPv4 || proto == layers.LayerTypeICMPv6 {
-		ret.ICMPTypeCode = icmpCode
-		ret.proto = proto
-	} else {
-		ret.SrcPort = srcPort
-		ret.DstPort = dstPort
-		ret.proto = transport.LayerType()
+	if len(srcip) == 4 {
+		ret := FiveTuple4{}
+		copy(ret[0:4], srcip)
+		copy(ret[4:8], dstip)
+		if proto == layers.LayerTypeICMPv4 {
+			copy(ret[11:13], icmpCode)
+		} else {
+			copy(ret[9:11], srcPort)
+			copy(ret[11:13], dstPort)
+		}
+		ret[8] = byte(proto & 0xFF)
+		return ret
 	}
-
-	return ret
+	if len(srcip) == 16 {
+		ret := FiveTuple6{}
+		copy(ret[0:4], srcip)
+		copy(ret[4:8], dstip)
+		if proto == layers.LayerTypeICMPv6 {
+			copy(ret[11:13], icmpCode)
+		} else {
+			copy(ret[9:11], srcPort)
+			copy(ret[11:13], dstPort)
+		}
+		ret[8] = byte(proto & 0xFF)
+		return ret
+	}
+	return nil
 }
 
 type Feature interface {
@@ -243,11 +275,10 @@ func (flow *BaseFlow) Event(packet gopacket.Packet, when int64) {
 func (flow *TCPFlow) Event(packet gopacket.Packet, when int64) {
 	flow.BaseFlow.Event(packet, when)
 	tcp := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
-	srcip := packet.NetworkLayer().NetworkFlow().Src()
 	if tcp.RST {
 		flow.Export("RST")
 	}
-	if srcip == flow.Key.(FiveTuple).SrcIP {
+	if bytes.Compare(packet.NetworkLayer().NetworkFlow().Src().Raw(), flow.Key.SrcIP()) == 0 {
 		if tcp.FIN {
 			flow.srcFIN = true
 		}
