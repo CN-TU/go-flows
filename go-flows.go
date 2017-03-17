@@ -354,7 +354,7 @@ type FlowTable struct {
 }
 
 func NewFlowTable() *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow), freeTimers: make(chan *TimerItem, 10000)}
+	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), freeTimers: make(chan *TimerItem, 1000000)}
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
@@ -410,23 +410,29 @@ func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 }
 
 func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
-	for timer := range entry.Expires {
-		if timer.Flow != nil { //already recycled!
-			heap.Remove(&tab.timers, timer.index)
-			timer.Reset()
-			select {
-			case tab.freeTimers <- timer:
-			default:
+	if !tab.eof {
+		for timer := range entry.Expires {
+			if timer.Flow != nil { //already recycled!
+				heap.Remove(&tab.timers, timer.index)
+				timer.Reset()
+				select {
+				case tab.freeTimers <- timer:
+				default:
+				}
 			}
 		}
+		delete(tab.flows, key)
 	}
-	delete(tab.flows, key)
 }
 
 func (tab *FlowTable) EOF() {
+	tab.eof = true
 	for _, v := range tab.flows {
 		v.EOF()
 	}
+	tab.flows = make(map[FlowKey]Flow)
+	tab.timers = TimerQueue{}
+	tab.eof = false
 }
 
 type PacketBuffer struct {
