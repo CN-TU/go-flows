@@ -348,13 +348,13 @@ func (tq *TimerQueue) update(item *TimerItem, when int64) {
 
 type FlowTable struct {
 	flows      map[FlowKey]Flow
-	key        func(gopacket.Packet) FlowKey
 	timers     TimerQueue
 	freeTimers chan *TimerItem
+	eof        bool
 }
 
-func NewFlowTable(f func(gopacket.Packet) FlowKey) *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow), key: f, freeTimers: make(chan *TimerItem, 10000)}
+func NewFlowTable() *FlowTable {
+	return &FlowTable{flows: make(map[FlowKey]Flow), freeTimers: make(chan *TimerItem, 10000)}
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
@@ -397,17 +397,16 @@ func (tab *FlowTable) AddTimer(flow Flow, when int64) *TimerItem {
 	return ret
 }
 
-func (tab *FlowTable) Event(packet gopacket.Packet) {
+func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 	when := packet.Metadata().Timestamp.UnixNano()
 	tab.Expire(when)
-	if key := tab.key(packet); key != nil {
-		elem, ok := tab.flows[key]
-		if !ok {
-			elem = NewFlow(packet, tab, key)
-			tab.flows[key] = elem
-		}
-		elem.Event(packet, when)
+
+	elem, ok := tab.flows[key]
+	if !ok {
+		elem = NewFlow(packet, tab, key)
+		tab.flows[key] = elem
 	}
+	elem.Event(packet, when)
 }
 
 func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
@@ -433,6 +432,7 @@ func (tab *FlowTable) EOF() {
 type PacketBuffer struct {
 	buffer [MAXLEN]byte
 	packet gopacket.Packet
+	key    FlowKey
 }
 
 func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
@@ -493,6 +493,20 @@ func parsePacket(in <-chan *PacketBuffer) <-chan *PacketBuffer {
 	return out
 }
 
+func parseKey(in <-chan *PacketBuffer) <-chan *PacketBuffer {
+	out := make(chan *PacketBuffer, 1000)
+
+	go func() {
+		for packet := range in {
+			packet.key = fivetuple(packet.packet)
+			out <- packet
+		}
+		close(out)
+	}()
+
+	return out
+}
+
 func main() {
 	flag.Parse()
 	if *fname != "text" {
@@ -509,10 +523,13 @@ func main() {
 
 	packets, empty := readFiles(flag.Args())
 	parsed := parsePacket(packets)
+	keyed := parseKey(parsed)
 
-	flowtable := NewFlowTable(fivetuple)
-	for buffer := range parsed {
-		flowtable.Event(buffer.packet)
+	flowtable := NewFlowTable()
+	for buffer := range keyed {
+		if buffer.key != nil {
+			flowtable.Event(buffer.packet, buffer.key)
+		}
 		empty <- buffer
 	}
 
