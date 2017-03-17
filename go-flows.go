@@ -450,13 +450,13 @@ func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
 		for i := 0; i < 1000; i++ {
 			empty <- &PacketBuffer{}
 		}
+		options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 		for _, fname := range fnames {
 			fhandle, err := pcap.OpenOffline(fname)
 			if err != nil {
 				log.Fatalf("Couldn't open file %s", fname)
 			}
 			decoder := fhandle.LinkType()
-			options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 
 			for {
 				data, ci, err := fhandle.ZeroCopyReadPacketData()
