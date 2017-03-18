@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"flag"
 	"fmt"
 	"io"
@@ -171,10 +170,12 @@ func (f *DstIP) Event(new interface{}, when int64) {
 
 type Flow interface {
 	Event(gopacket.Packet, int64)
-	Expire(*TimerItem)
+	Expire(int64)
 	AddTimer(string, func(int64), int64)
 	HasTimer(string) bool
 	EOF()
+	NextEvent() int64
+	Active() bool
 }
 
 type FuncEntry struct {
@@ -188,7 +189,7 @@ type BaseFlow struct {
 	Table      *FlowTable
 	Timers     map[string]*FuncEntry
 	ExpireNext int64
-	Expires    map[*TimerItem]struct{}
+	active     bool
 	Features   []Feature
 }
 
@@ -202,8 +203,12 @@ type UniFlow struct {
 }
 
 func (flow *BaseFlow) Stop() {
+	flow.active = false
 	flow.Table.Remove(flow.Key, flow)
 }
+
+func (flow *BaseFlow) NextEvent() int64 { return flow.ExpireNext }
+func (flow *BaseFlow) Active() bool     { return flow.active }
 
 type FuncEntries []*FuncEntry
 
@@ -211,17 +216,19 @@ func (s FuncEntries) Len() int           { return len(s) }
 func (s FuncEntries) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s FuncEntries) Less(i, j int) bool { return s[i].When < s[j].When }
 
-func (flow *BaseFlow) Expire(which *TimerItem) {
-	delete(flow.Expires, which)
+func (flow *BaseFlow) Expire(when int64) {
 	var values FuncEntries
 	for _, v := range flow.Timers {
 		values = append(values, v)
 	}
 	sort.Sort(values)
 	for _, v := range values {
-		if v.When <= which.when {
+		if v.When <= when {
 			v.Function(v.When)
 			delete(flow.Timers, v.Name)
+		} else {
+			flow.ExpireNext = v.When
+			break
 		}
 	}
 }
@@ -234,7 +241,6 @@ func (flow *BaseFlow) AddTimer(name string, f func(int64), when int64) {
 		flow.Timers[name] = &FuncEntry{f, when, name}
 	}
 	if when < flow.ExpireNext || flow.ExpireNext == 0 {
-		flow.Expires[flow.Table.AddTimer(flow, when)] = struct{}{}
 		flow.ExpireNext = when
 	}
 }
@@ -253,9 +259,6 @@ func (flow *BaseFlow) Export(reason string) {
 }
 
 func (flow *BaseFlow) Idle(now int64) {
-	for k := range flow.Expires {
-		k.Flow = nil
-	}
 	flow.Export("IDLE")
 }
 
@@ -300,61 +303,14 @@ func (flow *TCPFlow) Event(packet gopacket.Packet, when int64) {
 	}
 }
 
-type TimerItem struct {
-	Flow  Flow
-	when  int64
-	index int
-}
-
-func (it *TimerItem) Reset() {
-	it.Flow = nil
-	it.index = 0
-}
-
-type TimerQueue []*TimerItem
-
-func (tq TimerQueue) Len() int { return len(tq) }
-
-func (tq TimerQueue) Less(i, j int) bool {
-	return tq[i].when < tq[j].when
-}
-
-func (tq TimerQueue) Swap(i, j int) {
-	tq[i], tq[j] = tq[j], tq[i]
-	tq[i].index = i
-	tq[j].index = j
-}
-
-func (tq *TimerQueue) Push(x interface{}) {
-	n := len(*tq)
-	item := x.(*TimerItem)
-	item.index = n
-	*tq = append(*tq, item)
-}
-
-func (tq *TimerQueue) Pop() interface{} {
-	old := *tq
-	n := len(old)
-	item := old[n-1]
-	item.index = -1 // for safety
-	*tq = old[0 : n-1]
-	return item
-}
-
-func (tq *TimerQueue) update(item *TimerItem, when int64) {
-	item.when = when
-	heap.Fix(tq, item.index)
-}
-
 type FlowTable struct {
-	flows      map[FlowKey]Flow
-	timers     TimerQueue
-	freeTimers chan *TimerItem
-	eof        bool
+	flows     map[FlowKey]Flow
+	eof       bool
+	lastEvent int64
 }
 
 func NewFlowTable() *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), freeTimers: make(chan *TimerItem, 1000000)}
+	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000)}
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
@@ -362,7 +318,7 @@ func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
 		&SrcIP{},
 		&DstIP{},
 	}
-	return BaseFlow{Key: key, Table: table, Expires: make(map[*TimerItem]struct{}, 1), Timers: make(map[string]*FuncEntry, 2), Features: features}
+	return BaseFlow{Key: key, Table: table, Timers: make(map[string]*FuncEntry, 2), Features: features, active: true}
 }
 
 func NewFlow(packet gopacket.Packet, table *FlowTable, key FlowKey) Flow {
@@ -372,36 +328,25 @@ func NewFlow(packet gopacket.Packet, table *FlowTable, key FlowKey) Flow {
 	return &UniFlow{NewBaseFlow(table, key)}
 }
 
-func (tab *FlowTable) Expire(now int64) {
-	for len(tab.timers) > 0 && tab.timers[0].when < now {
-		timer := heap.Pop(&tab.timers).(*TimerItem)
-		timer.Flow.Expire(timer)
-		timer.Reset()
-		select {
-		case tab.freeTimers <- timer:
-		default:
-		}
-	}
-}
-
-func (tab *FlowTable) AddTimer(flow Flow, when int64) *TimerItem {
-	var ret *TimerItem
-	select {
-	case ret = <-tab.freeTimers:
-		ret.Flow = flow
-		ret.when = when
-	default:
-		ret = &TimerItem{Flow: flow, when: when}
-	}
-	heap.Push(&tab.timers, ret)
-	return ret
-}
-
 func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 	when := packet.Metadata().Timestamp.UnixNano()
-	tab.Expire(when)
 
+	if tab.lastEvent < when {
+		for _, elem := range tab.flows {
+			if when > elem.NextEvent() {
+				elem.Expire(when)
+			}
+		}
+		tab.lastEvent = when + 300e9
+	}
+	// event every n seconds
 	elem, ok := tab.flows[key]
+	if ok {
+		if when > elem.NextEvent() {
+			elem.Expire(when)
+			ok = elem.Active()
+		}
+	}
 	if !ok {
 		elem = NewFlow(packet, tab, key)
 		tab.flows[key] = elem
@@ -411,16 +356,6 @@ func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 
 func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
 	if !tab.eof {
-		for timer := range entry.Expires {
-			if timer.Flow != nil { //already recycled!
-				heap.Remove(&tab.timers, timer.index)
-				timer.Reset()
-				select {
-				case tab.freeTimers <- timer:
-				default:
-				}
-			}
-		}
 		delete(tab.flows, key)
 	}
 }
@@ -431,7 +366,6 @@ func (tab *FlowTable) EOF() {
 		v.EOF()
 	}
 	tab.flows = make(map[FlowKey]Flow)
-	tab.timers = TimerQueue{}
 	tab.eof = false
 }
 
