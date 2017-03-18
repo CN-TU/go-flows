@@ -425,19 +425,6 @@ func parsePacket(in <-chan *PacketBuffer) <-chan *PacketBuffer {
 	go func() {
 		for packet := range in {
 			packet.packet.TransportLayer()
-			out <- packet
-		}
-		close(out)
-	}()
-
-	return out
-}
-
-func parseKey(in <-chan *PacketBuffer) <-chan *PacketBuffer {
-	out := make(chan *PacketBuffer, 1000)
-
-	go func() {
-		for packet := range in {
 			packet.key = fivetuple(packet.packet)
 			out <- packet
 		}
@@ -463,10 +450,9 @@ func main() {
 
 	packets, empty := readFiles(flag.Args())
 	parsed := parsePacket(packets)
-	keyed := parseKey(parsed)
 
 	flowtable := NewFlowTable()
-	for buffer := range keyed {
+	for buffer := range parsed {
 		if buffer.key != nil {
 			flowtable.Event(buffer.packet, buffer.key)
 		}
