@@ -175,6 +175,9 @@ type Flow interface {
 	AddTimer(string, func(int64), int64)
 	HasTimer(string) bool
 	EOF()
+	GetIndex() int
+	SetIndex(int)
+	GetKey() FlowKey
 }
 
 type FuncEntry struct {
@@ -190,6 +193,7 @@ type BaseFlow struct {
 	ExpireNext int64
 	Expires    map[*TimerItem]struct{}
 	Features   []Feature
+	index      int
 }
 
 type TCPFlow struct {
@@ -199,6 +203,18 @@ type TCPFlow struct {
 
 type UniFlow struct {
 	BaseFlow
+}
+
+func (flow *BaseFlow) SetIndex(index int) {
+	flow.index = index
+}
+
+func (flow *BaseFlow) GetIndex() int {
+	return flow.index
+}
+
+func (flow *BaseFlow) GetKey() FlowKey {
+	return flow.Key
 }
 
 func (flow *BaseFlow) Stop() {
@@ -347,14 +363,15 @@ func (tq *TimerQueue) update(item *TimerItem, when int64) {
 }
 
 type FlowTable struct {
-	flows      map[FlowKey]Flow
+	flows      map[FlowKey]int
+	flowss     []Flow
 	timers     TimerQueue
 	freeTimers chan *TimerItem
 	eof        bool
 }
 
 func NewFlowTable() *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), freeTimers: make(chan *TimerItem, 1000000)}
+	return &FlowTable{flows: make(map[FlowKey]int, 1000000), flowss: make([]Flow, 0, 1000000), freeTimers: make(chan *TimerItem, 1000000)}
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
@@ -401,10 +418,15 @@ func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 	when := packet.Metadata().Timestamp.UnixNano()
 	tab.Expire(when)
 
-	elem, ok := tab.flows[key]
+	var elem Flow
+	elemi, ok := tab.flows[key]
 	if !ok {
 		elem = NewFlow(packet, tab, key)
-		tab.flows[key] = elem
+		elemi = len(tab.flowss)
+		tab.flows[key] = elemi
+		tab.flowss = append(tab.flowss, elem)
+	} else {
+		elem = tab.flowss[elemi]
 	}
 	elem.Event(packet, when)
 }
@@ -422,15 +444,24 @@ func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
 			}
 		}
 		delete(tab.flows, key)
+		n := len(tab.flowss)
+		if entry.index != n-1 {
+			last := tab.flowss[n-1]
+			last.SetIndex(entry.index)
+			tab.flows[last.GetKey()] = entry.index
+		}
+		tab.flowss[n-1] = nil
+		tab.flowss = tab.flowss[0 : n-1]
 	}
 }
 
 func (tab *FlowTable) EOF() {
 	tab.eof = true
-	for _, v := range tab.flows {
+	for _, v := range tab.flowss {
 		v.EOF()
 	}
-	tab.flows = make(map[FlowKey]Flow)
+	tab.flows = make(map[FlowKey]int, 1000000)
+	tab.flowss = make([]Flow, 0, 1000000)
 	tab.timers = TimerQueue{}
 	tab.eof = false
 }
