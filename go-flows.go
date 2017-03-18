@@ -17,7 +17,8 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-var fname = flag.String("format", "text", "Output format")
+var format = flag.String("format", "text", "Output format")
+var output = flag.String("output", "-", "Output filename")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var memprofile = flag.String("memprofile", "", "write mem profile to file")
 
@@ -190,7 +191,7 @@ type BaseFlow struct {
 	Timers     map[string]*FuncEntry
 	ExpireNext int64
 	active     bool
-	Features   []Feature
+	Features   FeatureList
 }
 
 type TCPFlow struct {
@@ -250,20 +251,18 @@ func (flow *BaseFlow) HasTimer(name string) bool {
 	return ret
 }
 
-func (flow *BaseFlow) Export(reason string) {
-	for _, feature := range flow.Features {
-		fmt.Print(feature.Value(), ", ")
-	}
-	fmt.Println(reason)
+func (flow *BaseFlow) Export(reason string, when int64) {
+	flow.Features.Stop()
+	flow.Features.Export(reason, when)
 	flow.Stop()
 }
 
 func (flow *BaseFlow) Idle(now int64) {
-	flow.Export("IDLE")
+	flow.Export("IDLE", now)
 }
 
 func (flow *BaseFlow) EOF() {
-	flow.Export("EOF")
+	flow.Export("EOF", -1)
 }
 
 func (flow *BaseFlow) Event(packet gopacket.Packet, when int64) {
@@ -271,16 +270,14 @@ func (flow *BaseFlow) Event(packet gopacket.Packet, when int64) {
 	if !flow.HasTimer("ACTIVE") {
 		flow.AddTimer("ACTIVE", flow.Idle, when+ACTIVE_TIMEOUT)
 	}
-	for _, feature := range flow.Features {
-		feature.Event(packet, when)
-	}
+	flow.Features.Event(packet, when)
 }
 
 func (flow *TCPFlow) Event(packet gopacket.Packet, when int64) {
 	flow.BaseFlow.Event(packet, when)
 	tcp := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
 	if tcp.RST {
-		flow.Export("RST")
+		flow.Export("RST", when)
 	}
 	if bytes.Compare(packet.NetworkLayer().NetworkFlow().Src().Raw(), flow.Key.SrcIP()) == 0 {
 		if tcp.FIN {
@@ -299,26 +296,25 @@ func (flow *TCPFlow) Event(packet gopacket.Packet, when int64) {
 	}
 
 	if flow.srcFIN && flow.srcACK && flow.dstFIN && flow.dstACK {
-		flow.Export("FIN")
+		flow.Export("FIN", when)
 	}
 }
 
 type FlowTable struct {
 	flows     map[FlowKey]Flow
+	features  func() FeatureList
 	eof       bool
 	lastEvent int64
 }
 
-func NewFlowTable() *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000)}
+func NewFlowTable(features func() FeatureList) *FlowTable {
+	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), features: features}
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
-	features := []Feature{
-		&SrcIP{},
-		&DstIP{},
-	}
-	return BaseFlow{Key: key, Table: table, Timers: make(map[string]*FuncEntry, 2), Features: features, active: true}
+	ret := BaseFlow{Key: key, Table: table, Timers: make(map[string]*FuncEntry, 2), Features: table.features(), active: true}
+	ret.Features.Start()
+	return ret
 }
 
 func NewFlow(packet gopacket.Packet, table *FlowTable, key FlowKey) Flow {
@@ -373,6 +369,88 @@ type PacketBuffer struct {
 	buffer [MAXLEN]byte
 	packet gopacket.Packet
 	key    FlowKey
+}
+
+type Exporter interface {
+	Export([]Feature, string, int64)
+	Finish()
+}
+
+type PrintExporter struct {
+	exportlist chan []interface{}
+	finished   chan struct{}
+	stop       chan struct{}
+}
+
+func (pe *PrintExporter) Export(features []Feature, reason string, when int64) {
+	n := len(features)
+	var list = make([]interface{}, n+2)
+	for i, elem := range features {
+		list[i] = elem.Value()
+	}
+	list[n] = reason
+	list[n+1] = when
+	pe.exportlist <- list
+}
+
+func (pe *PrintExporter) Finish() {
+	close(pe.stop)
+	<-pe.finished
+}
+
+func NewPrintExporter(filename string) Exporter {
+	ret := &PrintExporter{make(chan []interface{}, 1000), make(chan struct{}), make(chan struct{})}
+	var outfile io.Writer
+	if filename == "-" {
+		outfile = os.Stdout
+	} else {
+		var err error
+		outfile, err = os.Create(filename)
+		if err != nil {
+			log.Fatal("Couldn't open file ", filename, err)
+		}
+	}
+	go func() {
+		defer close(ret.finished)
+		for {
+			select {
+			case data := <-ret.exportlist:
+				fmt.Fprintln(outfile, data...)
+			case <-ret.stop:
+				return
+			}
+		}
+	}()
+	return ret
+}
+
+type FeatureList struct {
+	event    []Feature
+	export   []Feature
+	startup  []Feature
+	exporter Exporter
+}
+
+func (list *FeatureList) Start() {
+	for _, feature := range list.startup {
+		feature.Start()
+	}
+}
+
+func (list *FeatureList) Stop() {
+	for _, feature := range list.startup {
+		feature.Stop()
+	}
+}
+
+func (list *FeatureList) Event(data interface{}, when int64) {
+	for _, feature := range list.event {
+		feature.Event(data, when)
+	}
+}
+
+func (list *FeatureList) Export(why string, when int64) {
+	list.exporter.Export(list.export, why, when)
 }
 
 func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
@@ -436,7 +514,10 @@ func parsePacket(in <-chan *PacketBuffer) <-chan *PacketBuffer {
 
 func main() {
 	flag.Parse()
-	if *fname != "text" {
+	var exporter Exporter
+	if *format == "text" {
+		exporter = NewPrintExporter(*output)
+	} else {
 		log.Fatal("Only text output supported for now!")
 	}
 	if *cpuprofile != "" {
@@ -451,7 +532,21 @@ func main() {
 	packets, empty := readFiles(flag.Args())
 	parsed := parsePacket(packets)
 
-	flowtable := NewFlowTable()
+	defer exporter.Finish()
+	flowtable := NewFlowTable(func() FeatureList {
+		features := []Feature{
+			&SrcIP{},
+			&DstIP{}}
+		ret := FeatureList{
+			event:    features,
+			export:   features,
+			startup:  features,
+			exporter: exporter}
+
+		return ret
+	})
+	defer flowtable.EOF()
+
 	for buffer := range parsed {
 		if buffer.key != nil {
 			flowtable.Event(buffer.packet, buffer.key)
@@ -470,6 +565,4 @@ func main() {
 		}
 		f.Close()
 	}
-
-	flowtable.EOF()
 }
