@@ -333,7 +333,7 @@ func (tab *FlowTable) Event(packet gopacket.Packet, key FlowKey) {
 				elem.Expire(when)
 			}
 		}
-		tab.lastEvent = when + 300e9
+		tab.lastEvent = when + 100e9
 	}
 	// event every n seconds
 	elem, ok := tab.flows[key]
