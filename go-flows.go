@@ -10,11 +10,13 @@ import (
 	"runtime/pprof"
 	"sort"
 
+	"pm.cn.tuwien.ac.at/ipfix/go-flows/pcapgo"
+	"pm.cn.tuwien.ac.at/ipfix/go-flows/pcapnggo"
+
 	"bytes"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 )
 
 var format = flag.String("format", "text", "Output format")
@@ -453,6 +455,10 @@ func (list *FeatureList) Export(why string, when int64) {
 	list.exporter.Export(list.export, why, when)
 }
 
+type pcaporng interface {
+	ReadPacketDataDirect(*[]byte) (gopacket.CaptureInfo, layers.LinkType, error)
+}
+
 func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
 	result := make(chan *PacketBuffer, 1000)
 	empty := make(chan *PacketBuffer, 1000)
@@ -464,33 +470,38 @@ func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
 		}
 		options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 		for _, fname := range fnames {
-			fhandle, err := pcap.OpenOffline(fname)
-			if err != nil {
-				log.Fatalf("Couldn't open file %s", fname)
+			handle, errh := os.Open(fname)
+			if errh != nil {
+				log.Fatalf("Couldn't open file %s %v", fname, errh)
 			}
-			decoder := fhandle.LinkType()
+			var fhandle pcaporng
+			var err error
+			fhandle, err = pcapnggo.NewReader(handle)
+			if err != nil {
+				handle.Seek(0, io.SeekStart)
+				fhandle, err = pcapgo.NewReader(handle)
+				if err != nil {
+					log.Fatalf("Couldn't read file %s %v", fname, err)
+				}
+			}
 
 			for {
-				data, ci, err := fhandle.ZeroCopyReadPacketData()
+				buffer := <-empty
+				bp := buffer.buffer[:]
+				ci, decoder, err := fhandle.ReadPacketDataDirect(&bp)
 				if err == io.EOF {
 					break
 				} else if err != nil {
 					log.Println("Error:", err)
 					continue
 				}
-				buffer := <-empty
-				copy(buffer.buffer[:], data)
-				plen := len(data)
-				if plen > MAXLEN {
-					plen = MAXLEN
-				}
-				buffer.packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
+				buffer.packet = gopacket.NewPacket(bp, decoder, options)
 				m := buffer.packet.Metadata()
 				m.CaptureInfo = ci
-				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || plen < len(data)
+				m.Truncated = m.Truncated || len(bp) < ci.Length
 				result <- buffer
 			}
-			fhandle.Close()
+			handle.Close()
 		}
 	}()
 
