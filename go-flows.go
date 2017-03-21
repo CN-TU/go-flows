@@ -20,6 +20,7 @@ var format = flag.String("format", "text", "Output format")
 var output = flag.String("output", "-", "Output filename")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var memprofile = flag.String("memprofile", "", "write mem profile to file")
+var blockprofile = flag.String("blockprofile", "", "write block profile to file")
 
 const ACTIVE_TIMEOUT int64 = 1800e9
 const IDLE_TIMEOUT int64 = 300e9
@@ -561,6 +562,14 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+	if *blockprofile != "" {
+		f, err := os.Create(*blockprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		runtime.SetBlockProfileRate(1)
+		defer pprof.Lookup("block").WriteTo(f, 0)
 	}
 
 	packets, empty := readFiles(flag.Args())
