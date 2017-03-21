@@ -25,6 +25,13 @@ const ACTIVE_TIMEOUT int64 = 1800e9
 const IDLE_TIMEOUT int64 = 300e9
 const MAXLEN int = 9000
 
+type TimerID int
+
+const (
+	TimerIdle TimerID = iota
+	TimerActive
+)
+
 type FlowKey interface {
 	SrcIP() []byte
 	DstIP() []byte
@@ -180,11 +187,21 @@ func (f *DstIP) Event(new interface{}, when int64) {
 	}
 }
 
+type Proto struct {
+	BaseFeature
+}
+
+func (f *Proto) Event(new interface{}, when int64) {
+	if f.value == nil {
+		f.SetValue(f.flow.Key.Proto(), when)
+	}
+}
+
 type Flow interface {
 	Event(FlowPacket, int64)
 	Expire(int64)
-	AddTimer(string, func(int64), int64)
-	HasTimer(string) bool
+	AddTimer(TimerID, func(int64), int64)
+	HasTimer(TimerID) bool
 	EOF()
 	NextEvent() int64
 	Active() bool
@@ -193,13 +210,13 @@ type Flow interface {
 type FuncEntry struct {
 	Function func(int64)
 	When     int64
-	Name     string
+	ID       TimerID
 }
 
 type BaseFlow struct {
 	Key        FlowKey
 	Table      *FlowTable
-	Timers     map[string]*FuncEntry
+	Timers     map[TimerID]*FuncEntry
 	ExpireNext int64
 	active     bool
 	Features   FeatureList
@@ -237,7 +254,7 @@ func (flow *BaseFlow) Expire(when int64) {
 	for _, v := range values {
 		if v.When <= when {
 			v.Function(v.When)
-			delete(flow.Timers, v.Name)
+			delete(flow.Timers, v.ID)
 		} else {
 			flow.ExpireNext = v.When
 			break
@@ -245,20 +262,20 @@ func (flow *BaseFlow) Expire(when int64) {
 	}
 }
 
-func (flow *BaseFlow) AddTimer(name string, f func(int64), when int64) {
-	if entry, existing := flow.Timers[name]; existing {
+func (flow *BaseFlow) AddTimer(id TimerID, f func(int64), when int64) {
+	if entry, existing := flow.Timers[id]; existing {
 		entry.Function = f
 		entry.When = when
 	} else {
-		flow.Timers[name] = &FuncEntry{f, when, name}
+		flow.Timers[id] = &FuncEntry{f, when, id}
 	}
 	if when < flow.ExpireNext || flow.ExpireNext == 0 {
 		flow.ExpireNext = when
 	}
 }
 
-func (flow *BaseFlow) HasTimer(name string) bool {
-	_, ret := flow.Timers[name]
+func (flow *BaseFlow) HasTimer(id TimerID) bool {
+	_, ret := flow.Timers[id]
 	return ret
 }
 
@@ -277,9 +294,9 @@ func (flow *BaseFlow) EOF() {
 }
 
 func (flow *BaseFlow) Event(packet FlowPacket, when int64) {
-	flow.AddTimer("IDLE", flow.Idle, when+IDLE_TIMEOUT)
-	if !flow.HasTimer("ACTIVE") {
-		flow.AddTimer("ACTIVE", flow.Idle, when+ACTIVE_TIMEOUT)
+	flow.AddTimer(TimerIdle, flow.Idle, when+IDLE_TIMEOUT)
+	if !flow.HasTimer(TimerActive) {
+		flow.AddTimer(TimerActive, flow.Idle, when+ACTIVE_TIMEOUT)
 	}
 	flow.Features.Event(packet, when)
 }
@@ -323,7 +340,7 @@ func NewFlowTable(features func(*BaseFlow) FeatureList) *FlowTable {
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
-	ret := BaseFlow{Key: key, Table: table, Timers: make(map[string]*FuncEntry, 2), active: true}
+	ret := BaseFlow{Key: key, Table: table, Timers: make(map[TimerID]*FuncEntry, 2), active: true}
 	ret.Features = table.features(&ret)
 	ret.Features.Start()
 	return ret
@@ -555,7 +572,10 @@ func main() {
 		a.flow = flow
 		b := &DstIP{}
 		b.flow = flow
+		//		c := &Proto{}
+		//		c.flow = flow
 		features := []Feature{
+			//			c,
 			a,
 			b}
 		ret := FeatureList{
