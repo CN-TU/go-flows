@@ -12,12 +12,16 @@ import (
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/packet"
 )
 
-var format = flag.String("format", "text", "Output format")
-var output = flag.String("output", "-", "Output filename")
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var memprofile = flag.String("memprofile", "", "write mem profile to file")
-var blockprofile = flag.String("blockprofile", "", "write block profile to file")
-var numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
+var (
+	format        = flag.String("format", "text", "Output format")
+	output        = flag.String("output", "-", "Output filename")
+	cpuprofile    = flag.String("cpuprofile", "", "write cpu profile to file")
+	memprofile    = flag.String("memprofile", "", "write mem profile to file")
+	blockprofile  = flag.String("blockprofile", "", "write block profile to file")
+	numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
+	activeTimeout = flag.Uint("active", 1800, "active timeout in seconds")
+	idleTimeout   = flag.Uint("idle", 300, "idle timeout in seconds")
+)
 
 func main() {
 	flag.Parse()
@@ -58,7 +62,7 @@ func main() {
 		ret := flows.NewFeatureList(features, features, features, exporter)
 
 		return ret
-	}, packet.NewFlow)
+	}, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds)
 
 	time := packet.ParsePacket(packets, flowtable)
 

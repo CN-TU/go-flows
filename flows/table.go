@@ -1,15 +1,22 @@
 package flows
 
 type FlowTable struct {
-	flows     map[FlowKey]Flow
-	features  func(*BaseFlow) FeatureList
-	lastEvent Time
-	newflow   func(Event, *FlowTable, FlowKey) Flow
-	eof       bool
+	flows         map[FlowKey]Flow
+	features      func(*BaseFlow) FeatureList
+	lastEvent     Time
+	newflow       func(Event, *FlowTable, FlowKey) Flow
+	activeTimeout Time
+	idleTimeout   Time
+	eof           bool
 }
 
-func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow) *FlowTable {
-	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), features: features, newflow: newflow}
+func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow, activeTimeout, idleTimeout Time) *FlowTable {
+	return &FlowTable{
+		flows:         make(map[FlowKey]Flow, 1000000),
+		features:      features,
+		newflow:       newflow,
+		activeTimeout: activeTimeout,
+		idleTimeout:   idleTimeout}
 }
 
 func (tab *FlowTable) Event(event Event) {

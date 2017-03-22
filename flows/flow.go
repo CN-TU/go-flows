@@ -115,9 +115,9 @@ const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME
 const IDLE_TIMEOUT = 300 * Seconds    //FIXME
 
 func (flow *BaseFlow) Event(event Event, when Time) {
-	flow.AddTimer(TimerIdle, flow.idleEvent, when+IDLE_TIMEOUT)
+	flow.AddTimer(TimerIdle, flow.idleEvent, when+flow.table.idleTimeout)
 	if !flow.HasTimer(TimerActive) {
-		flow.AddTimer(TimerActive, flow.activeEvent, when+ACTIVE_TIMEOUT)
+		flow.AddTimer(TimerActive, flow.activeEvent, when+flow.table.activeTimeout)
 	}
 	flow.features.Event(event, when)
 }

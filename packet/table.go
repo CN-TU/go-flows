@@ -125,9 +125,9 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureList, newflow func(flows.Event, *flows.FlowTable, flows.FlowKey) flows.Flow) EventTable {
+func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureList, newflow func(flows.Event, *flows.FlowTable, flows.FlowKey) flows.Flow, activeTimeout, idleTimeout flows.Time) EventTable {
 	if num == 1 {
-		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow)}
+		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout)}
 		ret.c = make(chan *PacketBuffer, 1000)
 		ret.d = make(chan struct{})
 		go func() {
@@ -144,7 +144,7 @@ func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureL
 	for i := 0; i < num; i++ {
 		c := make(chan *PacketBuffer, 100)
 		ret.chans[i] = c
-		t := flows.NewFlowTable(features, newflow)
+		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout)
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
