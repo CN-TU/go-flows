@@ -25,29 +25,10 @@ type Flow interface {
 	Active() bool
 }
 
-type TimerID int
-
-const (
-	TimerIdle TimerID = iota
-	TimerActive
-)
-
-type FuncEntry struct {
-	Function func(int64)
-	When     int64
-	ID       TimerID
-}
-
-type FuncEntries []*FuncEntry
-
-func (s FuncEntries) Len() int           { return len(s) }
-func (s FuncEntries) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s FuncEntries) Less(i, j int) bool { return s[i].When < s[j].When }
-
 type BaseFlow struct {
 	Key        FlowKey
 	Table      *FlowTable
-	Timers     map[TimerID]*FuncEntry
+	Timers     map[TimerID]*funcEntry
 	ExpireNext int64
 	active     bool
 	Features   FeatureList
@@ -62,17 +43,17 @@ func (flow *BaseFlow) NextEvent() int64 { return flow.ExpireNext }
 func (flow *BaseFlow) Active() bool     { return flow.active }
 
 func (flow *BaseFlow) Expire(when int64) {
-	var values FuncEntries
+	var values funcEntries
 	for _, v := range flow.Timers {
 		values = append(values, v)
 	}
 	sort.Sort(values)
 	for _, v := range values {
-		if v.When <= when {
-			v.Function(v.When)
-			delete(flow.Timers, v.ID)
+		if v.when <= when {
+			v.function(v.when)
+			delete(flow.Timers, v.id)
 		} else {
-			flow.ExpireNext = v.When
+			flow.ExpireNext = v.when
 			break
 		}
 	}
@@ -80,10 +61,10 @@ func (flow *BaseFlow) Expire(when int64) {
 
 func (flow *BaseFlow) AddTimer(id TimerID, f func(int64), when int64) {
 	if entry, existing := flow.Timers[id]; existing {
-		entry.Function = f
-		entry.When = when
+		entry.function = f
+		entry.when = when
 	} else {
-		flow.Timers[id] = &FuncEntry{f, when, id}
+		flow.Timers[id] = &funcEntry{f, when, id}
 	}
 	if when < flow.ExpireNext || flow.ExpireNext == 0 {
 		flow.ExpireNext = when
@@ -126,7 +107,7 @@ func (flow *BaseFlow) Event(packet FlowPacket, when int64) {
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
-	ret := BaseFlow{Key: key, Table: table, Timers: make(map[TimerID]*FuncEntry, 2), active: true}
+	ret := BaseFlow{Key: key, Table: table, Timers: make(map[TimerID]*funcEntry, 2), active: true}
 	ret.Features = table.features(&ret)
 	ret.Features.Start()
 	return ret
