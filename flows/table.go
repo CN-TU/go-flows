@@ -5,15 +5,16 @@ type FlowTable struct {
 	features  func(*BaseFlow) FeatureList
 	eof       bool
 	lastEvent Time
-	newflow   func(FlowPacket, *FlowTable, FlowKey) Flow
+	newflow   func(Event, *FlowTable, FlowKey) Flow
 }
 
-func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(FlowPacket, *FlowTable, FlowKey) Flow) *FlowTable {
+func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow) *FlowTable {
 	return &FlowTable{flows: make(map[FlowKey]Flow, 1000000), features: features, newflow: newflow}
 }
 
-func (tab *FlowTable) Event(packet FlowPacket, key FlowKey) {
-	when := Time(packet.Metadata().Timestamp.UnixNano())
+func (tab *FlowTable) Event(event Event) {
+	when := event.Timestamp()
+	key := event.Key()
 
 	if tab.lastEvent < when {
 		for _, elem := range tab.flows {
@@ -32,10 +33,10 @@ func (tab *FlowTable) Event(packet FlowPacket, key FlowKey) {
 		}
 	}
 	if !ok {
-		elem = tab.newflow(packet, tab, key)
+		elem = tab.newflow(event, tab, key)
 		tab.flows[key] = elem
 	}
-	elem.Event(packet, when)
+	elem.Event(event, when)
 }
 
 func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {

@@ -2,8 +2,6 @@ package flows
 
 import (
 	"sort"
-
-	"github.com/google/gopacket"
 )
 
 type FlowKey interface {
@@ -16,7 +14,7 @@ type FlowKey interface {
 }
 
 type Flow interface {
-	Event(FlowPacket, Time)
+	Event(Event, Time)
 	Expire(Time)
 	AddTimer(TimerID, TimerCallback, Time)
 	HasTimer(TimerID) bool
@@ -93,17 +91,12 @@ func (flow *BaseFlow) EOF() {
 const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME
 const IDLE_TIMEOUT = 300 * Seconds    //FIXME
 
-type FlowPacket struct { //FIXME
-	gopacket.Packet
-	Forward bool
-}
-
-func (flow *BaseFlow) Event(packet FlowPacket, when Time) {
+func (flow *BaseFlow) Event(event Event, when Time) {
 	flow.AddTimer(TimerIdle, flow.Idle, when+IDLE_TIMEOUT)
 	if !flow.HasTimer(TimerActive) {
 		flow.AddTimer(TimerActive, flow.Idle, when+ACTIVE_TIMEOUT)
 	}
-	flow.features.Event(packet, when)
+	flow.features.Event(event, when)
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {

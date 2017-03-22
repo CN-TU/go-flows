@@ -14,14 +14,23 @@ import (
 const MAXLEN int = 9000 //FIXME
 
 type PacketBuffer struct {
-	buffer [MAXLEN]byte
-	packet flows.FlowPacket
-	key    flows.FlowKey
-	empty  *chan *PacketBuffer
+	buffer  [MAXLEN]byte
+	packet  gopacket.Packet
+	key     flows.FlowKey
+	empty   *chan *PacketBuffer
+	Forward bool
 }
 
 func (pb *PacketBuffer) Recycle() {
 	*pb.empty <- pb
+}
+
+func (pb *PacketBuffer) Key() flows.FlowKey {
+	return pb.key
+}
+
+func (pb *PacketBuffer) Timestamp() flows.Time {
+	return flows.Time(pb.packet.Metadata().Timestamp.UnixNano())
 }
 
 func ReadFiles(fnames []string) <-chan *PacketBuffer {
@@ -55,7 +64,7 @@ func ReadFiles(fnames []string) <-chan *PacketBuffer {
 				if plen > MAXLEN {
 					plen = MAXLEN
 				}
-				buffer.packet.Packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
+				buffer.packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
 				m := buffer.packet.Metadata()
 				m.CaptureInfo = ci
 				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || plen < len(data)
@@ -73,7 +82,7 @@ func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) {
 	go func() {
 		for packet := range in {
 			packet.packet.TransportLayer()
-			packet.key, packet.packet.Forward = fivetuple(packet.packet)
+			packet.key, packet.Forward = fivetuple(packet.packet)
 			if packet.key != nil {
 				flowtable.Event(packet)
 			} else {
@@ -112,7 +121,7 @@ func (sft *SingleFlowTable) EOF() {
 	sft.table.EOF()
 }
 
-func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureList, newflow func(flows.FlowPacket, *flows.FlowTable, flows.FlowKey) flows.Flow) EventTable {
+func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureList, newflow func(flows.Event, *flows.FlowTable, flows.FlowKey) flows.Flow) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow)}
 		ret.c = make(chan *PacketBuffer, 1000)
@@ -120,7 +129,7 @@ func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureL
 		go func() {
 			t := ret.table
 			for buffer := range ret.c {
-				t.Event(buffer.packet, buffer.key)
+				t.Event(buffer)
 				buffer.Recycle()
 			}
 			close(ret.d)
@@ -137,7 +146,7 @@ func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureL
 		go func() {
 			defer ret.wg.Done()
 			for buffer := range c {
-				t.Event(buffer.packet, buffer.key)
+				t.Event(buffer)
 				buffer.Recycle()
 			}
 		}()

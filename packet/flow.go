@@ -117,21 +117,22 @@ type UniFlow struct {
 	flows.BaseFlow
 }
 
-func NewFlow(packet flows.FlowPacket, table *flows.FlowTable, key flows.FlowKey) flows.Flow {
-	tp := packet.TransportLayer()
+func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows.Flow {
+	tp := event.(*PacketBuffer).packet.TransportLayer()
 	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 		return &TCPFlow{BaseFlow: flows.NewBaseFlow(table, key)}
 	}
 	return &UniFlow{flows.NewBaseFlow(table, key)}
 }
 
-func (flow *TCPFlow) Event(packet flows.FlowPacket, when flows.Time) {
-	flow.BaseFlow.Event(packet, when)
-	tcp := packet.TransportLayer().(*layers.TCP)
+func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
+	flow.BaseFlow.Event(event, when)
+	buffer := event.(*PacketBuffer)
+	tcp := buffer.packet.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export("RST", when)
 	}
-	if packet.Forward {
+	if buffer.Forward {
 		if tcp.FIN {
 			flow.srcFIN = true
 		}
