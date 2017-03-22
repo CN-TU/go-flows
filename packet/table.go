@@ -19,6 +19,7 @@ type PacketBuffer struct {
 	key     flows.FlowKey
 	empty   *chan *PacketBuffer
 	Forward bool
+	time    flows.Time
 }
 
 func (pb *PacketBuffer) Recycle() {
@@ -30,7 +31,7 @@ func (pb *PacketBuffer) Key() flows.FlowKey {
 }
 
 func (pb *PacketBuffer) Timestamp() flows.Time {
-	return flows.Time(pb.packet.Metadata().Timestamp.UnixNano())
+	return pb.time
 }
 
 func ReadFiles(fnames []string) <-chan *PacketBuffer {
@@ -77,26 +78,29 @@ func ReadFiles(fnames []string) <-chan *PacketBuffer {
 	return result
 }
 
-func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) {
-	c := make(chan struct{})
+func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) flows.Time {
+	c := make(chan flows.Time)
 	go func() {
+		var time flows.Time
 		for packet := range in {
 			packet.packet.TransportLayer()
 			packet.key, packet.Forward = fivetuple(packet.packet)
+			time = flows.Time(packet.packet.Metadata().Timestamp.UnixNano())
+			packet.time = time
 			if packet.key != nil {
 				flowtable.Event(packet)
 			} else {
 				packet.Recycle()
 			}
 		}
-		close(c)
+		c <- time
 	}()
-	<-c
+	return <-c
 }
 
 type EventTable interface {
 	Event(buffer *PacketBuffer)
-	EOF()
+	EOF(flows.Time)
 }
 
 type ParallelFlowTable struct {
@@ -115,10 +119,10 @@ func (sft *SingleFlowTable) Event(buffer *PacketBuffer) {
 	sft.c <- buffer
 }
 
-func (sft *SingleFlowTable) EOF() {
+func (sft *SingleFlowTable) EOF(now flows.Time) {
 	close(sft.c)
 	<-sft.d
-	sft.table.EOF()
+	sft.table.EOF(now)
 }
 
 func NewParallelFlowTable(num int, features func(*flows.BaseFlow) flows.FeatureList, newflow func(flows.Event, *flows.FlowTable, flows.FlowKey) flows.Flow) EventTable {
@@ -159,7 +163,7 @@ func (pft *ParallelFlowTable) Event(buffer *PacketBuffer) {
 	pft.chans[h] <- buffer
 }
 
-func (pft *ParallelFlowTable) EOF() {
+func (pft *ParallelFlowTable) EOF(now flows.Time) {
 	for _, c := range pft.chans {
 		close(c)
 	}
@@ -168,7 +172,7 @@ func (pft *ParallelFlowTable) EOF() {
 		pft.wg.Add(1)
 		go func(table *flows.FlowTable) {
 			defer pft.wg.Done()
-			table.EOF()
+			table.EOF(now)
 		}(t)
 	}
 	pft.wg.Wait()

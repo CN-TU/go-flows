@@ -45,11 +45,11 @@ func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
 	}
 }
 
-func (tab *FlowTable) EOF() {
+func (tab *FlowTable) EOF(now Time) {
 	tab.eof = true
 	for _, v := range tab.flows {
 		// check for timeout!!
-		v.EOF()
+		v.EOF(now)
 	}
 	tab.flows = make(map[FlowKey]Flow)
 	tab.eof = false

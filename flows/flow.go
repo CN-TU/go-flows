@@ -18,7 +18,7 @@ type Flow interface {
 	Expire(Time)
 	AddTimer(TimerID, TimerCallback, Time)
 	HasTimer(TimerID) bool
-	EOF()
+	EOF(Time)
 	NextEvent() Time
 	Active() bool
 }
@@ -84,8 +84,8 @@ func (flow *BaseFlow) Idle(now Time) {
 	flow.Export("IDLE", now)
 }
 
-func (flow *BaseFlow) EOF() {
-	flow.Export("EOF", -1)
+func (flow *BaseFlow) EOF(now Time) {
+	flow.Export("EOF", now)
 }
 
 const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME

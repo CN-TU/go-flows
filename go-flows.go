@@ -60,7 +60,7 @@ func main() {
 		return ret
 	}, packet.NewFlow)
 
-	packet.ParsePacket(packets, flowtable)
+	time := packet.ParsePacket(packets, flowtable)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
@@ -73,6 +73,6 @@ func main() {
 		}
 		f.Close()
 	}
-	flowtable.EOF()
+	flowtable.EOF(time)
 	exporter.Finish()
 }
