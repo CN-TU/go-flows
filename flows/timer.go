@@ -4,11 +4,11 @@ type Time int64
 
 const (
 	NanoSeconds  Time = 1
-	MicroSeconds      = 1e3 * NanoSeconds
-	MilliSeconds      = 1e3 * MicroSeconds
-	Seconds           = 1e3 * MilliSeconds
-	Minutes           = 60 * Seconds
-	Hours             = 60 * Minutes
+	MicroSeconds Time = 1000 * NanoSeconds
+	MilliSeconds Time = 1000 * MicroSeconds
+	Seconds      Time = 1000 * MilliSeconds
+	Minutes      Time = 60 * Seconds
+	Hours        Time = 60 * Minutes
 )
 
 type TimerID int
