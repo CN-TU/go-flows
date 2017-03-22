@@ -41,7 +41,7 @@ func (f *BaseFeature) Stop() {
 }
 
 func (f *BaseFeature) Key() FlowKey {
-	return f.flow.Key
+	return f.flow.key
 }
 
 func NewBaseFeature(flow *BaseFlow) BaseFeature {
