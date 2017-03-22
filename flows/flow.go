@@ -4,6 +4,33 @@ import (
 	"sort"
 )
 
+type FlowEndReason byte
+
+const (
+	FlowEndReasonIdle            FlowEndReason = 1
+	FlowEndReasonActive          FlowEndReason = 2
+	FlowEndReasonEnd             FlowEndReason = 3
+	FlowEndReasonForcedEnd       FlowEndReason = 4
+	FlowEndReasonLackOfResources FlowEndReason = 5
+)
+
+func (fe FlowEndReason) String() string {
+	switch fe {
+	case FlowEndReasonIdle:
+		return "IdleTimeout"
+	case FlowEndReasonActive:
+		return "ActiveTimeout"
+	case FlowEndReasonEnd:
+		return "EndOfFlow"
+	case FlowEndReasonForcedEnd:
+		return "ForcedEndOfFlow"
+	case FlowEndReasonLackOfResources:
+		return "LackOfResources"
+	default:
+		return "UnknownEndReason"
+	}
+}
+
 type FlowKey interface {
 	SrcIP() []byte
 	DstIP() []byte
@@ -74,27 +101,23 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return ret
 }
 
-func (flow *BaseFlow) Export(reason string, when Time) {
+func (flow *BaseFlow) Export(reason FlowEndReason, when Time) {
 	flow.features.Stop()
 	flow.features.Export(reason, when)
 	flow.Stop()
 }
 
-func (flow *BaseFlow) Idle(now Time) {
-	flow.Export("IDLE", now)
-}
-
-func (flow *BaseFlow) EOF(now Time) {
-	flow.Export("EOF", now)
-}
+func (flow *BaseFlow) idleEvent(now Time)   { flow.Export(FlowEndReasonIdle, now) }
+func (flow *BaseFlow) activeEvent(now Time) { flow.Export(FlowEndReasonActive, now) }
+func (flow *BaseFlow) EOF(now Time)         { flow.Export(FlowEndReasonForcedEnd, now) }
 
 const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME
 const IDLE_TIMEOUT = 300 * Seconds    //FIXME
 
 func (flow *BaseFlow) Event(event Event, when Time) {
-	flow.AddTimer(TimerIdle, flow.Idle, when+IDLE_TIMEOUT)
+	flow.AddTimer(TimerIdle, flow.idleEvent, when+IDLE_TIMEOUT)
 	if !flow.HasTimer(TimerActive) {
-		flow.AddTimer(TimerActive, flow.Idle, when+ACTIVE_TIMEOUT)
+		flow.AddTimer(TimerActive, flow.activeEvent, when+ACTIVE_TIMEOUT)
 	}
 	flow.features.Event(event, when)
 }

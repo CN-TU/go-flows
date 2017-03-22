@@ -1,6 +1,6 @@
 package flows
 
 type Exporter interface {
-	Export([]Feature, string, Time)
+	Export([]Feature, FlowEndReason, Time)
 	Finish()
 }

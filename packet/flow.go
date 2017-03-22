@@ -130,7 +130,7 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	buffer := event.(*PacketBuffer)
 	tcp := buffer.packet.TransportLayer().(*layers.TCP)
 	if tcp.RST {
-		flow.Export("RST", when)
+		flow.Export(flows.FlowEndReasonEnd, when)
 	}
 	if buffer.Forward {
 		if tcp.FIN {
@@ -149,6 +149,6 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	}
 
 	if flow.srcFIN && flow.srcACK && flow.dstFIN && flow.dstACK {
-		flow.Export("FIN", when)
+		flow.Export(flows.FlowEndReasonEnd, when)
 	}
 }

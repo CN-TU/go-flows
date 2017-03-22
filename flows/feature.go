@@ -73,7 +73,7 @@ func (list *FeatureList) Event(data interface{}, when Time) {
 	}
 }
 
-func (list *FeatureList) Export(why string, when Time) {
+func (list *FeatureList) Export(why FlowEndReason, when Time) {
 	list.exporter.Export(list.export, why, when)
 }
 

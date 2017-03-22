@@ -16,7 +16,7 @@ type printExporter struct {
 }
 
 //Export export given features
-func (pe *printExporter) Export(features []flows.Feature, reason string, when flows.Time) {
+func (pe *printExporter) Export(features []flows.Feature, reason flows.FlowEndReason, when flows.Time) {
 	n := len(features)
 	var list = make([]interface{}, n+2)
 	for i, elem := range features {
