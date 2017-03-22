@@ -125,7 +125,7 @@ func NewFlow(packet flows.FlowPacket, table *flows.FlowTable, key flows.FlowKey)
 	return &UniFlow{flows.NewBaseFlow(table, key)}
 }
 
-func (flow *TCPFlow) Event(packet flows.FlowPacket, when int64) {
+func (flow *TCPFlow) Event(packet flows.FlowPacket, when flows.Time) {
 	flow.BaseFlow.Event(packet, when)
 	tcp := packet.TransportLayer().(*layers.TCP)
 	if tcp.RST {

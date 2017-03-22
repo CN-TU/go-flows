@@ -1,9 +1,9 @@
 package flows
 
 type Feature interface {
-	Event(interface{}, int64)
+	Event(interface{}, Time)
 	Value() interface{}
-	SetValue(interface{}, int64)
+	SetValue(interface{}, Time)
 	Start()
 	Stop()
 	Key() FlowKey
@@ -15,7 +15,7 @@ type BaseFeature struct {
 	flow      *BaseFlow
 }
 
-func (f *BaseFeature) Event(interface{}, int64) {
+func (f *BaseFeature) Event(interface{}, Time) {
 
 }
 
@@ -23,7 +23,7 @@ func (f *BaseFeature) Value() interface{} {
 	return f.value
 }
 
-func (f *BaseFeature) SetValue(new interface{}, when int64) {
+func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	f.value = new
 	if new != nil {
 		for _, v := range f.dependent {
@@ -67,13 +67,13 @@ func (list *FeatureList) Stop() {
 	}
 }
 
-func (list *FeatureList) Event(data interface{}, when int64) {
+func (list *FeatureList) Event(data interface{}, when Time) {
 	for _, feature := range list.event {
 		feature.Event(data, when)
 	}
 }
 
-func (list *FeatureList) Export(why string, when int64) {
+func (list *FeatureList) Export(why string, when Time) {
 	list.exporter.Export(list.export, why, when)
 }
 

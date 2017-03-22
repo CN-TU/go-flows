@@ -16,12 +16,12 @@ type FlowKey interface {
 }
 
 type Flow interface {
-	Event(FlowPacket, int64)
-	Expire(int64)
-	AddTimer(TimerID, TimerCallback, int64)
+	Event(FlowPacket, Time)
+	Expire(Time)
+	AddTimer(TimerID, TimerCallback, Time)
 	HasTimer(TimerID) bool
 	EOF()
-	NextEvent() int64
+	NextEvent() Time
 	Active() bool
 }
 
@@ -29,7 +29,7 @@ type BaseFlow struct {
 	key        FlowKey
 	table      *FlowTable
 	timers     map[TimerID]*funcEntry
-	expireNext int64
+	expireNext Time
 	active     bool
 	features   FeatureList
 }
@@ -39,10 +39,10 @@ func (flow *BaseFlow) Stop() {
 	flow.table.Remove(flow.key, flow)
 }
 
-func (flow *BaseFlow) NextEvent() int64 { return flow.expireNext }
-func (flow *BaseFlow) Active() bool     { return flow.active }
+func (flow *BaseFlow) NextEvent() Time { return flow.expireNext }
+func (flow *BaseFlow) Active() bool    { return flow.active }
 
-func (flow *BaseFlow) Expire(when int64) {
+func (flow *BaseFlow) Expire(when Time) {
 	var values funcEntries
 	for _, v := range flow.timers {
 		values = append(values, v)
@@ -59,7 +59,7 @@ func (flow *BaseFlow) Expire(when int64) {
 	}
 }
 
-func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when int64) {
+func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
 	if entry, existing := flow.timers[id]; existing {
 		entry.function = f
 		entry.when = when
@@ -76,13 +76,13 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return ret
 }
 
-func (flow *BaseFlow) Export(reason string, when int64) {
+func (flow *BaseFlow) Export(reason string, when Time) {
 	flow.features.Stop()
 	flow.features.Export(reason, when)
 	flow.Stop()
 }
 
-func (flow *BaseFlow) Idle(now int64) {
+func (flow *BaseFlow) Idle(now Time) {
 	flow.Export("IDLE", now)
 }
 
@@ -90,15 +90,15 @@ func (flow *BaseFlow) EOF() {
 	flow.Export("EOF", -1)
 }
 
-const ACTIVE_TIMEOUT int64 = 1800e9 //FIXME
-const IDLE_TIMEOUT int64 = 300e9    //FIXME
+const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME
+const IDLE_TIMEOUT = 300 * Seconds    //FIXME
 
 type FlowPacket struct { //FIXME
 	gopacket.Packet
 	Forward bool
 }
 
-func (flow *BaseFlow) Event(packet FlowPacket, when int64) {
+func (flow *BaseFlow) Event(packet FlowPacket, when Time) {
 	flow.AddTimer(TimerIdle, flow.Idle, when+IDLE_TIMEOUT)
 	if !flow.HasTimer(TimerActive) {
 		flow.AddTimer(TimerActive, flow.Idle, when+ACTIVE_TIMEOUT)

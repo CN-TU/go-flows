@@ -1,5 +1,16 @@
 package flows
 
+type Time int64
+
+const (
+	NanoSeconds  Time = 1
+	MicroSeconds      = 1e3 * NanoSeconds
+	MilliSeconds      = 1e3 * MicroSeconds
+	Seconds           = 1e3 * MilliSeconds
+	Minutes           = 60 * Seconds
+	Hours             = 60 * Minutes
+)
+
 type TimerID int
 
 const (
@@ -7,11 +18,11 @@ const (
 	TimerActive
 )
 
-type TimerCallback func(int64)
+type TimerCallback func(Time)
 
 type funcEntry struct {
 	function TimerCallback
-	when     int64
+	when     Time
 	id       TimerID
 }
 
