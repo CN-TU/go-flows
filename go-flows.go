@@ -11,6 +11,8 @@ import (
 	"runtime/pprof"
 	"sort"
 
+	"sync"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -21,6 +23,7 @@ var output = flag.String("output", "-", "Output filename")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var memprofile = flag.String("memprofile", "", "write mem profile to file")
 var blockprofile = flag.String("blockprofile", "", "write block profile to file")
+var numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
 
 const ACTIVE_TIMEOUT int64 = 1800e9
 const IDLE_TIMEOUT int64 = 300e9
@@ -33,12 +36,25 @@ const (
 	TimerActive
 )
 
+func fnvHash(s []byte) (h uint64) {
+	h = fnvBasis
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime
+	}
+	return
+}
+
+const fnvBasis = 14695981039346656037
+const fnvPrime = 1099511628211
+
 type FlowKey interface {
 	SrcIP() []byte
 	DstIP() []byte
 	Proto() []byte
 	SrcPort() []byte
 	DstPort() []byte
+	Hash() uint64
 }
 
 // src 4 dst 4 proto 1 src 2 dst 2
@@ -49,6 +65,7 @@ func (t FiveTuple4) DstIP() []byte   { return t[4:8] }
 func (t FiveTuple4) Proto() []byte   { return t[8:9] }
 func (t FiveTuple4) SrcPort() []byte { return t[9:11] }
 func (t FiveTuple4) DstPort() []byte { return t[11:13] }
+func (t FiveTuple4) Hash() uint64    { return fnvHash(t[:]) }
 
 // src 16 dst 16 proto 1 src 2 dst 2
 type FiveTuple6 [37]byte
@@ -58,6 +75,7 @@ func (t FiveTuple6) DstIP() []byte   { return t[16:32] }
 func (t FiveTuple6) Proto() []byte   { return t[32:33] }
 func (t FiveTuple6) SrcPort() []byte { return t[33:35] }
 func (t FiveTuple6) DstPort() []byte { return t[35:37] }
+func (t FiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
 
 var emptyPort = make([]byte, 2)
 
@@ -304,7 +322,7 @@ func (flow *BaseFlow) Event(packet FlowPacket, when int64) {
 
 func (flow *TCPFlow) Event(packet FlowPacket, when int64) {
 	flow.BaseFlow.Event(packet, when)
-	tcp := packet.Layer(layers.LayerTypeTCP).(*layers.TCP)
+	tcp := packet.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export("RST", when)
 	}
@@ -348,7 +366,8 @@ func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
 }
 
 func NewFlow(packet gopacket.Packet, table *FlowTable, key FlowKey) Flow {
-	if packet.Layer(layers.LayerTypeTCP) != nil {
+	tp := packet.TransportLayer()
+	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 		return &TCPFlow{BaseFlow: NewBaseFlow(table, key)}
 	}
 	return &UniFlow{NewBaseFlow(table, key)}
@@ -389,6 +408,7 @@ func (tab *FlowTable) Remove(key FlowKey, entry *BaseFlow) {
 func (tab *FlowTable) EOF() {
 	tab.eof = true
 	for _, v := range tab.flows {
+		// check for timeout!!
 		v.EOF()
 	}
 	tab.flows = make(map[FlowKey]Flow)
@@ -404,6 +424,11 @@ type PacketBuffer struct {
 	buffer [MAXLEN]byte
 	packet FlowPacket
 	key    FlowKey
+	empty  *chan *PacketBuffer
+}
+
+func (pb *PacketBuffer) Recycle() {
+	*pb.empty <- pb
 }
 
 type Exporter interface {
@@ -488,14 +513,14 @@ func (list *FeatureList) Export(why string, when int64) {
 	list.exporter.Export(list.export, why, when)
 }
 
-func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
+func readFiles(fnames []string) <-chan *PacketBuffer {
 	result := make(chan *PacketBuffer, 1000)
 	empty := make(chan *PacketBuffer, 1000)
 
 	go func() {
 		defer close(result)
 		for i := 0; i < 1000; i++ {
-			empty <- &PacketBuffer{}
+			empty <- &PacketBuffer{empty: &empty}
 		}
 		options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 		for _, fname := range fnames {
@@ -529,22 +554,104 @@ func readFiles(fnames []string) (<-chan *PacketBuffer, chan<- *PacketBuffer) {
 		}
 	}()
 
-	return result, empty
+	return result
 }
 
-func parsePacket(in <-chan *PacketBuffer) <-chan *PacketBuffer {
-	out := make(chan *PacketBuffer, 1000)
-
+func parsePacket(in <-chan *PacketBuffer, flowtable EventTable) {
+	c := make(chan struct{})
 	go func() {
 		for packet := range in {
 			packet.packet.TransportLayer()
 			packet.key, packet.packet.Forward = fivetuple(packet.packet)
-			out <- packet
+			if packet.key != nil {
+				flowtable.Event(packet)
+			} else {
+				packet.Recycle()
+			}
 		}
-		close(out)
+		close(c)
 	}()
+	<-c
+}
 
-	return out
+type EventTable interface {
+	Event(buffer *PacketBuffer)
+	EOF()
+}
+
+type ParallelFlowTable struct {
+	tables []*FlowTable
+	chans  []chan *PacketBuffer
+	wg     sync.WaitGroup
+}
+
+type SingleFlowTable struct {
+	table *FlowTable
+	c     chan *PacketBuffer
+	d     chan struct{}
+}
+
+func (sft *SingleFlowTable) Event(buffer *PacketBuffer) {
+	sft.c <- buffer
+}
+
+func (sft *SingleFlowTable) EOF() {
+	close(sft.c)
+	<-sft.d
+	sft.table.EOF()
+}
+
+func NewParallelFlowTable(num int, features func(*BaseFlow) FeatureList) EventTable {
+	if num == 1 {
+		ret := &SingleFlowTable{table: NewFlowTable(features)}
+		ret.c = make(chan *PacketBuffer, 1000)
+		ret.d = make(chan struct{})
+		go func() {
+			t := ret.table
+			for buffer := range ret.c {
+				t.Event(buffer.packet, buffer.key)
+				buffer.Recycle()
+			}
+			close(ret.d)
+		}()
+		return ret
+	}
+	ret := &ParallelFlowTable{tables: make([]*FlowTable, num), chans: make([]chan *PacketBuffer, num)}
+	for i := 0; i < num; i++ {
+		c := make(chan *PacketBuffer, 100)
+		ret.chans[i] = c
+		t := NewFlowTable(features)
+		ret.tables[i] = t
+		ret.wg.Add(1)
+		go func() {
+			defer ret.wg.Done()
+			for buffer := range c {
+				t.Event(buffer.packet, buffer.key)
+				buffer.Recycle()
+			}
+		}()
+	}
+	return ret
+}
+
+func (pft *ParallelFlowTable) Event(buffer *PacketBuffer) {
+	h := buffer.key.Hash() % uint64(len(pft.tables))
+	pft.chans[h] <- buffer
+}
+
+func (pft *ParallelFlowTable) EOF() {
+	for _, c := range pft.chans {
+		close(c)
+	}
+	pft.wg.Wait()
+	for _, t := range pft.tables {
+		pft.wg.Add(1)
+		go func(table *FlowTable) {
+			defer pft.wg.Done()
+			table.EOF()
+		}(t)
+	}
+	pft.wg.Wait()
 }
 
 func main() {
@@ -572,11 +679,9 @@ func main() {
 		defer pprof.Lookup("block").WriteTo(f, 0)
 	}
 
-	packets, empty := readFiles(flag.Args())
-	parsed := parsePacket(packets)
+	packets := readFiles(flag.Args())
 
-	defer exporter.Finish()
-	flowtable := NewFlowTable(func(flow *BaseFlow) FeatureList {
+	flowtable := NewParallelFlowTable(int(*numProcessing), func(flow *BaseFlow) FeatureList {
 		a := &SrcIP{}
 		a.flow = flow
 		b := &DstIP{}
@@ -595,14 +700,8 @@ func main() {
 
 		return ret
 	})
-	defer flowtable.EOF()
 
-	for buffer := range parsed {
-		if buffer.key != nil {
-			flowtable.Event(buffer.packet, buffer.key)
-		}
-		empty <- buffer
-	}
+	parsePacket(packets, flowtable)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
@@ -615,4 +714,6 @@ func main() {
 		}
 		f.Close()
 	}
+	flowtable.EOF()
+	exporter.Finish()
 }
