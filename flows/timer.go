@@ -7,7 +7,7 @@ import (
 type Time int64
 
 func (t Time) String() string {
-	return time.Unix(0, int64(t)).String()
+	return time.Unix(0, int64(t)).UTC().String()
 }
 
 const (
