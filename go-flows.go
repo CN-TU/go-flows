@@ -62,7 +62,7 @@ func main() {
 		ret := flows.NewFeatureList(features, features, features, exporter)
 
 		return ret
-	}, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds)
+	}, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 
 	time := packet.ParsePacket(packets, flowtable)
 

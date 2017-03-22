@@ -7,16 +7,18 @@ type FlowTable struct {
 	newflow       func(Event, *FlowTable, FlowKey) Flow
 	activeTimeout Time
 	idleTimeout   Time
+	checkpoint    Time
 	eof           bool
 }
 
-func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow, activeTimeout, idleTimeout Time) *FlowTable {
+func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]Flow, 1000000),
 		features:      features,
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
-		idleTimeout:   idleTimeout}
+		idleTimeout:   idleTimeout,
+		checkpoint:    checkpoint}
 }
 
 func (tab *FlowTable) Event(event Event) {
@@ -29,7 +31,7 @@ func (tab *FlowTable) Event(event Event) {
 				elem.Expire(when)
 			}
 		}
-		tab.lastEvent = when + 100*Seconds
+		tab.lastEvent = when + tab.checkpoint
 	}
 	// event every n seconds
 	elem, ok := tab.flows[key]
