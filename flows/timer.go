@@ -1,6 +1,14 @@
 package flows
 
+import (
+	"time"
+)
+
 type Time int64
+
+func (t Time) String() string {
+	return time.Unix(0, int64(t)).String()
+}
 
 const (
 	NanoSeconds  Time = 1
