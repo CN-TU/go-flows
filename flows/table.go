@@ -3,9 +3,9 @@ package flows
 type FlowTable struct {
 	flows     map[FlowKey]Flow
 	features  func(*BaseFlow) FeatureList
-	eof       bool
 	lastEvent Time
 	newflow   func(Event, *FlowTable, FlowKey) Flow
+	eof       bool
 }
 
 func NewFlowTable(features func(*BaseFlow) FeatureList, newflow func(Event, *FlowTable, FlowKey) Flow) *FlowTable {

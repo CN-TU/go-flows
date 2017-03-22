@@ -14,12 +14,12 @@ import (
 const MAXLEN int = 9000 //FIXME
 
 type PacketBuffer struct {
-	buffer  [MAXLEN]byte
 	packet  gopacket.Packet
 	key     flows.FlowKey
 	empty   *chan *PacketBuffer
-	Forward bool
 	time    flows.Time
+	Forward bool
+	buffer  [MAXLEN]byte
 }
 
 func (pb *PacketBuffer) Recycle() {

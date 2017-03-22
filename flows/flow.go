@@ -28,8 +28,8 @@ type BaseFlow struct {
 	table      *FlowTable
 	timers     map[TimerID]*funcEntry
 	expireNext Time
-	active     bool
 	features   FeatureList
+	active     bool
 }
 
 func (flow *BaseFlow) Stop() {
