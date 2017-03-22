@@ -7,8 +7,10 @@ const (
 	TimerActive
 )
 
+type TimerCallback func(int64)
+
 type funcEntry struct {
-	function func(int64)
+	function TimerCallback
 	when     int64
 	id       TimerID
 }

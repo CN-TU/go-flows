@@ -18,7 +18,7 @@ type FlowKey interface {
 type Flow interface {
 	Event(FlowPacket, int64)
 	Expire(int64)
-	AddTimer(TimerID, func(int64), int64)
+	AddTimer(TimerID, TimerCallback, int64)
 	HasTimer(TimerID) bool
 	EOF()
 	NextEvent() int64
@@ -59,7 +59,7 @@ func (flow *BaseFlow) Expire(when int64) {
 	}
 }
 
-func (flow *BaseFlow) AddTimer(id TimerID, f func(int64), when int64) {
+func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when int64) {
 	if entry, existing := flow.timers[id]; existing {
 		entry.function = f
 		entry.when = when
