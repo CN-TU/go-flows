@@ -12,7 +12,6 @@ import (
 type printExporter struct {
 	exportlist chan []interface{}
 	finished   chan struct{}
-	stop       chan struct{}
 }
 
 //Export export given features
@@ -29,13 +28,13 @@ func (pe *printExporter) Export(features []flows.Feature, reason flows.FlowEndRe
 
 //Finish Write outstanding data and wait for completion
 func (pe *printExporter) Finish() {
-	close(pe.stop)
+	close(pe.exportlist)
 	<-pe.finished
 }
 
 //NewPrintExporter Create a new exporter that just writes the features to filename (- for stdout)
 func NewPrintExporter(filename string) flows.Exporter {
-	ret := &printExporter{make(chan []interface{}, 1000), make(chan struct{}), make(chan struct{})}
+	ret := &printExporter{make(chan []interface{}, 1000), make(chan struct{})}
 	var outfile io.Writer
 	if filename == "-" {
 		outfile = os.Stdout
@@ -48,13 +47,8 @@ func NewPrintExporter(filename string) flows.Exporter {
 	}
 	go func() {
 		defer close(ret.finished)
-		for {
-			select {
-			case data := <-ret.exportlist:
-				fmt.Fprintln(outfile, data...)
-			case <-ret.stop:
-				return
-			}
+		for data := range ret.exportlist {
+			fmt.Fprintln(outfile, data...)
 		}
 	}()
 	return ret
