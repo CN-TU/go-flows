@@ -46,30 +46,19 @@ func fivetuple(packet gopacket.Packet) (flows.FlowKey, bool) {
 		return nil, false
 	}
 	transport := packet.TransportLayer()
-	var srcPortR, dstPortR []byte
-	var proto gopacket.LayerType
-	isicmp := false
 	if transport == nil {
-		if icmp := packet.LayerClass(layers.LayerClassIPControl); icmp != nil {
-			srcPortR = emptyPort
-			dstPortR = icmp.LayerContents()[0:2]
-			proto = icmp.LayerType()
-			isicmp = true
-		} else {
-			return nil, false
-		}
-	} else {
-		srcPort, dstPort := transport.TransportFlow().Endpoints()
-		srcPortR = srcPort.Raw()
-		dstPortR = dstPort.Raw()
-		proto = transport.LayerType()
+		return nil, false
 	}
+	srcPort, dstPort := transport.TransportFlow().Endpoints()
+	srcPortR := srcPort.Raw()
+	dstPortR := dstPort.Raw()
+	proto := transport.LayerType()
 	srcIP, dstIP := network.NetworkFlow().Endpoints()
 	forward := true
 	if dstIP.LessThan(srcIP) {
 		forward = false
 		srcIP, dstIP = dstIP, srcIP
-		if !isicmp {
+		if !layers.LayerClassIPControl.Contains(proto) {
 			srcPortR, dstPortR = dstPortR, srcPortR
 		}
 	}
@@ -118,7 +107,7 @@ type UniFlow struct {
 }
 
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows.Flow {
-	tp := event.(*packetBuffer).packet.TransportLayer()
+	tp := event.(*packetBuffer).TransportLayer()
 	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 		return &TCPFlow{BaseFlow: flows.NewBaseFlow(table, key)}
 	}
@@ -128,7 +117,7 @@ func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows
 func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	flow.BaseFlow.Event(event, when)
 	buffer := event.(*packetBuffer)
-	tcp := buffer.packet.TransportLayer().(*layers.TCP)
+	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export(flows.FlowEndReasonEnd, when)
 	}
