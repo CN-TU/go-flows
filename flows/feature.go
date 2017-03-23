@@ -12,7 +12,7 @@ type Feature interface {
 type BaseFeature struct {
 	value     interface{}
 	dependent []Feature
-	flow      *BaseFlow
+	flow      Flow
 }
 
 func (f *BaseFeature) Event(interface{}, Time) {
@@ -41,10 +41,10 @@ func (f *BaseFeature) Stop() {
 }
 
 func (f *BaseFeature) Key() FlowKey {
-	return f.flow.key
+	return f.flow.Key()
 }
 
-func NewBaseFeature(flow *BaseFlow) BaseFeature {
+func NewBaseFeature(flow Flow) BaseFeature {
 	return BaseFeature{flow: flow}
 }
 

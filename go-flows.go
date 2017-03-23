@@ -50,7 +50,7 @@ func main() {
 
 	packets := packet.ReadFiles(flag.Args())
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), func(flow *flows.BaseFlow) flows.FeatureList {
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), func(flow flows.Flow) flows.FeatureList {
 		a := &packet.SrcIP{flows.NewBaseFeature(flow)}
 		b := &packet.DstIP{flows.NewBaseFeature(flow)}
 		//		c := &Proto{}

@@ -48,6 +48,7 @@ type Flow interface {
 	EOF(Time)
 	NextEvent() Time
 	Active() bool
+	Key() FlowKey
 }
 
 type funcEntry struct {
@@ -78,6 +79,7 @@ func (flow *BaseFlow) Stop() {
 
 func (flow *BaseFlow) NextEvent() Time { return flow.expireNext }
 func (flow *BaseFlow) Active() bool    { return flow.active }
+func (flow *BaseFlow) Key() FlowKey    { return flow.key }
 
 func (flow *BaseFlow) Expire(when Time) {
 	values := make(funcEntries, 0, len(flow.timers))
