@@ -111,9 +111,6 @@ func (flow *BaseFlow) idleEvent(now Time)   { flow.Export(FlowEndReasonIdle, now
 func (flow *BaseFlow) activeEvent(now Time) { flow.Export(FlowEndReasonActive, now) }
 func (flow *BaseFlow) EOF(now Time)         { flow.Export(FlowEndReasonForcedEnd, now) }
 
-const ACTIVE_TIMEOUT = 1800 * Seconds //FIXME
-const IDLE_TIMEOUT = 300 * Seconds    //FIXME
-
 func (flow *BaseFlow) Event(event Event, when Time) {
 	flow.AddTimer(TimerIdle, flow.idleEvent, when+flow.table.idleTimeout)
 	if !flow.HasTimer(TimerActive) {
