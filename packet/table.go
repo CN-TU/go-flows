@@ -63,17 +63,20 @@ func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
 					log.Println("Error:", err)
 					continue
 				}
-				plen := len(data)
+				dlen := len(data)
 				buffer := <-empty
-				if cap(buffer.buffer) < plen {
-					buffer.buffer = make([]byte, plen)
+				if plen == 0 && cap(buffer.buffer) < dlen {
+					buffer.buffer = make([]byte, dlen)
+				} else if dlen < cap(buffer.buffer) {
+					buffer.buffer = buffer.buffer[:dlen]
+				} else {
+					buffer.buffer = buffer.buffer[:cap(buffer.buffer)]
 				}
 				clen := copy(buffer.buffer, data)
-				buffer.buffer = buffer.buffer[:clen]
 				buffer.packet = gopacket.NewPacket(buffer.buffer, decoder, options)
 				m := buffer.packet.Metadata()
 				m.CaptureInfo = ci
-				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || clen < plen
+				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || clen < dlen
 				result <- buffer
 			}
 			fhandle.Close()
@@ -83,20 +86,13 @@ func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
 	return result
 }
 
-func safeDecode(buffer *packetBuffer) {
-	defer func() {
-		recover() //fixme: handle fatal decoding errors somehow
-	}()
-	buffer.packet.TransportLayer()
-	buffer.key, buffer.Forward = fivetuple(buffer.packet)
-}
-
 func ParsePacket(in <-chan *packetBuffer, flowtable EventTable) flows.Time {
 	c := make(chan flows.Time)
 	go func() {
 		var time flows.Time
 		for buffer := range in {
-			safeDecode(buffer)
+			buffer.packet.TransportLayer()
+			buffer.key, buffer.Forward = fivetuple(buffer.packet)
 			time = flows.Time(buffer.packet.Metadata().Timestamp.UnixNano())
 			buffer.time = time
 			if buffer.key != nil {
