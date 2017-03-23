@@ -11,30 +11,30 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-type PacketBuffer struct {
+type packetBuffer struct {
 	packet  gopacket.Packet
 	key     flows.FlowKey
-	empty   *chan *PacketBuffer
+	empty   *chan *packetBuffer
 	time    flows.Time
 	Forward bool
 	buffer  []byte
 }
 
-func (pb *PacketBuffer) Recycle() {
+func (pb *packetBuffer) recycle() {
 	*pb.empty <- pb
 }
 
-func (pb *PacketBuffer) Key() flows.FlowKey {
+func (pb *packetBuffer) Key() flows.FlowKey {
 	return pb.key
 }
 
-func (pb *PacketBuffer) Timestamp() flows.Time {
+func (pb *packetBuffer) Timestamp() flows.Time {
 	return pb.time
 }
 
-func ReadFiles(fnames []string, plen int) <-chan *PacketBuffer {
-	result := make(chan *PacketBuffer, 1000)
-	empty := make(chan *PacketBuffer, 1000)
+func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
+	result := make(chan *packetBuffer, 1000)
+	empty := make(chan *packetBuffer, 1000)
 
 	prealloc := plen
 	if plen == 0 {
@@ -42,7 +42,7 @@ func ReadFiles(fnames []string, plen int) <-chan *PacketBuffer {
 	}
 
 	for i := 0; i < 1000; i++ {
-		empty <- &PacketBuffer{empty: &empty, buffer: make([]byte, prealloc)}
+		empty <- &packetBuffer{empty: &empty, buffer: make([]byte, prealloc)}
 	}
 
 	go func() {
@@ -83,7 +83,7 @@ func ReadFiles(fnames []string, plen int) <-chan *PacketBuffer {
 	return result
 }
 
-func safeDecode(buffer *PacketBuffer) {
+func safeDecode(buffer *packetBuffer) {
 	defer func() {
 		recover() //fixme: handle fatal decoding errors somehow
 	}()
@@ -91,7 +91,7 @@ func safeDecode(buffer *PacketBuffer) {
 	buffer.key, buffer.Forward = fivetuple(buffer.packet)
 }
 
-func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) flows.Time {
+func ParsePacket(in <-chan *packetBuffer, flowtable EventTable) flows.Time {
 	c := make(chan flows.Time)
 	go func() {
 		var time flows.Time
@@ -102,7 +102,7 @@ func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) flows.Time {
 			if buffer.key != nil {
 				flowtable.Event(buffer)
 			} else {
-				buffer.Recycle()
+				buffer.recycle()
 			}
 		}
 		c <- time
@@ -111,23 +111,23 @@ func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) flows.Time {
 }
 
 type EventTable interface {
-	Event(buffer *PacketBuffer)
+	Event(buffer *packetBuffer)
 	EOF(flows.Time)
 }
 
 type ParallelFlowTable struct {
 	tables []*flows.FlowTable
-	chans  []chan *PacketBuffer
+	chans  []chan *packetBuffer
 	wg     sync.WaitGroup
 }
 
 type SingleFlowTable struct {
 	table *flows.FlowTable
-	c     chan *PacketBuffer
+	c     chan *packetBuffer
 	d     chan struct{}
 }
 
-func (sft *SingleFlowTable) Event(buffer *PacketBuffer) {
+func (sft *SingleFlowTable) Event(buffer *packetBuffer) {
 	sft.c <- buffer
 }
 
@@ -140,21 +140,21 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 func NewParallelFlowTable(num int, features flows.FeatureCreator, newflow flows.FlowCreator, activeTimeout, idleTimeout, checkpoint flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)}
-		ret.c = make(chan *PacketBuffer, 1000)
+		ret.c = make(chan *packetBuffer, 1000)
 		ret.d = make(chan struct{})
 		go func() {
 			t := ret.table
 			for buffer := range ret.c {
 				t.Event(buffer)
-				buffer.Recycle()
+				buffer.recycle()
 			}
 			close(ret.d)
 		}()
 		return ret
 	}
-	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), chans: make([]chan *PacketBuffer, num)}
+	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), chans: make([]chan *packetBuffer, num)}
 	for i := 0; i < num; i++ {
-		c := make(chan *PacketBuffer, 100)
+		c := make(chan *packetBuffer, 100)
 		ret.chans[i] = c
 		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)
 		ret.tables[i] = t
@@ -163,14 +163,14 @@ func NewParallelFlowTable(num int, features flows.FeatureCreator, newflow flows.
 			defer ret.wg.Done()
 			for buffer := range c {
 				t.Event(buffer)
-				buffer.Recycle()
+				buffer.recycle()
 			}
 		}()
 	}
 	return ret
 }
 
-func (pft *ParallelFlowTable) Event(buffer *PacketBuffer) {
+func (pft *ParallelFlowTable) Event(buffer *packetBuffer) {
 	h := buffer.key.Hash() % uint64(len(pft.tables))
 	pft.chans[h] <- buffer
 }
