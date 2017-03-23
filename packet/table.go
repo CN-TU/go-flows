@@ -78,19 +78,26 @@ func ReadFiles(fnames []string) <-chan *PacketBuffer {
 	return result
 }
 
+func safeDecode(buffer *PacketBuffer) {
+	defer func() {
+		recover() //fixme: handle fatal decoding errors somehow
+	}()
+	buffer.packet.TransportLayer()
+	buffer.key, buffer.Forward = fivetuple(buffer.packet)
+}
+
 func ParsePacket(in <-chan *PacketBuffer, flowtable EventTable) flows.Time {
 	c := make(chan flows.Time)
 	go func() {
 		var time flows.Time
-		for packet := range in {
-			packet.packet.TransportLayer()
-			packet.key, packet.Forward = fivetuple(packet.packet)
-			time = flows.Time(packet.packet.Metadata().Timestamp.UnixNano())
-			packet.time = time
-			if packet.key != nil {
-				flowtable.Event(packet)
+		for buffer := range in {
+			safeDecode(buffer)
+			time = flows.Time(buffer.packet.Metadata().Timestamp.UnixNano())
+			buffer.time = time
+			if buffer.key != nil {
+				flowtable.Event(buffer)
 			} else {
-				packet.Recycle()
+				buffer.Recycle()
 			}
 		}
 		c <- time
