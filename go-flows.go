@@ -21,6 +21,7 @@ var (
 	numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
 	activeTimeout = flag.Uint("active", 1800, "active timeout in seconds")
 	idleTimeout   = flag.Uint("idle", 300, "idle timeout in seconds")
+	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
 )
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 		defer pprof.Lookup("block").WriteTo(f, 0)
 	}
 
-	packets := packet.ReadFiles(flag.Args())
+	packets := packet.ReadFiles(flag.Args(), int(*maxPacket))
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), func(flow flows.Flow) flows.FeatureList {
 		a := &packet.SrcIP{flows.NewBaseFeature(flow)}

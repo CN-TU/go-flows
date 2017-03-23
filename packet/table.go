@@ -11,15 +11,13 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-const MAXLEN int = 9000 //FIXME
-
 type PacketBuffer struct {
 	packet  gopacket.Packet
 	key     flows.FlowKey
 	empty   *chan *PacketBuffer
 	time    flows.Time
 	Forward bool
-	buffer  [MAXLEN]byte
+	buffer  []byte
 }
 
 func (pb *PacketBuffer) Recycle() {
@@ -34,15 +32,21 @@ func (pb *PacketBuffer) Timestamp() flows.Time {
 	return pb.time
 }
 
-func ReadFiles(fnames []string) <-chan *PacketBuffer {
+func ReadFiles(fnames []string, plen int) <-chan *PacketBuffer {
 	result := make(chan *PacketBuffer, 1000)
 	empty := make(chan *PacketBuffer, 1000)
 
+	prealloc := plen
+	if plen == 0 {
+		prealloc = 9000
+	}
+
+	for i := 0; i < 1000; i++ {
+		empty <- &PacketBuffer{empty: &empty, buffer: make([]byte, prealloc)}
+	}
+
 	go func() {
 		defer close(result)
-		for i := 0; i < 1000; i++ {
-			empty <- &PacketBuffer{empty: &empty}
-		}
 		options := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 		for _, fname := range fnames {
 			fhandle, err := pcap.OpenOffline(fname)
@@ -59,16 +63,17 @@ func ReadFiles(fnames []string) <-chan *PacketBuffer {
 					log.Println("Error:", err)
 					continue
 				}
-				buffer := <-empty
-				copy(buffer.buffer[:], data)
 				plen := len(data)
-				if plen > MAXLEN {
-					plen = MAXLEN
+				buffer := <-empty
+				if cap(buffer.buffer) < plen {
+					buffer.buffer = make([]byte, plen)
 				}
-				buffer.packet = gopacket.NewPacket(buffer.buffer[:plen], decoder, options)
+				clen := copy(buffer.buffer, data)
+				buffer.buffer = buffer.buffer[:clen]
+				buffer.packet = gopacket.NewPacket(buffer.buffer, decoder, options)
 				m := buffer.packet.Metadata()
 				m.CaptureInfo = ci
-				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || plen < len(data)
+				m.Truncated = m.Truncated || ci.CaptureLength < ci.Length || clen < plen
 				result <- buffer
 			}
 			fhandle.Close()
