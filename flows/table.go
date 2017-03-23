@@ -60,8 +60,12 @@ func (tab *FlowTable) Remove(key FlowKey, entry Flow) {
 func (tab *FlowTable) EOF(now Time) {
 	tab.eof = true
 	for _, v := range tab.flows {
-		// check for timeout!!
-		v.EOF(now)
+		if now > v.NextEvent() {
+			v.Expire(now)
+		}
+		if v.Active() {
+			v.EOF(now)
+		}
 	}
 	tab.flows = make(map[FlowKey]Flow)
 	tab.eof = false
