@@ -161,8 +161,10 @@ func (pb *packetBuffer) decode() (ret bool) {
 			switch version {
 			case 4:
 				decoder = &pb.ip4
+				typ = layers.LayerTypeIPv4
 			case 6:
 				decoder = &pb.ip6
+				typ = layers.LayerTypeIPv6
 			default:
 				return false
 			}
@@ -224,7 +226,7 @@ func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
 			switch fhandle.LinkType() {
 			case layers.LinkTypeEthernet:
 				lt = layers.LayerTypeEthernet
-			case layers.LinkTypeRaw:
+			case layers.LinkTypeRaw, layers.LinkType(12):
 				lt = layerTypeIPv46
 			default:
 				log.Fatalf("File format not implemented")
