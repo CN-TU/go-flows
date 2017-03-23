@@ -1,14 +1,12 @@
 package flows
 
-import (
-	"time"
-)
-
 type Time int64
 
+/*
+This adds a minute of runtime
 func (t Time) String() string {
 	return time.Unix(0, int64(t)).UTC().String()
-}
+} */
 
 const (
 	NanoSeconds  Time = 1
