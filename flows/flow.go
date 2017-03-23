@@ -124,9 +124,9 @@ func (flow *BaseFlow) activeEvent(now Time) { flow.Export(FlowEndReasonActive, n
 func (flow *BaseFlow) EOF(now Time)         { flow.Export(FlowEndReasonForcedEnd, now) }
 
 func (flow *BaseFlow) Event(event Event, when Time) {
-	flow.AddTimer(TimerIdle, flow.idleEvent, when+flow.table.idleTimeout)
-	if !flow.HasTimer(TimerActive) {
-		flow.AddTimer(TimerActive, flow.activeEvent, when+flow.table.activeTimeout)
+	flow.AddTimer(timerIdle, flow.idleEvent, when+flow.table.idleTimeout)
+	if !flow.HasTimer(timerActive) {
+		flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.activeTimeout)
 	}
 	flow.features.Event(event, when)
 }

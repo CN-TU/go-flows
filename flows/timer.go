@@ -21,9 +21,17 @@ const (
 
 type TimerID int
 
-const (
-	TimerIdle TimerID = iota
-	TimerActive
-)
-
 type TimerCallback func(Time)
+
+var timerMaxID TimerID = 0
+
+func RegisterTimer() TimerID {
+	ret := timerMaxID
+	timerMaxID++
+	return ret
+}
+
+var (
+	timerIdle   = RegisterTimer()
+	timerActive = RegisterTimer()
+)
