@@ -17,12 +17,13 @@ type printExporter struct {
 //Export export given features
 func (pe *printExporter) Export(features []flows.Feature, reason flows.FlowEndReason, when flows.Time) {
 	n := len(features)
-	var list = make([]interface{}, n+2)
+	var list = make([]interface{}, n*2+2)
 	for i, elem := range features {
-		list[i] = elem.Value()
+		list[i*2] = elem.Type()
+		list[i*2+1] = elem.Value()
 	}
-	list[n] = reason
-	list[n+1] = when
+	list[n*2] = reason
+	list[n*2+1] = when
 	pe.exportlist <- list
 }
 

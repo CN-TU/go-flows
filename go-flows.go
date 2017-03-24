@@ -51,19 +51,13 @@ func main() {
 
 	packets := packet.ReadFiles(flag.Args(), int(*maxPacket))
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), func(flow flows.Flow) flows.FeatureList {
-		a := &packet.SrcIP{flows.NewBaseFeature(flow)}
-		b := &packet.DstIP{flows.NewBaseFeature(flow)}
-		//		c := &Proto{}
-		//		c.flow = flow
-		features := []flows.Feature{
-			//			c,
-			a,
-			b}
-		ret := flows.NewFeatureList(features, features, features, exporter)
+	features := []string{
+		"sourceIPAddress",
+		"destinationIPAddress",
+		"protocolIdentifier",
+	}
 
-		return ret
-	}, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 
 	time := packet.ParsePacket(packets, flowtable)
 

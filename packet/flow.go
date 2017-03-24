@@ -23,7 +23,7 @@ type fiveTuple4 [13]byte
 
 func (t fiveTuple4) SrcIP() []byte   { return t[0:4] }
 func (t fiveTuple4) DstIP() []byte   { return t[4:8] }
-func (t fiveTuple4) Proto() []byte   { return t[8:9] }
+func (t fiveTuple4) Proto() byte     { return t[8] }
 func (t fiveTuple4) SrcPort() []byte { return t[9:11] }
 func (t fiveTuple4) DstPort() []byte { return t[11:13] }
 func (t fiveTuple4) Hash() uint64    { return fnvHash(t[:]) }
@@ -33,7 +33,7 @@ type fiveTuple6 [37]byte
 
 func (t fiveTuple6) SrcIP() []byte   { return t[0:16] }
 func (t fiveTuple6) DstIP() []byte   { return t[16:32] }
-func (t fiveTuple6) Proto() []byte   { return t[32:33] }
+func (t fiveTuple6) Proto() byte     { return t[32] }
 func (t fiveTuple6) SrcPort() []byte { return t[33:35] }
 func (t fiveTuple6) DstPort() []byte { return t[35:37] }
 func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }

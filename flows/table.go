@@ -1,11 +1,11 @@
 package flows
 
 type FlowCreator func(Event, *FlowTable, FlowKey) Flow
-type FeatureCreator func(Flow) FeatureList
+type FeatureListCreator func(Flow) FeatureList
 
 type FlowTable struct {
 	flows         map[FlowKey]Flow
-	features      FeatureCreator
+	features      FeatureListCreator
 	lastEvent     Time
 	newflow       FlowCreator
 	activeTimeout Time
@@ -14,7 +14,7 @@ type FlowTable struct {
 	eof           bool
 }
 
-func NewFlowTable(features FeatureCreator, newflow FlowCreator, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
+func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]Flow, 1000000),
 		features:      features,

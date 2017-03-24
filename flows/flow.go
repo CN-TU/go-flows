@@ -34,7 +34,7 @@ func (fe FlowEndReason) String() string {
 type FlowKey interface {
 	SrcIP() []byte
 	DstIP() []byte
-	Proto() []byte
+	Proto() byte
 	SrcPort() []byte
 	DstPort() []byte
 	Hash() uint64
