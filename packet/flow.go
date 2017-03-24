@@ -116,10 +116,14 @@ func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows
 
 func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	flow.BaseFlow.Event(event, when)
+	if !flow.Active() {
+		return
+	}
 	buffer := event.(*packetBuffer)
 	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export(flows.FlowEndReasonEnd, when)
+		return
 	}
 	if buffer.Forward {
 		if tcp.FIN {
