@@ -73,8 +73,8 @@ type BaseFlow struct {
 }
 
 func (flow *BaseFlow) Stop() {
+	flow.table.Remove(flow)
 	flow.active = false
-	flow.table.Remove(flow.key, flow)
 }
 
 func (flow *BaseFlow) NextEvent() Time { return flow.expireNext }
