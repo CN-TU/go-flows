@@ -2,7 +2,6 @@ package flows
 
 import (
 	"bytes"
-	"sort"
 )
 
 type walkFn func(f Flow)
@@ -12,12 +11,10 @@ type edge struct {
 	label byte
 }
 
-type edges []edge
-
 type node struct {
 	leaf   Flow
 	prefix []byte
-	edges  edges
+	edges  map[byte]edge
 }
 
 func (n *node) isLeaf() bool {
@@ -25,60 +22,23 @@ func (n *node) isLeaf() bool {
 }
 
 func (n *node) addEdge(e edge) {
-	n.edges = append(n.edges, e)
-	n.edges.Sort()
+	n.edges[e.label] = e
 }
 
 func (n *node) replaceEdge(e edge) {
-	num := len(n.edges)
-	idx := sort.Search(num, func(i int) bool {
-		return n.edges[i].label >= e.label
-	})
-	if idx < num && n.edges[idx].label == e.label {
-		n.edges[idx].node = e.node
-		return
-	}
-	panic("replacing missing edge")
+	n.edges[e.label] = e
 }
 
 func (n *node) getEdge(label byte) *node {
-	num := len(n.edges)
-	idx := sort.Search(num, func(i int) bool {
-		return n.edges[i].label >= label
-	})
-	if idx < num && n.edges[idx].label == label {
-		return n.edges[idx].node
+	ret, found := n.edges[label]
+	if !found {
+		return nil
 	}
-	return nil
+	return ret.node
 }
 
 func (n *node) delEdge(label byte) {
-	num := len(n.edges)
-	idx := sort.Search(num, func(i int) bool {
-		return n.edges[i].label >= label
-	})
-	if idx < num && n.edges[idx].label == label {
-		n.edges[idx].node = nil
-		n.edges = append(n.edges[:idx], n.edges[idx+1:]...)
-		return
-	}
-	panic("del edge!")
-}
-
-func (e edges) Len() int {
-	return len(e)
-}
-
-func (e edges) Less(i, j int) bool {
-	return e[i].label < e[j].label
-}
-
-func (e edges) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
-}
-
-func (e edges) Sort() {
-	sort.Sort(e)
+	delete(n.edges, label)
 }
 
 type tree struct {
@@ -86,7 +46,7 @@ type tree struct {
 }
 
 func newTree() *tree {
-	return &tree{root: &node{}}
+	return &tree{root: &node{edges: make(map[byte]edge)}}
 }
 
 func longestPrefix(k1, k2 []byte) int {
@@ -125,6 +85,7 @@ func (t *tree) insert(search []byte, f Flow) {
 				node: &node{
 					leaf:   f,
 					prefix: search,
+					edges:  make(map[byte]edge),
 				},
 			}
 			parent.addEdge(e)
@@ -139,6 +100,7 @@ func (t *tree) insert(search []byte, f Flow) {
 
 		child := &node{
 			prefix: search[:commonPrefix],
+			edges:  make(map[byte]edge),
 		}
 		parent.replaceEdge(edge{
 			label: search[0],
@@ -162,6 +124,7 @@ func (t *tree) insert(search []byte, f Flow) {
 			node: &node{
 				leaf:   f,
 				prefix: search,
+				edges:  make(map[byte]edge),
 			},
 		})
 		//maybe optimize the double sort?
@@ -218,7 +181,11 @@ DELETE:
 }
 
 func (n *node) mergeChild() {
-	child := n.edges[0].node
+	var e edge
+	for _, e = range n.edges {
+		break
+	}
+	child := e.node
 	n.prefix = append(n.prefix, child.prefix...)
 	n.leaf = child.leaf
 	n.edges = child.edges
