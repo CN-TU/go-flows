@@ -59,7 +59,10 @@ func (f metaFeature) NewFeature(flow Flow) Feature {
 
 type BaseFeatureCreator interface {
 	NewFeature(Flow) Feature
+	BaseType() string
 }
+
+func (f metaFeature) BaseType() string { return f.basetype }
 
 var featureRegistry = make(map[string]metaFeature)
 
@@ -103,12 +106,17 @@ func (list *FeatureList) Export(why FlowEndReason, when Time) {
 
 func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCreator {
 	list := make([]BaseFeatureCreator, len(features))
-	var ok bool
+	basetypes := make([]string, len(features))
 	for i, feature := range features {
-		if list[i], ok = featureRegistry[feature]; !ok {
+		if basetype, ok := featureRegistry[feature]; !ok {
 			panic(fmt.Sprint("Feature %s not found", feature))
+		} else {
+			list[i] = basetype
+			basetypes[i] = basetype.BaseType()
 		}
 	}
+
+	exporter.Fields(basetypes)
 
 	return func(flow Flow) FeatureList {
 		f := make([]Feature, len(list))

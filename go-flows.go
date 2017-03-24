@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -13,7 +14,7 @@ import (
 )
 
 var (
-	format        = flag.String("format", "text", "Output format")
+	format        = flag.String("format", "text", "Output format (text|csv)")
 	output        = flag.String("output", "-", "Output filename")
 	cpuprofile    = flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile    = flag.String("memprofile", "", "write mem profile to file")
@@ -24,13 +25,25 @@ var (
 	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
 )
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [args] file1 [file2] [...] \n", os.Args[0])
+	flag.PrintDefaults()
+	os.Exit(-1)
+}
+
 func main() {
 	flag.Parse()
+	if flag.NArg() == 0 {
+		usage()
+	}
 	var exporter flows.Exporter
-	if *format == "text" {
+	switch *format {
+	case "text":
 		exporter = exporters.NewPrintExporter(*output)
-	} else {
-		log.Fatal("Only text output supported for now!")
+	case "csv":
+		exporter = exporters.NewCSVExporter(*output)
+	default:
+		usage()
 	}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)

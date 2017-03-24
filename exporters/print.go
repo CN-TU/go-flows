@@ -14,6 +14,8 @@ type printExporter struct {
 	finished   chan struct{}
 }
 
+func (pe *printExporter) Fields([]string) {}
+
 //Export export given features
 func (pe *printExporter) Export(features []flows.Feature, reason flows.FlowEndReason, when flows.Time) {
 	n := len(features)
@@ -36,7 +38,7 @@ func (pe *printExporter) Finish() {
 //NewPrintExporter Create a new exporter that just writes the features to filename (- for stdout)
 func NewPrintExporter(filename string) flows.Exporter {
 	ret := &printExporter{make(chan []interface{}, 1000), make(chan struct{})}
-	var outfile io.Writer
+	var outfile io.WriteCloser
 	if filename == "-" {
 		outfile = os.Stdout
 	} else {
@@ -47,6 +49,9 @@ func NewPrintExporter(filename string) flows.Exporter {
 		}
 	}
 	go func() {
+		if filename != "-" {
+			defer outfile.Close()
+		}
 		defer close(ret.finished)
 		for data := range ret.exportlist {
 			fmt.Fprintln(outfile, data...)
