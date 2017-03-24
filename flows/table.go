@@ -4,7 +4,7 @@ type FlowCreator func(Event, *FlowTable, FlowKey) Flow
 type FeatureCreator func(Flow) FeatureList
 
 type FlowTable struct {
-	flows         map[FlowKey]Flow
+	flows         *tree
 	features      FeatureCreator
 	lastEvent     Time
 	newflow       FlowCreator
@@ -16,7 +16,7 @@ type FlowTable struct {
 
 func NewFlowTable(features FeatureCreator, newflow FlowCreator, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
 	return &FlowTable{
-		flows:         make(map[FlowKey]Flow, 1000000),
+		flows:         newTree(),
 		features:      features,
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
@@ -27,17 +27,18 @@ func NewFlowTable(features FeatureCreator, newflow FlowCreator, activeTimeout, i
 func (tab *FlowTable) Event(event Event) {
 	when := event.Timestamp()
 	key := event.Key()
+	keyb := key.Bytes()
 
 	if tab.lastEvent < when {
-		for _, elem := range tab.flows {
+		tab.flows.walk(func(elem Flow) {
 			if when > elem.NextEvent() {
 				elem.Expire(when)
 			}
-		}
+		})
 		tab.lastEvent = when + tab.checkpoint
 	}
 	// event every n seconds
-	elem, ok := tab.flows[key]
+	elem, ok := tab.flows.get(keyb)
 	if ok {
 		if when > elem.NextEvent() {
 			elem.Expire(when)
@@ -46,27 +47,30 @@ func (tab *FlowTable) Event(event Event) {
 	}
 	if !ok {
 		elem = tab.newflow(event, tab, key)
-		tab.flows[key] = elem
+		tab.flows.insert(keyb, elem)
 	}
 	elem.Event(event, when)
 }
 
-func (tab *FlowTable) Remove(key FlowKey, entry Flow) {
+func (tab *FlowTable) Remove(entry Flow) {
 	if !tab.eof {
-		delete(tab.flows, key)
+		if !entry.Active() {
+			panic("Removing already dead flow")
+		}
+		tab.flows.delete(entry.Key().Bytes())
 	}
 }
 
 func (tab *FlowTable) EOF(now Time) {
 	tab.eof = true
-	for _, v := range tab.flows {
+	tab.flows.walk(func(v Flow) {
 		if now > v.NextEvent() {
 			v.Expire(now)
 		}
 		if v.Active() {
 			v.EOF(now)
 		}
-	}
-	tab.flows = make(map[FlowKey]Flow)
+	})
+	tab.flows = newTree()
 	tab.eof = false
 }

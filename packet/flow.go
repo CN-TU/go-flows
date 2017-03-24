@@ -27,6 +27,7 @@ func (t fiveTuple4) Proto() []byte   { return t[8:9] }
 func (t fiveTuple4) SrcPort() []byte { return t[9:11] }
 func (t fiveTuple4) DstPort() []byte { return t[11:13] }
 func (t fiveTuple4) Hash() uint64    { return fnvHash(t[:]) }
+func (t fiveTuple4) Bytes() []byte   { return t[:] }
 
 // src 16 dst 16 proto 1 src 2 dst 2
 type fiveTuple6 [37]byte
@@ -37,6 +38,7 @@ func (t fiveTuple6) Proto() []byte   { return t[32:33] }
 func (t fiveTuple6) SrcPort() []byte { return t[33:35] }
 func (t fiveTuple6) DstPort() []byte { return t[35:37] }
 func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
+func (t fiveTuple6) Bytes() []byte   { return t[:] }
 
 var emptyPort = make([]byte, 2)
 

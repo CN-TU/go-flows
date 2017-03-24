@@ -38,6 +38,7 @@ type FlowKey interface {
 	SrcPort() []byte
 	DstPort() []byte
 	Hash() uint64
+	Bytes() []byte
 }
 
 type Flow interface {
