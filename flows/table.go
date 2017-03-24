@@ -51,9 +51,9 @@ func (tab *FlowTable) Event(event Event) {
 	elem.Event(event, when)
 }
 
-func (tab *FlowTable) Remove(key FlowKey, entry Flow) {
+func (tab *FlowTable) Remove(entry Flow) {
 	if !tab.eof {
-		delete(tab.flows, key)
+		delete(tab.flows, entry.Key())
 	}
 }
 
