@@ -41,9 +41,54 @@ type multiPacketBuffer struct {
 	recycleMutex sync.Mutex
 }
 
-func (b *multiPacketBuffer) recycle() {
+type shallowMultiPacketBuffer struct {
+	buffers     []*packetBuffer
+	multiBuffer *multiPacketBuffer
+	pos         int
+}
+
+func newShallowMultiPacketBuffer(size int) *shallowMultiPacketBuffer {
+	return &shallowMultiPacketBuffer{buffers: make([]*packetBuffer, size)}
+}
+
+func (b *shallowMultiPacketBuffer) add(p *packetBuffer) {
+	b.buffers[b.pos] = p
+	b.pos++
+}
+
+func (t *shallowMultiPacketBuffer) copy(src *shallowMultiPacketBuffer) {
+	for i := 0; i < src.pos; i++ {
+		t.buffers[i] = src.buffers[i]
+	}
+	t.pos = src.pos
+	t.multiBuffer = src.multiBuffer
+}
+
+func (b *shallowMultiPacketBuffer) reset() {
+	if b.pos > 0 {
+		/* for i := 0; i < b.pos; i++ {
+			b.buffers[i] = nil
+		} */ //Can we hold the references?
+		b.pos = 0
+	}
+	b.multiBuffer = nil
+}
+
+func (b *shallowMultiPacketBuffer) recycle() {
+	if b.pos > 0 {
+		for i := 0; i < b.pos; i++ {
+			b.buffers[i].recycle()
+			//b.buffers[i] = nil  //Can we hold the references?
+		}
+		b.multiBuffer.recycle(b.pos)
+		b.pos = 0
+	}
+	b.multiBuffer = nil
+}
+
+func (b *multiPacketBuffer) recycle(num int) {
 	b.recycleMutex.Lock()
-	b.recycled++
+	b.recycled += num
 	if b.recycled == len(b.buffers) {
 		b.recycled = 0
 		*b.empty <- b
@@ -80,7 +125,6 @@ func (pb *packetBuffer) recycle() {
 	pb.application = nil
 	pb.failure = nil
 	pb.tcp.Payload = nil
-	pb.multibuffer.recycle()
 }
 
 func (pb *packetBuffer) Key() flows.FlowKey {
@@ -307,21 +351,28 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 	c := make(chan flows.Time)
 	go func() {
 		var time flows.Time
+		discard := newShallowMultiPacketBuffer(batchSize)
+		forward := newShallowMultiPacketBuffer(batchSize)
 		for multibuffer := range result {
+			discard.multiBuffer = multibuffer
+			forward.multiBuffer = multibuffer
 			for _, buffer := range multibuffer.buffers {
 				if !buffer.decode() {
 					//count non interesting packets?
-					buffer.recycle()
+					discard.add(buffer)
 				} else {
 					buffer.key, buffer.Forward = fivetuple(buffer)
 					time = buffer.time
 					if buffer.key != nil {
-						flowtable.Event(buffer)
+						forward.add(buffer)
 					} else {
-						buffer.recycle()
+						discard.add(buffer)
 					}
 				}
 			}
+			flowtable.Event(forward)
+			forward.reset()
+			discard.recycle()
 		}
 		c <- time
 	}()
@@ -330,24 +381,29 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 }
 
 type EventTable interface {
-	Event(buffer *packetBuffer)
+	Event(buffer *shallowMultiPacketBuffer)
 	EOF(flows.Time)
 }
 
 type ParallelFlowTable struct {
 	tables []*flows.FlowTable
-	chans  []chan *packetBuffer
+	chans  []chan *shallowMultiPacketBuffer
+	chane  []chan *shallowMultiPacketBuffer
+	tmp    []*shallowMultiPacketBuffer
 	wg     sync.WaitGroup
 }
 
 type SingleFlowTable struct {
 	table *flows.FlowTable
-	c     chan *packetBuffer
+	c     chan *shallowMultiPacketBuffer
+	e     chan *shallowMultiPacketBuffer
 	d     chan struct{}
 }
 
-func (sft *SingleFlowTable) Event(buffer *packetBuffer) {
-	sft.c <- buffer
+func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
+	tmp := <-sft.e
+	tmp.copy(buffer)
+	sft.c <- tmp
 }
 
 func (sft *SingleFlowTable) EOF(now flows.Time) {
@@ -359,39 +415,66 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow flows.FlowCreator, activeTimeout, idleTimeout, checkpoint flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)}
-		ret.c = make(chan *packetBuffer, 1000)
+		ret.c = make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
+		ret.e = make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
+		for i := 0; i < 100; i++ {                        //FIXME: constant
+			ret.e <- newShallowMultiPacketBuffer(1000) //FIXME: constant
+		}
 		ret.d = make(chan struct{})
 		go func() {
 			t := ret.table
 			for buffer := range ret.c {
-				t.Event(buffer)
+				for i := 0; i < buffer.pos; i++ {
+					t.Event(buffer.buffers[i])
+				}
 				buffer.recycle()
+				ret.e <- buffer
 			}
 			close(ret.d)
 		}()
 		return ret
 	}
-	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), chans: make([]chan *packetBuffer, num)}
+	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), chans: make([]chan *shallowMultiPacketBuffer, num), chane: make([]chan *shallowMultiPacketBuffer, num), tmp: make([]*shallowMultiPacketBuffer, num)}
 	for i := 0; i < num; i++ {
-		c := make(chan *packetBuffer, 100)
+		c := make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
+		e := make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
 		ret.chans[i] = c
+		ret.chane[i] = e
+		for j := 0; j < 100; j++ { //FIXME: constant
+			ret.chane[i] <- newShallowMultiPacketBuffer(1000) //FIXME: constant
+		}
 		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
 			defer ret.wg.Done()
 			for buffer := range c {
-				t.Event(buffer)
+				for i := 0; i < buffer.pos; i++ {
+					t.Event(buffer.buffers[i])
+				}
 				buffer.recycle()
+				e <- buffer
 			}
 		}()
 	}
 	return ret
 }
 
-func (pft *ParallelFlowTable) Event(buffer *packetBuffer) {
-	h := buffer.key.Hash() % uint64(len(pft.tables))
-	pft.chans[h] <- buffer
+func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
+	//copy
+	num := len(pft.tables)
+	for i := 0; i < num; i++ {
+		pft.tmp[i] = <-pft.chane[i]
+		pft.tmp[i].multiBuffer = buffer.multiBuffer
+	}
+	for i := 0; i < buffer.pos; i++ {
+		packet := buffer.buffers[i]
+		h := packet.key.Hash() % uint64(num)
+		pft.tmp[h].add(packet)
+	}
+	for i := 0; i < num; i++ {
+		pft.chans[i] <- pft.tmp[i]
+	}
 }
 
 func (pft *ParallelFlowTable) EOF(now flows.Time) {
