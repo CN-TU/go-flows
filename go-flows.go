@@ -72,8 +72,6 @@ func main() {
 		defer trace.Stop()
 	}
 
-	packets := packet.ReadFiles(flag.Args(), int(*maxPacket))
-
 	features := []string{
 		"sourceIPAddress",
 		"destinationIPAddress",
@@ -82,7 +80,7 @@ func main() {
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 
-	time := packet.ParsePacket(packets, flowtable)
+	time := packet.ReadFiles(flag.Args(), int(*maxPacket), flowtable)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
@@ -96,5 +94,6 @@ func main() {
 		f.Close()
 	}
 	flowtable.EOF(time)
+	//_ = time
 	exporter.Finish()
 }

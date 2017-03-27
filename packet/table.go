@@ -34,9 +34,26 @@ func (i *ICMPv6Flow) TransportFlow() gopacket.Flow {
 	return gopacket.NewFlow(icmpEndpointType, emptyPort, i.Contents[0:2])
 }
 
+type multiPacketBuffer struct {
+	buffers      []*packetBuffer
+	empty        *chan *multiPacketBuffer
+	recycled     int
+	recycleMutex sync.Mutex
+}
+
+func (b *multiPacketBuffer) recycle() {
+	b.recycleMutex.Lock()
+	b.recycled++
+	if b.recycled == len(b.buffers) {
+		b.recycled = 0
+		*b.empty <- b
+	}
+	b.recycleMutex.Unlock()
+}
+
 type packetBuffer struct {
 	key         flows.FlowKey
-	empty       *chan *packetBuffer
+	multibuffer *multiPacketBuffer
 	time        flows.Time
 	buffer      []byte
 	first       gopacket.LayerType
@@ -63,7 +80,7 @@ func (pb *packetBuffer) recycle() {
 	pb.application = nil
 	pb.failure = nil
 	pb.tcp.Payload = nil
-	*pb.empty <- pb
+	pb.multibuffer.recycle()
 }
 
 func (pb *packetBuffer) Key() flows.FlowKey {
@@ -202,21 +219,44 @@ func (pb *packetBuffer) decode() (ret bool) {
 
 var layerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
 
-func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
-	result := make(chan *packetBuffer, 1000)
-	empty := make(chan *packetBuffer, 1000)
+func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
+	buffers := 100
+	batchSize := 1000
+	result := make(chan *multiPacketBuffer, buffers)
+	empty := make(chan *multiPacketBuffer, buffers)
 
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 9000
 	}
 
-	for i := 0; i < 1000; i++ {
-		empty <- &packetBuffer{empty: &empty, buffer: make([]byte, prealloc)}
+	for i := 0; i < buffers; i++ {
+		buf := &multiPacketBuffer{
+			buffers: make([]*packetBuffer, batchSize),
+			empty:   &empty,
+		}
+		for j := 0; j < batchSize; j++ {
+			buf.buffers[j] = &packetBuffer{buffer: make([]byte, prealloc), multibuffer: buf}
+		}
+		empty <- buf
 	}
 
 	go func() {
-		defer close(result)
+		multiBuffer := <-empty
+		pos := 0
+		defer func() {
+			if pos != 0 {
+				multiBuffer.buffers = multiBuffer.buffers[:pos]
+				result <- multiBuffer
+			} else {
+				empty <- multiBuffer
+			}
+			close(result)
+			// consume empty buffers -> let every go routine finish
+			for i := 0; i < buffers; i++ {
+				<-empty
+			}
+		}()
 		for _, fname := range fnames {
 			fhandle, err := pcap.OpenOffline(fname)
 			if err != nil {
@@ -240,7 +280,8 @@ func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
 					continue
 				}
 				dlen := len(data)
-				buffer := <-empty
+				buffer := multiBuffer.buffers[pos]
+				pos++
 				if plen == 0 && cap(buffer.buffer) < dlen {
 					buffer.buffer = make([]byte, dlen)
 				} else if dlen < cap(buffer.buffer) {
@@ -253,35 +294,38 @@ func ReadFiles(fnames []string, plen int) <-chan *packetBuffer {
 				buffer.ci.CaptureInfo = ci
 				buffer.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 				buffer.first = lt
-				result <- buffer
+				if pos == batchSize {
+					pos = 0
+					result <- multiBuffer
+					multiBuffer = <-empty
+				}
 			}
 			fhandle.Close()
 		}
 	}()
 
-	return result
-}
-
-func ParsePacket(in <-chan *packetBuffer, flowtable EventTable) flows.Time {
 	c := make(chan flows.Time)
 	go func() {
 		var time flows.Time
-		for buffer := range in {
-			if !buffer.decode() {
-				//count non interesting packets?
-				buffer.recycle()
-				continue
-			}
-			buffer.key, buffer.Forward = fivetuple(buffer)
-			time = buffer.time
-			if buffer.key != nil {
-				flowtable.Event(buffer)
-			} else {
-				buffer.recycle()
+		for multibuffer := range result {
+			for _, buffer := range multibuffer.buffers {
+				if !buffer.decode() {
+					//count non interesting packets?
+					buffer.recycle()
+				} else {
+					buffer.key, buffer.Forward = fivetuple(buffer)
+					time = buffer.time
+					if buffer.key != nil {
+						flowtable.Event(buffer)
+					} else {
+						buffer.recycle()
+					}
+				}
 			}
 		}
 		c <- time
 	}()
+
 	return <-c
 }
 

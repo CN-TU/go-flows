@@ -70,6 +70,7 @@ func NewCSVExporter(filename string) flows.Exporter {
 			}
 			writer.Write(record)
 		}
+		writer.Flush()
 	}()
 	return ret
 }
