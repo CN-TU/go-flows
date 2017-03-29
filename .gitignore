@@ -3,3 +3,4 @@
 *.pdf
 go-flows
 *.tar*
+*.trace
