@@ -2,6 +2,7 @@ package flows
 
 import (
 	"sort"
+	"sync"
 )
 
 type FlowEndReason byte
@@ -81,6 +82,12 @@ func (flow *BaseFlow) NextEvent() Time { return flow.expireNext }
 func (flow *BaseFlow) Active() bool    { return flow.active }
 func (flow *BaseFlow) Key() FlowKey    { return flow.key }
 
+var timerPool = sync.Pool{
+	New: func() interface{} {
+		return new(funcEntry)
+	},
+}
+
 func (flow *BaseFlow) Expire(when Time) {
 	values := make(funcEntries, 0, len(flow.timers))
 	for _, v := range flow.timers {
@@ -91,6 +98,7 @@ func (flow *BaseFlow) Expire(when Time) {
 		if v.when <= when {
 			v.function(v.when)
 			delete(flow.timers, v.id)
+			timerPool.Put(v)
 		} else {
 			flow.expireNext = v.when
 			break
@@ -103,7 +111,11 @@ func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
 		entry.function = f
 		entry.when = when
 	} else {
-		flow.timers[id] = &funcEntry{f, when, id}
+		t := timerPool.Get().(*funcEntry)
+		t.function = f
+		t.when = when
+		t.id = id
+		flow.timers[id] = t
 	}
 	if when < flow.expireNext || flow.expireNext == 0 {
 		flow.expireNext = when
