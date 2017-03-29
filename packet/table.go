@@ -44,45 +44,33 @@ type multiPacketBuffer struct {
 type shallowMultiPacketBuffer struct {
 	buffers     []*packetBuffer
 	multiBuffer *multiPacketBuffer
-	pos         int
 }
 
 func newShallowMultiPacketBuffer(size int) *shallowMultiPacketBuffer {
-	return &shallowMultiPacketBuffer{buffers: make([]*packetBuffer, size)}
+	return &shallowMultiPacketBuffer{buffers: make([]*packetBuffer, 0, size)}
 }
 
 func (b *shallowMultiPacketBuffer) add(p *packetBuffer) {
-	b.buffers[b.pos] = p
-	b.pos++
+	b.buffers = append(b.buffers, p)
 }
 
 func (t *shallowMultiPacketBuffer) copy(src *shallowMultiPacketBuffer) {
-	for i := 0; i < src.pos; i++ {
-		t.buffers[i] = src.buffers[i]
-	}
-	t.pos = src.pos
+	t.buffers = t.buffers[:len(src.buffers)]
+	copy(t.buffers, src.buffers)
 	t.multiBuffer = src.multiBuffer
 }
 
 func (b *shallowMultiPacketBuffer) reset() {
-	if b.pos > 0 {
-		/* for i := 0; i < b.pos; i++ {
-			b.buffers[i] = nil
-		} */ //Can we hold the references?
-		b.pos = 0
-	}
+	b.buffers = b.buffers[:0]
 	b.multiBuffer = nil
 }
 
 func (b *shallowMultiPacketBuffer) recycle() {
-	if b.pos > 0 {
-		for i := 0; i < b.pos; i++ {
-			b.buffers[i].recycle()
-			//b.buffers[i] = nil  //Can we hold the references?
-		}
-		b.multiBuffer.recycle(b.pos)
-		b.pos = 0
+	for _, buffer := range b.buffers {
+		buffer.recycle()
 	}
+	b.multiBuffer.recycle(len(b.buffers))
+	b.buffers = b.buffers[:0]
 	b.multiBuffer = nil
 }
 
@@ -445,8 +433,8 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 		go func() {
 			t := ret.table
 			for buffer := range ret.full {
-				for i := 0; i < buffer.pos; i++ {
-					t.Event(buffer.buffers[i])
+				for _, b := range buffer.buffers {
+					t.Event(b)
 				}
 				buffer.recycle()
 				ret.empty <- buffer
@@ -482,8 +470,8 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 		go func() {
 			defer ret.wg.Done()
 			for buffer := range c {
-				for i := 0; i < buffer.pos; i++ {
-					t.Event(buffer.buffers[i])
+				for _, b := range buffer.buffers {
+					t.Event(b)
 				}
 				buffer.recycle()
 				e <- buffer
@@ -499,8 +487,7 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 		pft.tmp[i] = <-pft.empty[i]
 		pft.tmp[i].multiBuffer = buffer.multiBuffer
 	}
-	for i := 0; i < buffer.pos; i++ {
-		packet := buffer.buffers[i]
+	for _, packet := range buffer.buffers {
 		h := packet.key.Hash() % uint64(num)
 		pft.tmp[h].add(packet)
 	}
