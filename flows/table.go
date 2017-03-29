@@ -1,5 +1,7 @@
 package flows
 
+import "sync"
+
 type FlowCreator func(Event, *FlowTable, FlowKey) Flow
 type FeatureListCreator func(Flow) FeatureList
 
@@ -11,6 +13,7 @@ type FlowTable struct {
 	activeTimeout Time
 	idleTimeout   Time
 	checkpoint    Time
+	timerPool     sync.Pool
 	eof           bool
 }
 
@@ -21,7 +24,13 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
 		idleTimeout:   idleTimeout,
-		checkpoint:    checkpoint}
+		checkpoint:    checkpoint,
+		timerPool: sync.Pool{
+			New: func() interface{} {
+				return new(funcEntry)
+			},
+		},
+	}
 }
 
 func (tab *FlowTable) Event(event Event) {
