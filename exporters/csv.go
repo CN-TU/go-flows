@@ -44,7 +44,7 @@ func (pe *csvExporter) Finish() {
 
 //NewCSVExporter Create a new exporter that just writes the features to filename (- for stdout)
 func NewCSVExporter(filename string) flows.Exporter {
-	ret := &csvExporter{make(chan []interface{}, 1000), make(chan struct{})}
+	ret := &csvExporter{make(chan []interface{}, 100), make(chan struct{})}
 	var outfile io.WriteCloser
 	if filename == "-" {
 		outfile = os.Stdout

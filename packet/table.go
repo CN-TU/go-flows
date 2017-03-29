@@ -263,18 +263,22 @@ func (pb *packetBuffer) decode() (ret bool) {
 
 var layerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
 
+const (
+	batchSize      = 1000
+	fullBuffers    = 10
+	shallowBuffers = 10
+)
+
 func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
-	buffers := 100
-	batchSize := 1000
-	result := make(chan *multiPacketBuffer, buffers)
-	empty := make(chan *multiPacketBuffer, buffers)
+	result := make(chan *multiPacketBuffer, fullBuffers)
+	empty := make(chan *multiPacketBuffer, fullBuffers)
 
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 9000
 	}
 
-	for i := 0; i < buffers; i++ {
+	for i := 0; i < fullBuffers; i++ {
 		buf := &multiPacketBuffer{
 			buffers: make([]*packetBuffer, batchSize),
 			empty:   &empty,
@@ -297,7 +301,7 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 			}
 			close(result)
 			// consume empty buffers -> let every go routine finish
-			for i := 0; i < buffers; i++ {
+			for i := 0; i < fullBuffers; i++ {
 				<-empty
 			}
 		}()
@@ -387,61 +391,61 @@ type EventTable interface {
 
 type ParallelFlowTable struct {
 	tables []*flows.FlowTable
-	chans  []chan *shallowMultiPacketBuffer
-	chane  []chan *shallowMultiPacketBuffer
+	full   []chan *shallowMultiPacketBuffer
+	empty  []chan *shallowMultiPacketBuffer
 	tmp    []*shallowMultiPacketBuffer
 	wg     sync.WaitGroup
 }
 
 type SingleFlowTable struct {
 	table *flows.FlowTable
-	c     chan *shallowMultiPacketBuffer
-	e     chan *shallowMultiPacketBuffer
-	d     chan struct{}
+	full  chan *shallowMultiPacketBuffer
+	empty chan *shallowMultiPacketBuffer
+	done  chan struct{}
 }
 
 func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
-	tmp := <-sft.e
+	tmp := <-sft.empty
 	tmp.copy(buffer)
-	sft.c <- tmp
+	sft.full <- tmp
 }
 
 func (sft *SingleFlowTable) EOF(now flows.Time) {
-	close(sft.c)
-	<-sft.d
+	close(sft.full)
+	<-sft.done
 	sft.table.EOF(now)
 }
 
 func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow flows.FlowCreator, activeTimeout, idleTimeout, checkpoint flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{table: flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)}
-		ret.c = make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
-		ret.e = make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
-		for i := 0; i < 100; i++ {                        //FIXME: constant
-			ret.e <- newShallowMultiPacketBuffer(1000) //FIXME: constant
+		ret.full = make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		ret.empty = make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		for i := 0; i < shallowBuffers; i++ {
+			ret.empty <- newShallowMultiPacketBuffer(batchSize)
 		}
-		ret.d = make(chan struct{})
+		ret.done = make(chan struct{})
 		go func() {
 			t := ret.table
-			for buffer := range ret.c {
+			for buffer := range ret.full {
 				for i := 0; i < buffer.pos; i++ {
 					t.Event(buffer.buffers[i])
 				}
 				buffer.recycle()
-				ret.e <- buffer
+				ret.empty <- buffer
 			}
-			close(ret.d)
+			close(ret.done)
 		}()
 		return ret
 	}
-	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), chans: make([]chan *shallowMultiPacketBuffer, num), chane: make([]chan *shallowMultiPacketBuffer, num), tmp: make([]*shallowMultiPacketBuffer, num)}
+	ret := &ParallelFlowTable{tables: make([]*flows.FlowTable, num), full: make([]chan *shallowMultiPacketBuffer, num), empty: make([]chan *shallowMultiPacketBuffer, num), tmp: make([]*shallowMultiPacketBuffer, num)}
 	for i := 0; i < num; i++ {
-		c := make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
-		e := make(chan *shallowMultiPacketBuffer, 100) //FIXME: constant
-		ret.chans[i] = c
-		ret.chane[i] = e
-		for j := 0; j < 100; j++ { //FIXME: constant
-			ret.chane[i] <- newShallowMultiPacketBuffer(1000) //FIXME: constant
+		c := make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		e := make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		ret.full[i] = c
+		ret.empty[i] = e
+		for j := 0; j < shallowBuffers; j++ {
+			ret.empty[i] <- newShallowMultiPacketBuffer(batchSize)
 		}
 		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout, checkpoint)
 		ret.tables[i] = t
@@ -461,10 +465,9 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 }
 
 func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
-	//copy
 	num := len(pft.tables)
 	for i := 0; i < num; i++ {
-		pft.tmp[i] = <-pft.chane[i]
+		pft.tmp[i] = <-pft.empty[i]
 		pft.tmp[i].multiBuffer = buffer.multiBuffer
 	}
 	for i := 0; i < buffer.pos; i++ {
@@ -473,12 +476,12 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 		pft.tmp[h].add(packet)
 	}
 	for i := 0; i < num; i++ {
-		pft.chans[i] <- pft.tmp[i]
+		pft.full[i] <- pft.tmp[i]
 	}
 }
 
 func (pft *ParallelFlowTable) EOF(now flows.Time) {
-	for _, c := range pft.chans {
+	for _, c := range pft.full {
 		close(c)
 	}
 	pft.wg.Wait()
