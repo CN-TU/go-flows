@@ -49,6 +49,9 @@ type Flow interface {
 	NextEvent() Time
 	Active() bool
 	Key() FlowKey
+	Init(*FlowTable, FlowKey)
+	Recycle()
+	Table() *FlowTable
 }
 
 type funcEntry struct {
@@ -77,9 +80,11 @@ func (flow *BaseFlow) Stop() {
 	flow.active = false
 }
 
-func (flow *BaseFlow) NextEvent() Time { return flow.expireNext }
-func (flow *BaseFlow) Active() bool    { return flow.active }
-func (flow *BaseFlow) Key() FlowKey    { return flow.key }
+func (flow *BaseFlow) NextEvent() Time   { return flow.expireNext }
+func (flow *BaseFlow) Active() bool      { return flow.active }
+func (flow *BaseFlow) Key() FlowKey      { return flow.key }
+func (flow *BaseFlow) Recycle()          {}
+func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
 func (flow *BaseFlow) Expire(when Time) {
 	values := make(funcEntries, 0, len(flow.timers))
@@ -136,6 +141,15 @@ func (flow *BaseFlow) Event(event Event, when Time) {
 		flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.activeTimeout)
 	}
 	flow.features.Event(event, when)
+}
+
+func (flow *BaseFlow) Init(table *FlowTable, key FlowKey) {
+	flow.key = key
+	flow.table = table
+	flow.timers = make(map[TimerID]*funcEntry, 2)
+	flow.active = true
+	flow.features = table.features(flow)
+	flow.features.Start()
 }
 
 func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {

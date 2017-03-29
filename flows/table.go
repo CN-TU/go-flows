@@ -14,6 +14,7 @@ type FlowTable struct {
 	idleTimeout   Time
 	checkpoint    Time
 	timerPool     sync.Pool
+	DataStore     interface{}
 	eof           bool
 }
 
@@ -63,6 +64,7 @@ func (tab *FlowTable) Event(event Event) {
 func (tab *FlowTable) Remove(entry Flow) {
 	if !tab.eof {
 		delete(tab.flows, entry.Key())
+		entry.Recycle()
 	}
 }
 

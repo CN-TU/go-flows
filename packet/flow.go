@@ -102,16 +102,28 @@ type TCPFlow struct {
 	srcFIN, dstFIN, dstACK, srcACK bool
 }
 
+func (flow *TCPFlow) Recycle() {
+	flow.Table().DataStore.(*flowPool).tcp.Put(flow)
+}
+
 type UniFlow struct {
 	flows.BaseFlow
+}
+
+func (flow *UniFlow) Recycle() {
+	flow.Table().DataStore.(*flowPool).uni.Put(flow)
 }
 
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows.Flow {
 	tp := event.(*packetBuffer).TransportLayer()
 	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
-		return &TCPFlow{BaseFlow: flows.NewBaseFlow(table, key)}
+		ret := table.DataStore.(*flowPool).tcp.Get().(*TCPFlow)
+		ret.Init(table, key)
+		return ret
 	}
-	return &UniFlow{flows.NewBaseFlow(table, key)}
+	ret := table.DataStore.(*flowPool).uni.Get().(*UniFlow)
+	ret.Init(table, key)
+	return ret
 }
 
 func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
