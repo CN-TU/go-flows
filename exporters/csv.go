@@ -25,14 +25,12 @@ func (pe *csvExporter) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *csvExporter) Export(features []flows.Feature, reason flows.FlowEndReason, when flows.Time) {
+func (pe *csvExporter) Export(features []flows.Feature, when flows.Time) {
 	n := len(features)
-	var list = make([]interface{}, n+2)
+	var list = make([]interface{}, n)
 	for i, elem := range features {
 		list[i] = elem.Value()
 	}
-	list[n] = reason
-	list[n+1] = when
 	pe.exportlist <- list
 }
 

@@ -14,23 +14,6 @@ const (
 	FlowEndReasonLackOfResources FlowEndReason = 5
 )
 
-func (fe FlowEndReason) String() string {
-	switch fe {
-	case FlowEndReasonIdle:
-		return "IdleTimeout"
-	case FlowEndReasonActive:
-		return "ActiveTimeout"
-	case FlowEndReasonEnd:
-		return "EndOfFlow"
-	case FlowEndReasonForcedEnd:
-		return "ForcedEndOfFlow"
-	case FlowEndReasonLackOfResources:
-		return "LackOfResources"
-	default:
-		return "UnknownEndReason"
-	}
-}
-
 type FlowKey interface {
 	SrcIP() []byte
 	DstIP() []byte
@@ -49,7 +32,7 @@ type Flow interface {
 	NextEvent() Time
 	Active() bool
 	Key() FlowKey
-	Init(*FlowTable, FlowKey)
+	Init(*FlowTable, FlowKey, Time)
 	Recycle()
 	Table() *FlowTable
 }
@@ -94,7 +77,7 @@ func (flow *BaseFlow) Expire(when Time) {
 	sort.Sort(values)
 	for _, v := range values {
 		if v.when <= when {
-			v.function(v.when)
+			v.function(v.when, when)
 			delete(flow.timers, v.id)
 			flow.table.timerPool.Put(v)
 		} else {
@@ -125,15 +108,17 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return ret
 }
 
-func (flow *BaseFlow) Export(reason FlowEndReason, when Time) {
-	flow.features.Stop()
-	flow.features.Export(reason, when)
+func (flow *BaseFlow) Export(reason FlowEndReason, when Time, now Time) {
+	flow.features.Stop(reason, when)
+	flow.features.Export(now)
 	flow.Stop()
 }
 
-func (flow *BaseFlow) idleEvent(now Time)   { flow.Export(FlowEndReasonIdle, now) }
-func (flow *BaseFlow) activeEvent(now Time) { flow.Export(FlowEndReasonActive, now) }
-func (flow *BaseFlow) EOF(now Time)         { flow.Export(FlowEndReasonForcedEnd, now) }
+func (flow *BaseFlow) idleEvent(expired Time, now Time) { flow.Export(FlowEndReasonIdle, expired, now) }
+func (flow *BaseFlow) activeEvent(expired Time, now Time) {
+	flow.Export(FlowEndReasonActive, expired, now)
+}
+func (flow *BaseFlow) EOF(now Time) { flow.Export(FlowEndReasonForcedEnd, now, now) }
 
 func (flow *BaseFlow) Event(event Event, when Time) {
 	flow.AddTimer(timerIdle, flow.idleEvent, when+flow.table.idleTimeout)
@@ -143,22 +128,22 @@ func (flow *BaseFlow) Event(event Event, when Time) {
 	flow.features.Event(event, when)
 }
 
-func (flow *BaseFlow) Init(table *FlowTable, key FlowKey) {
+func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.key = key
 	flow.table = table
 	flow.timers = make(map[TimerID]*funcEntry, 2)
 	flow.active = true
 	flow.features = table.features(flow)
-	flow.features.Start()
+	flow.features.Start(time)
 }
 
-func NewBaseFlow(table *FlowTable, key FlowKey) BaseFlow {
+func NewBaseFlow(table *FlowTable, key FlowKey, time Time) BaseFlow {
 	ret := BaseFlow{
 		key:    key,
 		table:  table,
 		timers: make(map[TimerID]*funcEntry, 2),
 		active: true}
 	ret.features = table.features(&ret)
-	ret.features.Start()
+	ret.features.Start(time)
 	return ret
 }

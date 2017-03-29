@@ -2,7 +2,7 @@ package flows
 
 import "sync"
 
-type FlowCreator func(Event, *FlowTable, FlowKey) Flow
+type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
 type FeatureListCreator func(Flow) FeatureList
 
 type FlowTable struct {
@@ -55,7 +55,7 @@ func (tab *FlowTable) Event(event Event) {
 		}
 	}
 	if !ok {
-		elem = tab.newflow(event, tab, key)
+		elem = tab.newflow(event, tab, key, when)
 		tab.flows[key] = elem
 	}
 	elem.Event(event, when)

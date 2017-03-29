@@ -60,3 +60,25 @@ func (f *protocolIdentifier) Event(new interface{}, when flows.Time) {
 }
 
 var ProtocolIdentifier = flows.RegisterFeature("protocolIdentifier", func() flows.Feature { return &protocolIdentifier{} })
+
+////////////////////////////////////////////////////////////////////////////////
+type flowEndReason struct {
+	flows.BaseFeature
+}
+
+func (f *flowEndReason) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(reason, when)
+}
+
+var FlowEndReason = flows.RegisterFeature("flowEndReason", func() flows.Feature { return &flowEndReason{} })
+
+////////////////////////////////////////////////////////////////////////////////
+type flowEndNanoSeconds struct {
+	flows.BaseFeature
+}
+
+func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(when, when)
+}
+
+var FlowEndNanoSeconds = flows.RegisterFeature("flowEndNanoSeconds", func() flows.Feature { return &flowEndNanoSeconds{} })

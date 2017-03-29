@@ -114,15 +114,15 @@ func (flow *UniFlow) Recycle() {
 	flow.Table().DataStore.(*flowPool).uni.Put(flow)
 }
 
-func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey) flows.Flow {
+func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.Time) flows.Flow {
 	tp := event.(*packetBuffer).TransportLayer()
 	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 		ret := table.DataStore.(*flowPool).tcp.Get().(*TCPFlow)
-		ret.Init(table, key)
+		ret.Init(table, key, time)
 		return ret
 	}
 	ret := table.DataStore.(*flowPool).uni.Get().(*UniFlow)
-	ret.Init(table, key)
+	ret.Init(table, key, time)
 	return ret
 }
 
@@ -134,7 +134,7 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	buffer := event.(*packetBuffer)
 	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
-		flow.Export(flows.FlowEndReasonEnd, when)
+		flow.Export(flows.FlowEndReasonEnd, when, when)
 		return
 	}
 	if buffer.Forward {
@@ -154,6 +154,6 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	}
 
 	if flow.srcFIN && flow.srcACK && flow.dstFIN && flow.dstACK {
-		flow.Export(flows.FlowEndReasonEnd, when)
+		flow.Export(flows.FlowEndReasonEnd, when, when)
 	}
 }

@@ -19,7 +19,7 @@ const (
 
 type TimerID int
 
-type TimerCallback func(Time)
+type TimerCallback func(Time, Time)
 
 var timerMaxID TimerID = 0
 

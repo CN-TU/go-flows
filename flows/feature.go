@@ -8,8 +8,8 @@ type Feature interface {
 	Event(interface{}, Time)
 	Value() interface{}
 	SetValue(interface{}, Time)
-	Start()
-	Stop()
+	Start(Time)
+	Stop(FlowEndReason, Time)
 	Key() FlowKey
 	Type() string
 	BaseType() string
@@ -26,8 +26,8 @@ type BaseFeature struct {
 
 func (f *BaseFeature) Event(interface{}, Time)     {}
 func (f *BaseFeature) Value() interface{}          { return f.value }
-func (f *BaseFeature) Start()                      {}
-func (f *BaseFeature) Stop()                       {}
+func (f *BaseFeature) Start(Time)                  {}
+func (f *BaseFeature) Stop(FlowEndReason, Time)    {}
 func (f *BaseFeature) Key() FlowKey                { return f.flow.Key() }
 func (f *BaseFeature) Type() string                { return f.basetype }
 func (f *BaseFeature) BaseType() string            { return f.basetype }
@@ -82,15 +82,15 @@ type FeatureList struct {
 	exporter Exporter
 }
 
-func (list *FeatureList) Start() {
+func (list *FeatureList) Start(start Time) {
 	for _, feature := range list.startup {
-		feature.Start()
+		feature.Start(start)
 	}
 }
 
-func (list *FeatureList) Stop() {
+func (list *FeatureList) Stop(reason FlowEndReason, time Time) {
 	for _, feature := range list.startup {
-		feature.Stop()
+		feature.Stop(reason, time)
 	}
 }
 
@@ -100,8 +100,8 @@ func (list *FeatureList) Event(data interface{}, when Time) {
 	}
 }
 
-func (list *FeatureList) Export(why FlowEndReason, when Time) {
-	list.exporter.Export(list.export, why, when)
+func (list *FeatureList) Export(when Time) {
+	list.exporter.Export(list.export, when)
 }
 
 func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCreator {
@@ -109,7 +109,7 @@ func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCrea
 	basetypes := make([]string, len(features))
 	for i, feature := range features {
 		if basetype, ok := featureRegistry[feature]; !ok {
-			panic(fmt.Sprint("Feature %s not found", feature))
+			panic(fmt.Sprintf("Feature %s not found", feature))
 		} else {
 			list[i] = basetype
 			basetypes[i] = basetype.BaseType()

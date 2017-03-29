@@ -76,6 +76,8 @@ func main() {
 		"sourceIPAddress",
 		"destinationIPAddress",
 		"protocolIdentifier",
+		"flowEndReason",
+		"flowEndNanoSeconds",
 	}
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
