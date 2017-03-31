@@ -15,6 +15,7 @@ type Feature interface {
 	BaseType() string
 	setFlow(Flow)
 	setBaseType(string)
+	getBaseFeature() *BaseFeature
 }
 
 type BaseFeature struct {
@@ -24,15 +25,16 @@ type BaseFeature struct {
 	basetype  string
 }
 
-func (f *BaseFeature) Event(interface{}, Time)     {}
-func (f *BaseFeature) Value() interface{}          { return f.value }
-func (f *BaseFeature) Start(Time)                  {}
-func (f *BaseFeature) Stop(FlowEndReason, Time)    {}
-func (f *BaseFeature) Key() FlowKey                { return f.flow.Key() }
-func (f *BaseFeature) Type() string                { return f.basetype }
-func (f *BaseFeature) BaseType() string            { return f.basetype }
-func (f *BaseFeature) setFlow(flow Flow)           { f.flow = flow }
-func (f *BaseFeature) setBaseType(basetype string) { f.basetype = basetype }
+func (f *BaseFeature) Event(interface{}, Time)      {}
+func (f *BaseFeature) Value() interface{}           { return f.value }
+func (f *BaseFeature) Start(Time)                   {}
+func (f *BaseFeature) Stop(FlowEndReason, Time)     {}
+func (f *BaseFeature) Key() FlowKey                 { return f.flow.Key() }
+func (f *BaseFeature) Type() string                 { return f.basetype }
+func (f *BaseFeature) BaseType() string             { return f.basetype }
+func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
+func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
+func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
 
 func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	f.value = new
@@ -50,15 +52,14 @@ type metaFeature struct {
 	basetype string
 }
 
-func (f metaFeature) NewFeature(flow Flow) Feature {
+func (f metaFeature) NewFeature() Feature {
 	ret := f.creator()
-	ret.setFlow(flow)
 	ret.setBaseType(f.basetype)
 	return ret
 }
 
 type BaseFeatureCreator interface {
-	NewFeature(Flow) Feature
+	NewFeature() Feature
 	BaseType() string
 }
 
@@ -80,6 +81,13 @@ type FeatureList struct {
 	export   []Feature
 	startup  []Feature
 	exporter Exporter
+}
+
+func (list *FeatureList) Init(flow Flow) {
+	for _, feature := range list.startup {
+		feature.setFlow(flow)
+		feature.getBaseFeature().value = nil
+	}
 }
 
 func (list *FeatureList) Start(start Time) {
@@ -118,11 +126,11 @@ func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCrea
 
 	exporter.Fields(basetypes)
 
-	return func(flow Flow) FeatureList {
+	return func() *FeatureList {
 		f := make([]Feature, len(list))
 		for i, feature := range list {
-			f[i] = feature.NewFeature(flow)
+			f[i] = feature.NewFeature()
 		}
-		return FeatureList{f, f, f, exporter}
+		return &FeatureList{f, f, f, exporter}
 	}
 }

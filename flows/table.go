@@ -3,17 +3,17 @@ package flows
 import "sync"
 
 type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
-type FeatureListCreator func(Flow) FeatureList
+type FeatureListCreator func() *FeatureList
 
 type FlowTable struct {
 	flows         map[FlowKey]Flow
-	features      FeatureListCreator
 	lastEvent     Time
 	newflow       FlowCreator
 	activeTimeout Time
 	idleTimeout   Time
 	checkpoint    Time
 	timerPool     sync.Pool
+	featurePool   sync.Pool
 	DataStore     interface{}
 	eof           bool
 }
@@ -21,7 +21,6 @@ type FlowTable struct {
 func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]Flow, 1000000),
-		features:      features,
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
 		idleTimeout:   idleTimeout,
@@ -29,6 +28,11 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 		timerPool: sync.Pool{
 			New: func() interface{} {
 				return new(funcEntry)
+			},
+		},
+		featurePool: sync.Pool{
+			New: func() interface{} {
+				return features()
 			},
 		},
 	}
