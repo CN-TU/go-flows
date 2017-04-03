@@ -16,6 +16,7 @@ type Feature interface {
 	setFlow(Flow)
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
+	Reset()
 }
 
 type BaseFeature struct {
@@ -35,6 +36,7 @@ func (f *BaseFeature) BaseType() string             { return f.basetype }
 func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
+func (f *BaseFeature) Reset()                       { f.value = nil }
 
 func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	f.value = new
@@ -86,7 +88,7 @@ type FeatureList struct {
 func (list *FeatureList) Init(flow Flow) {
 	for _, feature := range list.startup {
 		feature.setFlow(flow)
-		feature.getBaseFeature().value = nil
+		feature.Reset()
 	}
 }
 
