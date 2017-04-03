@@ -148,6 +148,7 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter) FeatureLis
 
 type ConstantFeature struct {
 	value interface{}
+	t     string
 }
 
 func (f *ConstantFeature) Event(interface{}, Time)      {}
@@ -156,14 +157,15 @@ func (f *ConstantFeature) SetValue(interface{}, Time)   {}
 func (f *ConstantFeature) Start(Time)                   {}
 func (f *ConstantFeature) Stop(FlowEndReason, Time)     {}
 func (f *ConstantFeature) Key() FlowKey                 { return nil }
-func (f *ConstantFeature) Type() string                 { return "Constant" }
-func (f *ConstantFeature) BaseType() string             { return "Constant" }
+func (f *ConstantFeature) Type() string                 { return f.t }
+func (f *ConstantFeature) BaseType() string             { return f.t }
 func (f *ConstantFeature) setFlow(Flow)                 {}
 func (f *ConstantFeature) setBaseType(string)           {}
 func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
 func (f *ConstantFeature) Reset()                       {}
 
 func NewConstantMetaFeature(value interface{}) BaseFeatureCreator {
-	feature := &ConstantFeature{value}
-	return metaFeature{func() Feature { return feature }, fmt.Sprintf("___const<%v>", value)}
+	t := fmt.Sprintf("___const<%v>", value)
+	feature := &ConstantFeature{value, t}
+	return metaFeature{func() Feature { return feature }, t}
 }
