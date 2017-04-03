@@ -72,7 +72,7 @@ func main() {
 		defer trace.Stop()
 	}
 
-	features := []string{
+	features := []interface{}{
 		"sourceIPAddress",
 		"destinationIPAddress",
 		"protocolIdentifier",

@@ -114,15 +114,24 @@ func (list *FeatureList) Export(when Time) {
 	list.exporter.Export(list.export, when)
 }
 
-func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCreator {
+func NewFeatureListCreator(features []interface{}, exporter Exporter) FeatureListCreator {
 	list := make([]BaseFeatureCreator, len(features))
 	basetypes := make([]string, len(features))
 	for i, feature := range features {
-		if basetype, ok := featureRegistry[feature]; !ok {
-			panic(fmt.Sprintf("Feature %s not found", feature))
-		} else {
+		switch feature.(type) {
+		case string:
+			if basetype, ok := featureRegistry[feature.(string)]; !ok {
+				panic(fmt.Sprintf("Feature %s not found", feature))
+			} else {
+				list[i] = basetype
+				basetypes[i] = basetype.BaseType()
+			}
+		case bool, complex128, complex64, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
+			basetype := NewConstantMetaFeature(feature)
 			list[i] = basetype
 			basetypes[i] = basetype.BaseType()
+		default:
+			panic(fmt.Sprint("Don't know what to do with ", feature))
 		}
 	}
 
@@ -135,4 +144,26 @@ func NewFeatureListCreator(features []string, exporter Exporter) FeatureListCrea
 		}
 		return &FeatureList{f, f, f, exporter}
 	}
+}
+
+type ConstantFeature struct {
+	value interface{}
+}
+
+func (f *ConstantFeature) Event(interface{}, Time)      {}
+func (f *ConstantFeature) Value() interface{}           { return f.value }
+func (f *ConstantFeature) SetValue(interface{}, Time)   {}
+func (f *ConstantFeature) Start(Time)                   {}
+func (f *ConstantFeature) Stop(FlowEndReason, Time)     {}
+func (f *ConstantFeature) Key() FlowKey                 { return nil }
+func (f *ConstantFeature) Type() string                 { return "Constant" }
+func (f *ConstantFeature) BaseType() string             { return "Constant" }
+func (f *ConstantFeature) setFlow(Flow)                 {}
+func (f *ConstantFeature) setBaseType(string)           {}
+func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
+func (f *ConstantFeature) Reset()                       {}
+
+func NewConstantMetaFeature(value interface{}) BaseFeatureCreator {
+	feature := &ConstantFeature{value}
+	return metaFeature{func() Feature { return feature }, fmt.Sprintf("___const<%v>", value)}
 }
