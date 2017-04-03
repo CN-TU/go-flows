@@ -3,11 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
+	"strings"
+
+	"strconv"
+
+	"encoding/json"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/exporters"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
@@ -16,6 +22,8 @@ import (
 
 var (
 	format        = flag.String("format", "text", "Output format (text|csv)")
+	featurefile   = flag.String("features", "", "Features specification (json)")
+	selection     = flag.String("select", "flows:0", "flow selection (key:number in specification)")
 	output        = flag.String("output", "-", "Output filename")
 	cpuprofile    = flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile    = flag.String("memprofile", "", "write mem profile to file")
@@ -31,6 +39,50 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: %s [args] file1 [file2] [...] \n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(-1)
+}
+
+func decodeJSON(inputfile, key string, id int) []interface{} {
+	var ret []interface{}
+	f, err := os.Open(inputfile)
+	if err != nil {
+		log.Panic("Can't open ", inputfile)
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+
+	level := 0
+	found := false
+	discovered := 0
+
+	for {
+		t, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		if delim, ok := t.(json.Delim); ok {
+			switch delim {
+			case '{', '[':
+				level++
+			case '}', ']':
+				level--
+			}
+		}
+		if field, ok := t.(string); ok {
+			if found && level == 3 && field == "features" {
+				if discovered == id {
+					dec.Decode(&ret)
+					return ret
+				}
+				discovered++
+			} else if level == 1 && field == key {
+				found = true
+			}
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -72,12 +124,23 @@ func main() {
 		defer trace.Stop()
 	}
 
-	features := []interface{}{
-		"sourceIPAddress",
-		"destinationIPAddress",
-		"protocolIdentifier",
-		"flowEndReason",
-		"flowEndNanoSeconds",
+	if *featurefile == "" {
+		panic("Need a feature input file!")
+	}
+
+	selector := strings.Split(*selection, ":")
+	if len(selector) != 2 {
+		panic("select must be of form 'key:id'!")
+	}
+
+	selectorID, err := strconv.Atoi(selector[1])
+	if err != nil {
+		panic("select must be of form 'key:id'!")
+	}
+
+	features := decodeJSON(*featurefile, selector[0], selectorID)
+	if features == nil {
+		log.Panic("Features ", *selection, " not found in ", *featurefile)
 	}
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
