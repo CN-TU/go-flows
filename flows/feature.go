@@ -17,7 +17,6 @@ type Feature interface {
 	setFlow(Flow)
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
-	Reset()
 	setDependent([]Feature)
 }
 
@@ -39,7 +38,6 @@ func (f *BaseFeature) BaseType() string             { return f.basetype }
 func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
-func (f *BaseFeature) Reset()                       { f.value = nil }
 
 func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	f.value = new
@@ -130,7 +128,6 @@ type FeatureList struct {
 func (list *FeatureList) Init(flow Flow) {
 	for _, feature := range list.startup {
 		feature.setFlow(flow)
-		feature.Reset()
 	}
 }
 
@@ -347,7 +344,6 @@ func (f *ConstantFeature) BaseType() string             { return f.t }
 func (f *ConstantFeature) setFlow(Flow)                 {}
 func (f *ConstantFeature) setBaseType(string)           {}
 func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
-func (f *ConstantFeature) Reset()                       {}
 
 func NewConstantMetaFeature(value interface{}) metaFeature {
 	t := fmt.Sprintf("___const<%v>", value)

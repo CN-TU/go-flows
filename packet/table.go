@@ -423,28 +423,11 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 	sft.table.EOF(now)
 }
 
-type flowPool struct {
-	tcp sync.Pool
-	uni sync.Pool
-}
-
 func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow flows.FlowCreator, activeTimeout, idleTimeout, expire flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{
 			table:      flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout),
 			expireTime: expire,
-		}
-		ret.table.DataStore = &flowPool{
-			tcp: sync.Pool{
-				New: func() interface{} {
-					return new(TCPFlow)
-				},
-			},
-			uni: sync.Pool{
-				New: func() interface{} {
-					return new(UniFlow)
-				},
-			},
 		}
 		ret.full = make(chan *shallowMultiPacketBuffer, shallowBuffers)
 		ret.expire = make(chan struct{}, 1)
@@ -493,18 +476,6 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 			ret.empty[i] <- newShallowMultiPacketBuffer(batchSize)
 		}
 		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout)
-		t.DataStore = &flowPool{
-			tcp: sync.Pool{
-				New: func() interface{} {
-					return new(TCPFlow)
-				},
-			},
-			uni: sync.Pool{
-				New: func() interface{} {
-					return new(UniFlow)
-				},
-			},
-		}
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
