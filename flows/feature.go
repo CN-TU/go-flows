@@ -248,10 +248,9 @@ MAIN:
 				init = append(init, featureToInit{basetype, nil, nil, true, feature.export})
 			}
 		case bool, complex128, complex64, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
-			basetype := NewConstantMetaFeature(feature)
-			_ = basetype //fixme
+			basetype := NewConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
-			//init = append(init, featureToInit{basetype, false, feature.export}) //fixme
+			init = append(init, featureToInit{basetype, nil, nil, false, feature.export})
 		case []interface{}:
 			arguments := feature.feature.([]interface{})
 			if basetype, ok := getFeature(arguments[0].(string), feature.ret, len(arguments)-1); !ok {
@@ -350,7 +349,7 @@ func (f *ConstantFeature) setBaseType(string)           {}
 func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
 func (f *ConstantFeature) Reset()                       {}
 
-func NewConstantMetaFeature(value interface{}) BaseFeatureCreator {
+func NewConstantMetaFeature(value interface{}) metaFeature {
 	t := fmt.Sprintf("___const<%v>", value)
 	feature := &ConstantFeature{value, t}
 	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
