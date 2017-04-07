@@ -25,7 +25,9 @@ func (f *sourceIPAddress) Type() string {
 	return "sourceIPv6Address"
 }
 
-var SourceIPAdress = flows.RegisterFeature("sourceIPAddress", func() flows.Feature { return &sourceIPAddress{} })
+var SourceIPAdress = flows.RegisterFeature("sourceIPAddress", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &sourceIPAddress{} }, nil},
+})
 
 ////////////////////////////////////////////////////////////////////////////////
 type destinationIPAddress struct {
@@ -46,7 +48,9 @@ func (f *destinationIPAddress) Type() string {
 	return "destinationIPv6Address"
 }
 
-var DestinationIPAdress = flows.RegisterFeature("destinationIPAddress", func() flows.Feature { return &destinationIPAddress{} })
+var DestinationIPAdress = flows.RegisterFeature("destinationIPAddress", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &destinationIPAddress{} }, nil},
+})
 
 ////////////////////////////////////////////////////////////////////////////////
 type protocolIdentifier struct {
@@ -59,7 +63,9 @@ func (f *protocolIdentifier) Event(new interface{}, when flows.Time) {
 	}
 }
 
-var ProtocolIdentifier = flows.RegisterFeature("protocolIdentifier", func() flows.Feature { return &protocolIdentifier{} })
+var ProtocolIdentifier = flows.RegisterFeature("protocolIdentifier", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &protocolIdentifier{} }, nil},
+})
 
 ////////////////////////////////////////////////////////////////////////////////
 type flowEndReason struct {
@@ -70,7 +76,9 @@ func (f *flowEndReason) Stop(reason flows.FlowEndReason, when flows.Time) {
 	f.SetValue(reason, when)
 }
 
-var FlowEndReason = flows.RegisterFeature("flowEndReason", func() flows.Feature { return &flowEndReason{} })
+var FlowEndReason = flows.RegisterFeature("flowEndReason", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &flowEndReason{} }, nil},
+})
 
 ////////////////////////////////////////////////////////////////////////////////
 type flowEndNanoSeconds struct {
@@ -81,4 +89,46 @@ func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, when flows.Time) {
 	f.SetValue(when, when)
 }
 
-var FlowEndNanoSeconds = flows.RegisterFeature("flowEndNanoSeconds", func() flows.Feature { return &flowEndNanoSeconds{} })
+var FlowEndNanoSeconds = flows.RegisterFeature("flowEndNanoSeconds", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &flowEndNanoSeconds{} }, nil},
+})
+
+////////////////////////////////////////////////////////////////////////////////
+
+type octetTotalCountPacket struct {
+	flows.BaseFeature
+}
+
+func octetCount(packet *packetBuffer) int {
+	length := packet.Metadata().Length
+	if net := packet.NetworkLayer(); net != nil {
+		length -= len(net.LayerContents())
+	}
+	return length
+}
+
+func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time) {
+	f.SetValue(octetCount(new.(*packetBuffer)), when)
+}
+
+type octetTotalCountFlow struct {
+	flows.BaseFeature
+	total int
+}
+
+func (f *octetTotalCountFlow) Start(when flows.Time) {
+	f.total = 0
+}
+
+func (f *octetTotalCountFlow) Event(new interface{}, when flows.Time) {
+	f.total += octetCount(new.(*packetBuffer))
+}
+
+func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.total, when)
+}
+
+var OctetTotalCount = flows.RegisterFeature("octetTotalCount", []flows.FeatureCreator{
+	{flows.FeatureTypeFlow, func() flows.Feature { return &octetTotalCountFlow{} }, nil},
+	{flows.FeatureTypePacket, func() flows.Feature { return &octetTotalCountPacket{} }, nil},
+})

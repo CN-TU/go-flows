@@ -41,8 +41,32 @@ func usage() {
 	os.Exit(-1)
 }
 
-func decodeJSON(inputfile, key string, id int) []interface{} {
+func decodeFeatures(dec *json.Decoder) []interface{} {
 	var ret []interface{}
+	for {
+		t, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		if delim, ok := t.(json.Delim); ok {
+			switch delim {
+			case '{':
+				ret = append(ret, decodeFeatures(dec))
+			case '}':
+				return ret
+			}
+		} else {
+			ret = append(ret, t)
+		}
+	}
+	panic("EOF")
+}
+
+func decodeJSON(inputfile, key string, id int) []interface{} {
+	//var ret []interface{}
 	f, err := os.Open(inputfile)
 	if err != nil {
 		log.Panic("Can't open ", inputfile)
@@ -73,8 +97,8 @@ func decodeJSON(inputfile, key string, id int) []interface{} {
 		if field, ok := t.(string); ok {
 			if found && level == 3 && field == "features" {
 				if discovered == id {
-					dec.Decode(&ret)
-					return ret
+					//dec.Decode(&ret)
+					return decodeFeatures(dec)
 				}
 				discovered++
 			} else if level == 1 && field == key {
@@ -143,7 +167,7 @@ func main() {
 		log.Panic("Features ", *selection, " not found in ", *featurefile)
 	}
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 
 	time := packet.ReadFiles(flag.Args(), int(*maxPacket), flowtable)
 

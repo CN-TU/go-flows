@@ -2,6 +2,7 @@ package flows
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Feature interface {
@@ -17,6 +18,7 @@ type Feature interface {
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
 	Reset()
+	setDependent([]Feature)
 }
 
 type BaseFeature struct {
@@ -26,6 +28,7 @@ type BaseFeature struct {
 	basetype  string
 }
 
+func (f *BaseFeature) setDependent(dep []Feature)   { f.dependent = dep }
 func (f *BaseFeature) Event(interface{}, Time)      {}
 func (f *BaseFeature) Value() interface{}           { return f.value }
 func (f *BaseFeature) Start(Time)                   {}
@@ -47,18 +50,50 @@ func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	}
 }
 
-type FeatureCreator func() Feature
+type FeatureCreator struct {
+	Ret       FeatureType
+	Create    func() Feature
+	Arguments []FeatureType
+}
 
 type metaFeature struct {
 	creator  FeatureCreator
 	basetype string
 }
 
+func (m metaFeature) String() string {
+	return fmt.Sprintf("<%s>%s(%s)", m.creator.Ret, m.basetype, m.creator.Arguments)
+}
+
 func (f metaFeature) NewFeature() Feature {
-	ret := f.creator()
+	ret := f.creator.Create()
 	ret.setBaseType(f.basetype)
 	return ret
 }
+
+type FeatureType int
+
+func (f FeatureType) String() string {
+	switch f {
+	case FeatureTypePacket:
+		return "PacketFeature"
+	case FeatureTypeFlow:
+		return "FlowFeature"
+	case featureTypeAny:
+		return "AnyFeature"
+	case FeatureTypeEllipsis:
+		return "..."
+	}
+	return "???"
+}
+
+const (
+	FeatureTypePacket FeatureType = iota
+	FeatureTypeFlow
+	featureTypeAny      //for constants
+	FeatureTypeEllipsis //for variadic
+	featureTypeMax
+)
 
 type BaseFeatureCreator interface {
 	NewFeature() Feature
@@ -67,15 +102,22 @@ type BaseFeatureCreator interface {
 
 func (f metaFeature) BaseType() string { return f.basetype }
 
-var featureRegistry = make(map[string]metaFeature)
+var featureRegistry = make([]map[string][]metaFeature, featureTypeMax)
 
-func RegisterFeature(name string, f FeatureCreator) BaseFeatureCreator {
-	if _, ok := featureRegistry[name]; ok {
-		panic(fmt.Sprintf("Feature %s already exists!", name))
+func init() {
+	for i := range featureRegistry {
+		featureRegistry[i] = make(map[string][]metaFeature)
 	}
-	ret := metaFeature{f, name}
-	featureRegistry[name] = ret
-	return ret
+}
+
+func RegisterFeature(name string, types []FeatureCreator) string {
+	for _, t := range types {
+		/* if _, ok := featureRegistry[t.Ret][name]; ok {
+			panic(fmt.Sprintf("Feature (%v) %s already defined!", t.Ret, name))
+		}*/ //FIXME add some kind of konsistency check!
+		featureRegistry[t.Ret][name] = append(featureRegistry[t.Ret][name], metaFeature{t, name})
+	}
+	return name
 }
 
 type FeatureList struct {
@@ -114,35 +156,178 @@ func (list *FeatureList) Export(when Time) {
 	list.exporter.Export(list.export, when)
 }
 
-func NewFeatureListCreator(features []interface{}, exporter Exporter) FeatureListCreator {
-	list := make([]BaseFeatureCreator, len(features))
-	basetypes := make([]string, len(features))
-	for i, feature := range features {
-		switch feature.(type) {
+func getFeature(feature string, ret FeatureType, nargs int) (metaFeature, bool) {
+	variadicFound := false
+	var variadic metaFeature
+	for _, f := range featureRegistry[ret][feature] {
+		if len(f.creator.Arguments) >= 2 && f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
+			variadicFound = true
+			variadic = f
+		} else if len(f.creator.Arguments) == nargs {
+			return f, true
+		}
+	}
+	if variadicFound {
+		return variadic, true
+	}
+	return metaFeature{}, false
+}
+
+func getArgumentTypes(feature string, ret FeatureType, nargs int) []FeatureType {
+	f, found := getFeature(feature, ret, nargs)
+	if !found {
+		return nil
+	}
+	if f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
+		r := make([]FeatureType, nargs)
+		variadic := f.creator.Arguments[len(f.creator.Arguments)-2]
+		for i := range r {
+			r[i] = variadic
+		}
+		return r
+	}
+	return f.creator.Arguments
+}
+
+func feature2id(feature interface{}, ret FeatureType) string {
+	switch feature.(type) {
+	case string:
+		return fmt.Sprintf("<%d>%s", ret, feature)
+	case bool, complex128, complex64, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
+		return fmt.Sprintf("Const{%v}", feature)
+	case []interface{}:
+		feature := feature.([]interface{})
+		features := make([]string, len(feature))
+		arguments := append([]FeatureType{ret}, getArgumentTypes(feature[0].(string), ret, len(feature)-1)...)
+		for i, f := range feature {
+			features[i] = feature2id(f, arguments[i])
+		}
+		return "[" + strings.Join(features, ",") + "]"
+	default:
+		panic(fmt.Sprint("Don't know what to do with ", feature))
+	}
+}
+
+func NewFeatureListCreator(features []interface{}, exporter Exporter, base FeatureType) FeatureListCreator {
+	type featureWithType struct {
+		feature interface{}
+		ret     FeatureType
+		export  bool
+	}
+
+	type featureToInit struct {
+		feature   metaFeature
+		arguments []int
+		call      []int
+		event     bool
+		export    bool
+	}
+
+	init := make([]featureToInit, 0, len(features))
+
+	seen := make(map[string]int, len(features))
+	stack := make([]featureWithType, len(features))
+	for i := range features {
+		stack[i] = featureWithType{features[i], base, true}
+	}
+
+	var feature featureWithType
+MAIN:
+	for len(stack) > 0 {
+		feature, stack = stack[0], stack[1:]
+		id := feature2id(feature.feature, feature.ret)
+		if _, ok := seen[id]; ok {
+			continue MAIN
+		}
+		switch feature.feature.(type) {
 		case string:
-			if basetype, ok := featureRegistry[feature.(string)]; !ok {
-				panic(fmt.Sprintf("Feature %s not found", feature))
+			if basetype, ok := getFeature(feature.feature.(string), feature.ret, 0); !ok {
+				panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
 			} else {
-				list[i] = basetype
-				basetypes[i] = basetype.BaseType()
+				seen[id] = len(init)
+				init = append(init, featureToInit{basetype, nil, nil, true, feature.export})
 			}
 		case bool, complex128, complex64, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
 			basetype := NewConstantMetaFeature(feature)
-			list[i] = basetype
-			basetypes[i] = basetype.BaseType()
+			_ = basetype //fixme
+			seen[id] = len(init)
+			//init = append(init, featureToInit{basetype, false, feature.export}) //fixme
+		case []interface{}:
+			arguments := feature.feature.([]interface{})
+			if basetype, ok := getFeature(arguments[0].(string), feature.ret, len(arguments)-1); !ok {
+				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", arguments[0].(string), feature.ret, arguments[1:]))
+			} else {
+				argumentTypes := getArgumentTypes(arguments[0].(string), feature.ret, len(arguments)-1)
+				argumentPos := make([]int, 0, len(arguments)-1)
+				for i, f := range arguments[1:] {
+					if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
+						newstack := make([]featureWithType, len(arguments)-1)
+						for i, arg := range arguments[1:] {
+							newstack[i] = featureWithType{arg, argumentTypes[i], false}
+						}
+						stack = append(append(newstack, feature), stack...)
+						continue MAIN
+					} else {
+						argumentPos = append(argumentPos, pos)
+					}
+				}
+				seen[id] = len(init)
+				init = append(init, featureToInit{basetype, argumentPos, nil, false, feature.export}) //fake BaseType?
+			}
 		default:
 			panic(fmt.Sprint("Don't know what to do with ", feature))
+		}
+	}
+
+	for i, f := range init {
+		for _, arg := range f.arguments {
+			init[arg].call = append(init[arg].call, i)
+		}
+	}
+
+	basetypes := make([]string, 0, len(features))
+	nevent := 0
+	nexport := 0
+	for _, feature := range init {
+		if feature.export {
+			basetypes = append(basetypes, feature.feature.BaseType())
+			nexport++
+		}
+		if feature.event {
+			nevent++
 		}
 	}
 
 	exporter.Fields(basetypes)
 
 	return func() *FeatureList {
-		f := make([]Feature, len(list))
-		for i, feature := range list {
-			f[i] = feature.NewFeature()
+		f := make([]Feature, len(init))
+		event := make([]Feature, 0, nevent)
+		export := make([]Feature, 0, nexport)
+		for i, feature := range init {
+			f[i] = feature.feature.NewFeature()
+			if feature.event {
+				event = append(event, f[i])
+			}
+			if feature.export {
+				export = append(export, f[i])
+			}
 		}
-		return &FeatureList{f, f, f, exporter}
+		for i, feature := range init {
+			if len(feature.call) > 0 {
+				args := make([]Feature, len(feature.call))
+				for i, call := range feature.call {
+					args[i] = f[call]
+				}
+				f[i].setDependent(args)
+			}
+		}
+		return &FeatureList{
+			startup:  f,
+			event:    event,
+			export:   export,
+			exporter: exporter,
+		}
 	}
 }
 
@@ -151,6 +336,7 @@ type ConstantFeature struct {
 	t     string
 }
 
+func (f *ConstantFeature) setDependent([]Feature)       {}
 func (f *ConstantFeature) Event(interface{}, Time)      {}
 func (f *ConstantFeature) Value() interface{}           { return f.value }
 func (f *ConstantFeature) SetValue(interface{}, Time)   {}
@@ -167,5 +353,63 @@ func (f *ConstantFeature) Reset()                       {}
 func NewConstantMetaFeature(value interface{}) BaseFeatureCreator {
 	t := fmt.Sprintf("___const<%v>", value)
 	feature := &ConstantFeature{value, t}
-	return metaFeature{func() Feature { return feature }, t}
+	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func toFloat(v interface{}) float64 {
+	switch v.(type) {
+	case float32:
+		return float64(v.(float32))
+	case float64:
+		return float64(v.(float64))
+	case int:
+		return float64(v.(int))
+	case int16:
+		return float64(v.(int16))
+	case int32:
+		return float64(v.(int32))
+	case int64:
+		return float64(v.(int64))
+	case int8:
+		return float64(v.(int8))
+	case uint:
+		return float64(v.(uint))
+	case uint16:
+		return float64(v.(uint16))
+	case uint32:
+		return float64(v.(uint32))
+	case uint64:
+		return float64(v.(uint64))
+	case uint8:
+		return float64(v.(uint8))
+	}
+	panic("Cannot convert v to float!")
+}
+
+type mean struct {
+	BaseFeature
+	total float64
+	count int
+}
+
+func (f *mean) Start(when Time) {
+	f.total = 0
+	f.count = 0
+}
+
+func (f *mean) Event(new interface{}, when Time) {
+	f.total += toFloat(new) //smell this feels wrong
+	f.count++
+}
+
+func (f *mean) Stop(reason FlowEndReason, when Time) {
+	f.SetValue(f.total/float64(f.count), when)
+}
+
+func init() {
+	RegisterFeature("mean", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &mean{} }, []FeatureType{FeatureTypePacket}},
+	})
 }
