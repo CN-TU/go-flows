@@ -4,7 +4,8 @@ type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
 type FeatureListCreator func() *FeatureList
 
 type FlowTable struct {
-	flows         map[FlowKey]Flow
+	flows         map[FlowKey]int
+	flowLRU       []Flow
 	newflow       FlowCreator
 	activeTimeout Time
 	idleTimeout   Time
@@ -15,7 +16,8 @@ type FlowTable struct {
 
 func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
 	return &FlowTable{
-		flows:         make(map[FlowKey]Flow, 1000000),
+		flows:         make(map[FlowKey]int, 1000000),
+		flowLRU:       make([]Flow, 0, 1000000),
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
 		idleTimeout:   idleTimeout,
@@ -25,7 +27,10 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 
 func (tab *FlowTable) Expire() {
 	when := tab.now
-	for _, elem := range tab.flows {
+	for _, elem := range tab.flowLRU {
+		if elem == nil {
+			break
+		}
 		if when > elem.NextEvent() {
 			elem.Expire(when)
 		}
@@ -40,27 +45,38 @@ func (tab *FlowTable) Event(event Event) {
 
 	elem, ok := tab.flows[key]
 	if ok {
+		elem := tab.flowLRU[elem]
 		if when > elem.NextEvent() {
 			elem.Expire(when)
 			ok = elem.Active()
 		}
+		elem.Event(event, when)
 	}
 	if !ok {
-		elem = tab.newflow(event, tab, key, when)
-		tab.flows[key] = elem
+		elem := tab.newflow(event, tab, key, when)
+		tab.flows[key] = len(tab.flowLRU)
+		elem.setPosition(len(tab.flowLRU))
+		tab.flowLRU = append(tab.flowLRU, elem)
+		elem.Event(event, when)
 	}
-	elem.Event(event, when)
 }
 
 func (tab *FlowTable) Remove(entry Flow) {
 	if !tab.eof {
+		old := tab.flows[entry.Key()]
+		end := tab.flowLRU[len(tab.flowLRU)-1]
+		end.setPosition(old)
+		tab.flows[end.Key()] = old
+		tab.flowLRU[old] = end
+		tab.flowLRU[len(tab.flowLRU)-1] = nil
+		tab.flowLRU = tab.flowLRU[:len(tab.flowLRU)-1]
 		delete(tab.flows, entry.Key())
 	}
 }
 
 func (tab *FlowTable) EOF(now Time) {
 	tab.eof = true
-	for _, v := range tab.flows {
+	for _, v := range tab.flowLRU {
 		if now > v.NextEvent() {
 			v.Expire(now)
 		}
@@ -68,6 +84,7 @@ func (tab *FlowTable) EOF(now Time) {
 			v.EOF(now)
 		}
 	}
-	tab.flows = make(map[FlowKey]Flow)
+	tab.flows = make(map[FlowKey]int)
+	tab.flowLRU = nil
 	tab.eof = false
 }
