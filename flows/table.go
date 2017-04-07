@@ -7,24 +7,22 @@ type FeatureListCreator func() *FeatureList
 
 type FlowTable struct {
 	flows         map[FlowKey]Flow
-	lastEvent     Time
 	newflow       FlowCreator
 	activeTimeout Time
 	idleTimeout   Time
-	checkpoint    Time
+	now           Time
 	timerPool     sync.Pool
 	featurePool   sync.Pool
 	DataStore     interface{}
 	eof           bool
 }
 
-func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout, checkpoint Time) *FlowTable {
+func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]Flow, 1000000),
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
 		idleTimeout:   idleTimeout,
-		checkpoint:    checkpoint,
 		timerPool: sync.Pool{
 			New: func() interface{} {
 				return new(funcEntry)
@@ -38,19 +36,21 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 	}
 }
 
+func (tab *FlowTable) Expire() {
+	when := tab.now
+	for _, elem := range tab.flows {
+		if when > elem.NextEvent() {
+			elem.Expire(when)
+		}
+	}
+}
+
 func (tab *FlowTable) Event(event Event) {
 	when := event.Timestamp()
 	key := event.Key()
 
-	if tab.lastEvent < when {
-		for _, elem := range tab.flows {
-			if when > elem.NextEvent() {
-				elem.Expire(when)
-			}
-		}
-		tab.lastEvent = when + tab.checkpoint
-	}
-	// event every n seconds
+	tab.now = when
+
 	elem, ok := tab.flows[key]
 	if ok {
 		if when > elem.NextEvent() {
