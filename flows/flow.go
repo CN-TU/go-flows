@@ -66,7 +66,7 @@ func (flow *BaseFlow) Stop() {
 func (flow *BaseFlow) NextEvent() Time   { return flow.expireNext }
 func (flow *BaseFlow) Active() bool      { return flow.active }
 func (flow *BaseFlow) Key() FlowKey      { return flow.key }
-func (flow *BaseFlow) Recycle()          { flow.table.featurePool.Put(flow.features) }
+func (flow *BaseFlow) Recycle()          {}
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
 func (flow *BaseFlow) Expire(when Time) {
@@ -132,7 +132,7 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.table = table
 	flow.timers = make(map[TimerID]*funcEntry, 2)
 	flow.active = true
-	flow.features = table.featurePool.Get().(*FeatureList)
+	flow.features = table.features()
 	flow.features.Init(flow)
 	flow.features.Start(time)
 }
