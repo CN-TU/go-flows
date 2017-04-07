@@ -3,7 +3,7 @@ package packet
 import (
 	"io"
 	"log"
-	"runtime/debug"
+	"runtime"
 	"sync"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
@@ -403,7 +403,7 @@ type SingleFlowTable struct {
 
 func (sft *SingleFlowTable) Expire() {
 	sft.expire <- struct{}{}
-	debug.FreeOSMemory()
+	runtime.GC()
 }
 
 func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
@@ -536,7 +536,7 @@ func (pft *ParallelFlowTable) Expire() {
 		e <- struct{}{}
 	}
 	pft.expirewg.Wait()
-	debug.FreeOSMemory()
+	runtime.GC()
 }
 
 func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
