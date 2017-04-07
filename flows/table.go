@@ -11,7 +11,6 @@ type FlowTable struct {
 	activeTimeout Time
 	idleTimeout   Time
 	now           Time
-	timerPool     sync.Pool
 	featurePool   sync.Pool
 	DataStore     interface{}
 	eof           bool
@@ -23,11 +22,6 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 		newflow:       newflow,
 		activeTimeout: activeTimeout,
 		idleTimeout:   idleTimeout,
-		timerPool: sync.Pool{
-			New: func() interface{} {
-				return new(funcEntry)
-			},
-		},
 		featurePool: sync.Pool{
 			New: func() interface{} {
 				return features()

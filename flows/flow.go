@@ -79,7 +79,6 @@ func (flow *BaseFlow) Expire(when Time) {
 		if v.when <= when {
 			v.function(v.when, when)
 			delete(flow.timers, v.id)
-			flow.table.timerPool.Put(v)
 		} else {
 			flow.expireNext = v.when
 			break
@@ -92,7 +91,7 @@ func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
 		entry.function = f
 		entry.when = when
 	} else {
-		t := flow.table.timerPool.Get().(*funcEntry)
+		t := new(funcEntry)
 		t.function = f
 		t.when = when
 		t.id = id
