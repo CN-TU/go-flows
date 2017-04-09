@@ -12,24 +12,20 @@ import (
 )
 
 type csvExporter struct {
-	exportlist chan []interface{}
+	exportlist chan []string
 	finished   chan struct{}
 }
 
 func (pe *csvExporter) Fields(fields []string) {
-	list := make([]interface{}, len(fields))
-	for i, elem := range fields {
-		list[i] = elem
-	}
-	pe.exportlist <- list
+	pe.exportlist <- fields
 }
 
 //Export export given features
 func (pe *csvExporter) Export(features []flows.Feature, when flows.Time) {
 	n := len(features)
-	var list = make([]interface{}, n)
+	var list = make([]string, n)
 	for i, elem := range features {
-		list[i] = elem.Value()
+		list[i] = fmt.Sprint(elem.Value())
 	}
 	pe.exportlist <- list
 }
@@ -42,7 +38,7 @@ func (pe *csvExporter) Finish() {
 
 //NewCSVExporter Create a new exporter that just writes the features to filename (- for stdout)
 func NewCSVExporter(filename string) flows.Exporter {
-	ret := &csvExporter{make(chan []interface{}, 100), make(chan struct{})}
+	ret := &csvExporter{make(chan []string, 100), make(chan struct{})}
 	var outfile io.WriteCloser
 	if filename == "-" {
 		outfile = os.Stdout
@@ -56,17 +52,8 @@ func NewCSVExporter(filename string) flows.Exporter {
 	writer := csv.NewWriter(outfile)
 	go func() {
 		defer close(ret.finished)
-		var record []string
 		for data := range ret.exportlist {
-			n := len(data)
-			if cap(record) < n {
-				record = make([]string, n)
-			}
-			record = record[:n]
-			for i, elem := range data {
-				record[i] = fmt.Sprint(elem)
-			}
-			writer.Write(record)
+			writer.Write(data)
 		}
 		writer.Flush()
 	}()
