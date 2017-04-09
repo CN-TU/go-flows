@@ -34,8 +34,6 @@ type Flow interface {
 	Key() FlowKey
 	Init(*FlowTable, FlowKey, Time)
 	Table() *FlowTable
-	getPosition() int
-	setPosition(int)
 }
 
 type funcEntry struct {
@@ -56,7 +54,6 @@ type BaseFlow struct {
 	timers     map[TimerID]*funcEntry
 	expireNext Time
 	features   *FeatureList
-	position   int
 	active     bool
 }
 
@@ -65,12 +62,10 @@ func (flow *BaseFlow) Stop() {
 	flow.active = false
 }
 
-func (flow *BaseFlow) NextEvent() Time          { return flow.expireNext }
-func (flow *BaseFlow) Active() bool             { return flow.active }
-func (flow *BaseFlow) Key() FlowKey             { return flow.key }
-func (flow *BaseFlow) Table() *FlowTable        { return flow.table }
-func (flow *BaseFlow) getPosition() int         { return flow.position }
-func (flow *BaseFlow) setPosition(position int) { flow.position = position }
+func (flow *BaseFlow) NextEvent() Time   { return flow.expireNext }
+func (flow *BaseFlow) Active() bool      { return flow.active }
+func (flow *BaseFlow) Key() FlowKey      { return flow.key }
+func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
 func (flow *BaseFlow) Expire(when Time) {
 	values := make(funcEntries, 0, len(flow.timers))
