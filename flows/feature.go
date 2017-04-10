@@ -125,6 +125,10 @@ type FeatureList struct {
 	exporter Exporter
 }
 
+//Rework stop (for slice?)
+//stop event features and propagate?
+//same for start?
+
 func (list *FeatureList) Init(flow Flow) {
 	for _, feature := range list.startup {
 		feature.setFlow(flow)

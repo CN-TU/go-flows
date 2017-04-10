@@ -99,12 +99,12 @@ type octetTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func octetCount(packet *packetBuffer) int {
+func octetCount(packet *packetBuffer) flows.Unsigned64 {
 	length := packet.Metadata().Length
 	if net := packet.NetworkLayer(); net != nil {
 		length -= len(net.LayerContents())
 	}
-	return length
+	return flows.Unsigned64(length)
 }
 
 func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time) {
@@ -113,7 +113,7 @@ func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time) {
 
 type octetTotalCountFlow struct {
 	flows.BaseFeature
-	total int
+	total flows.Unsigned64
 }
 
 func (f *octetTotalCountFlow) Start(when flows.Time) {
@@ -121,7 +121,7 @@ func (f *octetTotalCountFlow) Start(when flows.Time) {
 }
 
 func (f *octetTotalCountFlow) Event(new interface{}, when flows.Time) {
-	f.total += octetCount(new.(*packetBuffer))
+	f.total = f.total.Add(octetCount(new.(*packetBuffer))).(flows.Unsigned64)
 }
 
 func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {

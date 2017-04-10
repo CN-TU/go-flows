@@ -28,58 +28,77 @@ func NewConstantMetaFeature(value interface{}) metaFeature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func toFloat(v interface{}) float64 {
-	switch v.(type) {
-	case float32:
-		return float64(v.(float32))
-	case float64:
-		return float64(v.(float64))
-	case int:
-		return float64(v.(int))
-	case int16:
-		return float64(v.(int16))
-	case int32:
-		return float64(v.(int32))
-	case int64:
-		return float64(v.(int64))
-	case int8:
-		return float64(v.(int8))
-	case uint:
-		return float64(v.(uint))
-	case uint16:
-		return float64(v.(uint16))
-	case uint32:
-		return float64(v.(uint32))
-	case uint64:
-		return float64(v.(uint64))
-	case uint8:
-		return float64(v.(uint8))
-	}
-	panic("Cannot convert v to float!")
-}
-
 type mean struct {
 	BaseFeature
-	total float64
+	total Number
 	count int
 }
 
 func (f *mean) Start(when Time) {
-	f.total = 0
+	f.total = nil
 	f.count = 0
 }
 
 func (f *mean) Event(new interface{}, when Time) {
-	f.total += toFloat(new) //smell this feels wrong
+	num := new.(Number)
+	if f.total == nil {
+		f.total = num
+	} else {
+		f.total = f.total.Add(num)
+	}
 	f.count++
 }
 
 func (f *mean) Stop(reason FlowEndReason, when Time) {
-	f.SetValue(f.total/float64(f.count), when)
+	f.SetValue(f.total.ToFloat()/float64(f.count), when)
 }
 
 func init() {
 	RegisterFeature("mean", []FeatureCreator{
 		{FeatureTypeFlow, func() Feature { return &mean{} }, []FeatureType{FeatureTypePacket}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type min struct {
+	BaseFeature
+}
+
+func (f *min) Event(new interface{}, when Time) {
+	if f.value == nil || new.(Number).Less(f.value.(Number)) {
+		f.value = new
+	}
+}
+
+func (f *min) Stop(reason FlowEndReason, when Time) {
+	f.SetValue(f.value, when)
+}
+
+func init() {
+	RegisterFeature("min", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &min{} }, []FeatureType{FeatureTypePacket}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type max struct {
+	BaseFeature
+}
+
+func (f *max) Event(new interface{}, when Time) {
+	if f.value == nil || new.(Number).Greater(f.value.(Number)) {
+		f.value = new
+	}
+}
+
+func (f *max) Stop(reason FlowEndReason, when Time) {
+	f.SetValue(f.value, when)
+}
+
+func init() {
+	RegisterFeature("max", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &max{} }, []FeatureType{FeatureTypePacket}},
 	})
 }
