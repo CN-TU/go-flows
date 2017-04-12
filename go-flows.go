@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	list          = flag.Bool("list", false, "List available Features")
 	format        = flag.String("format", "text", "Output format (text|csv)")
 	featurefile   = flag.String("features", "", "Features specification (json)")
 	selection     = flag.String("select", "flows:0", "flow selection (key:number in specification)")
@@ -120,6 +121,10 @@ func decodeJSON(inputfile, key string, id int) []interface{} {
 
 func main() {
 	flag.Parse()
+	if *list {
+		flows.ListFeatures()
+		return
+	}
 	if flag.NArg() == 0 {
 		usage()
 	}

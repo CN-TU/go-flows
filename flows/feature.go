@@ -1,8 +1,12 @@
 package flows
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"sort"
 	"strings"
+	"text/tabwriter"
 )
 
 type Feature interface {
@@ -116,6 +120,74 @@ func RegisterFeature(name string, types []FeatureCreator) string {
 		featureRegistry[t.Ret][name] = append(featureRegistry[t.Ret][name], metaFeature{t, name})
 	}
 	return name
+}
+
+func ListFeatures() {
+	w := tabwriter.NewWriter(os.Stdout, 0, 1, 1, ' ', 0)
+	pf := make(map[string]string)
+	ff := make(map[string]string)
+	args := make(map[string]string)
+	var base, functions []string
+	for ret, features := range featureRegistry {
+		for name, featurelist := range features {
+			for _, feature := range featurelist {
+				if len(feature.creator.Arguments) == 0 {
+					base = append(base, name)
+				} else {
+					tmp := make([]string, len(feature.creator.Arguments))
+					for i := range feature.creator.Arguments {
+						switch feature.creator.Arguments[i] {
+						case FeatureTypeFlow:
+							tmp[i] = "F"
+						case FeatureTypePacket:
+							tmp[i] = "P"
+						case FeatureTypeEllipsis:
+							tmp[i] = "..."
+						}
+					}
+					args[name] = strings.Join(tmp, ",")
+					functions = append(functions, name)
+				}
+				switch FeatureType(ret) {
+				case FeatureTypePacket:
+					pf[name] = "X"
+				case FeatureTypeFlow:
+					ff[name] = "X"
+				}
+
+			}
+		}
+	}
+	sort.Strings(base)
+	sort.Strings(functions)
+	fmt.Println("P ... Packet Feature")
+	fmt.Println("F ... Flow Feature")
+	fmt.Println()
+	fmt.Println("Base Features:")
+	fmt.Println("  P F Name")
+	var last string
+	for _, name := range base {
+		if name == last {
+			continue
+		}
+		last = name
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s\n", pf[name], ff[name], name)
+		w.Write(line.Bytes())
+	}
+	w.Flush()
+	fmt.Println("Functions:")
+	fmt.Println("  P F Name")
+	for _, name := range functions {
+		if name == last {
+			continue
+		}
+		last = name
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
+		w.Write(line.Bytes())
+	}
+	w.Flush()
 }
 
 func CleanupFeatures() {
