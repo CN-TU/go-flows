@@ -118,6 +118,10 @@ func RegisterFeature(name string, types []FeatureCreator) string {
 	return name
 }
 
+func CleanupFeatures() {
+	featureRegistry = nil
+}
+
 type FeatureList struct {
 	event    []Feature
 	export   []Feature

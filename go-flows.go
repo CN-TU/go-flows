@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
 	"strings"
@@ -175,7 +176,13 @@ func main() {
 		log.Fatalln("Features ", *selection, " not found in ", *featurefile)
 	}
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
+	featurelist := flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow)
+
+	flows.CleanupFeatures()
+
+	debug.SetGCPercent(-1) //We manually call gc after timing out flows; make that optional?
+
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featurelist, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 
 	time := packet.ReadFiles(flag.Args(), int(*maxPacket), flowtable)
 
