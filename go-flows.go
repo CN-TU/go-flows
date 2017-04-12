@@ -23,6 +23,7 @@ import (
 
 var (
 	list          = flag.Bool("list", false, "List available Features")
+	callgraph     = flag.String("callgraph", "", "Write callgraph")
 	format        = flag.String("format", "text", "Output format (text|csv)")
 	featurefile   = flag.String("features", "", "Features specification (json)")
 	selection     = flag.String("select", "flows:0", "flow selection (key:number in specification)")
@@ -125,16 +126,18 @@ func main() {
 		flows.ListFeatures()
 		return
 	}
-	if flag.NArg() == 0 {
-		usage()
-	}
 	var exporter flows.Exporter
 	switch *format {
 	case "text":
 		exporter = exporters.NewPrintExporter(*output)
 	case "csv":
 		exporter = exporters.NewCSVExporter(*output)
+	case "none":
+		exporter = nil
 	default:
+		usage()
+	}
+	if exporter != nil && flag.NArg() == 0 {
 		usage()
 	}
 	if *cpuprofile != "" {
@@ -182,6 +185,14 @@ func main() {
 	}
 
 	featurelist := flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow)
+
+	if *callgraph != "" {
+		featurelist.CallGraph(os.Stdout)
+	}
+
+	if exporter == nil {
+		return
+	}
 
 	flows.CleanupFeatures()
 

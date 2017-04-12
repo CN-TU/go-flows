@@ -130,7 +130,7 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.table = table
 	flow.timers = make(map[TimerID]*funcEntry, 2)
 	flow.active = true
-	flow.features = table.features()
+	flow.features = table.features.creator()
 	flow.features.Init(flow)
 	flow.features.Start(time)
 }

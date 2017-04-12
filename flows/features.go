@@ -9,6 +9,7 @@ type ConstantFeature struct {
 }
 
 func (f *ConstantFeature) setDependent([]Feature)       {}
+func (f *ConstantFeature) getDependent() []Feature      { return nil }
 func (f *ConstantFeature) Event(interface{}, Time)      {}
 func (f *ConstantFeature) Value() interface{}           { return f.value }
 func (f *ConstantFeature) SetValue(interface{}, Time)   {}
@@ -33,7 +34,7 @@ func NewConstantMetaFeature(value interface{}) metaFeature {
 	default:
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
-	t := fmt.Sprintf("___const<%v>", f)
+	t := fmt.Sprintf("___const{%v}", f)
 	feature := &ConstantFeature{f, t}
 	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
 }

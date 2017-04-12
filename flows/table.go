@@ -1,7 +1,6 @@
 package flows
 
 type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
-type FeatureListCreator func() *FeatureList
 
 type FlowTable struct {
 	flows         map[FlowKey]int

@@ -3,10 +3,12 @@ package flows
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"text/template"
 )
 
 type Feature interface {
@@ -22,6 +24,7 @@ type Feature interface {
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
 	setDependent([]Feature)
+	getDependent() []Feature
 }
 
 type BaseFeature struct {
@@ -32,6 +35,7 @@ type BaseFeature struct {
 }
 
 func (f *BaseFeature) setDependent(dep []Feature)   { f.dependent = dep }
+func (f *BaseFeature) getDependent() []Feature      { return f.dependent }
 func (f *BaseFeature) Event(interface{}, Time)      {}
 func (f *BaseFeature) Value() interface{}           { return f.value }
 func (f *BaseFeature) Start(Time)                   {}
@@ -50,6 +54,12 @@ func (f *BaseFeature) SetValue(new interface{}, when Time) {
 			v.Event(new, when)
 		}
 	}
+}
+
+type FeatureListCreator struct {
+	returns   []FeatureType
+	arguments [][]FeatureType
+	creator   func() *FeatureList
 }
 
 type FeatureCreator struct {
@@ -364,7 +374,11 @@ MAIN:
 	basetypes := make([]string, 0, len(features))
 	nevent := 0
 	nexport := 0
-	for _, feature := range init {
+	returns := make([]FeatureType, len(init))
+	arguments := make([][]FeatureType, len(init))
+	for i, feature := range init {
+		returns[i] = feature.feature.creator.Ret
+		arguments[i] = feature.feature.creator.Arguments
 		if feature.export {
 			basetypes = append(basetypes, feature.feature.BaseType())
 			nexport++
@@ -374,35 +388,110 @@ MAIN:
 		}
 	}
 
-	exporter.Fields(basetypes)
-
-	return func() *FeatureList {
-		f := make([]Feature, len(init))
-		event := make([]Feature, 0, nevent)
-		export := make([]Feature, 0, nexport)
-		for i, feature := range init {
-			f[i] = feature.feature.NewFeature()
-			if feature.event {
-				event = append(event, f[i])
-			}
-			if feature.export {
-				export = append(export, f[i])
-			}
-		}
-		for i, feature := range init {
-			if len(feature.call) > 0 {
-				args := make([]Feature, len(feature.call))
-				for i, call := range feature.call {
-					args[i] = f[call]
-				}
-				f[i].setDependent(args)
-			}
-		}
-		return &FeatureList{
-			startup:  f,
-			event:    event,
-			export:   export,
-			exporter: exporter,
-		}
+	if exporter != nil {
+		exporter.Fields(basetypes)
 	}
+
+	return FeatureListCreator{
+		returns,
+		arguments,
+		func() *FeatureList {
+			f := make([]Feature, len(init))
+			event := make([]Feature, 0, nevent)
+			export := make([]Feature, 0, nexport)
+			for i, feature := range init {
+				f[i] = feature.feature.NewFeature()
+				if feature.event {
+					event = append(event, f[i])
+				}
+				if feature.export {
+					export = append(export, f[i])
+				}
+			}
+			for i, feature := range init {
+				if len(feature.call) > 0 {
+					args := make([]Feature, len(feature.call))
+					for i, call := range feature.call {
+						args[i] = f[call]
+					}
+					f[i].setDependent(args)
+				}
+			}
+			return &FeatureList{
+				startup:  f,
+				event:    event,
+				export:   export,
+				exporter: exporter,
+			}
+		},
+	}
+}
+
+var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
+	label="call graph"
+	node [shape=box]
+	"event" [style="rounded,filled", fillcolor=red]
+	{{ range .Nodes }}"{{.Name}}" [label="{{.Label}}"{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{end}}
+	"export" [style="rounded,filled", fillcolor=red]
+	{{ range .Edges }}"{{.Start}}"{{if .StartNode}}:{{.StartNode}}{{end}} -> "{{.Stop}}"{{if .StopNode}}:{{.StopNode}}{{end}}
+	{{end}}
+}
+`))
+
+func (fl FeatureListCreator) CallGraph(w io.Writer) {
+	featurelist := fl.creator()
+	styles := map[FeatureType][][]string{
+		FeatureTypeFlow: {
+			{"shape", "invhouse"},
+			{"style", "filled"},
+		},
+		FeatureTypePacket: {
+			{"style", "filled"},
+			{"fillcolor", "orange"},
+		},
+		featureTypeAny: {
+			{"shape", "oval"},
+		},
+	}
+	type Node struct {
+		Name  string
+		Label string
+		Style [][]string
+	}
+	type Edge struct {
+		Start     string
+		StartNode string
+		Stop      string
+		StopNode  string
+	}
+	data := struct {
+		Nodes []Node
+		Edges []Edge
+	}{}
+	for i, feature := range featurelist.startup {
+		var node Node
+		node.Label = feature.BaseType()
+		node.Name = fmt.Sprintf("%p", feature)
+		if len(fl.arguments[i]) == 0 {
+			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green"})
+		} else if len(fl.arguments[i]) == 1 {
+			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "orange"})
+		}
+		//handle multiFeatures
+		data.Nodes = append(data.Nodes, node)
+	}
+	for _, feature := range featurelist.event {
+		data.Edges = append(data.Edges, Edge{"event", "", fmt.Sprintf("%p", feature), ""})
+	}
+	for _, start := range featurelist.startup {
+		for _, stop := range start.getDependent() {
+			data.Edges = append(data.Edges, Edge{fmt.Sprintf("%p", start), "", fmt.Sprintf("%p", stop), ""})
+		}
+		//handle multiFeatures
+	}
+	for _, feature := range featurelist.export {
+		data.Edges = append(data.Edges, Edge{fmt.Sprintf("%p", feature), "", "export", ""})
+	}
+	graphTemplate.Execute(w, data)
 }
