@@ -58,21 +58,30 @@ func decodeFeatures(dec *json.Decoder) []interface{} {
 			case '}':
 				return ret
 			}
+		} else if delim, ok := t.(json.Number); ok {
+			if t, err := delim.Int64(); err == nil {
+				ret = append(ret, t)
+			} else if t, err := delim.Float64(); err == nil {
+				ret = append(ret, t)
+			} else {
+				log.Fatalf("Can't decode %s!\n", delim.String())
+			}
 		} else {
 			ret = append(ret, t)
 		}
 	}
-	panic("EOF")
+	log.Fatalln("File ended prematurely while decoding Features.")
+	return nil
 }
 
 func decodeJSON(inputfile, key string, id int) []interface{} {
-	//var ret []interface{}
 	f, err := os.Open(inputfile)
 	if err != nil {
-		log.Panic("Can't open ", inputfile)
+		log.Fatalln("Can't open ", inputfile)
 	}
 	defer f.Close()
 	dec := json.NewDecoder(f)
+	dec.UseNumber()
 
 	level := 0
 	found := false
@@ -97,7 +106,6 @@ func decodeJSON(inputfile, key string, id int) []interface{} {
 		if field, ok := t.(string); ok {
 			if found && level == 3 && field == "features" {
 				if discovered == id {
-					//dec.Decode(&ret)
 					return decodeFeatures(dec)
 				}
 				discovered++
@@ -149,22 +157,22 @@ func main() {
 	}
 
 	if *featurefile == "" {
-		panic("Need a feature input file!")
+		log.Fatalln("Need a feature input file!")
 	}
 
 	selector := strings.Split(*selection, ":")
 	if len(selector) != 2 {
-		panic("select must be of form 'key:id'!")
+		log.Fatalln("select must be of form 'key:id'!")
 	}
 
 	selectorID, err := strconv.Atoi(selector[1])
 	if err != nil {
-		panic("select must be of form 'key:id'!")
+		log.Fatalln("select must be of form 'key:id'!")
 	}
 
 	features := decodeJSON(*featurefile, selector[0], selectorID)
 	if features == nil {
-		log.Panic("Features ", *selection, " not found in ", *featurefile)
+		log.Fatalln("Features ", *selection, " not found in ", *featurefile)
 	}
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow), packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
@@ -174,14 +182,13 @@ func main() {
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
-			log.Fatal("could not create memory profile: ", err)
+			log.Fatalln("could not create memory profile: ", err)
 		}
 		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatal("could not write memory profile: ", err)
+			log.Fatalln("could not write memory profile: ", err)
 		}
 		f.Close()
 	}
 	flowtable.EOF(time)
-	//_ = time
 	exporter.Finish()
 }
