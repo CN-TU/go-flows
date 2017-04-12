@@ -194,7 +194,7 @@ func feature2id(feature interface{}, ret FeatureType) string {
 	switch feature.(type) {
 	case string:
 		return fmt.Sprintf("<%d>%s", ret, feature)
-	case bool, complex128, complex64, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
+	case bool, float64, int64:
 		return fmt.Sprintf("Const{%v}", feature)
 	case []interface{}:
 		feature := feature.([]interface{})
@@ -248,8 +248,7 @@ MAIN:
 				seen[id] = len(init)
 				init = append(init, featureToInit{basetype, nil, nil, true, feature.export})
 			}
-		case bool, float32, float64, int, int16, int32, int64, int8, uint, uint16, uint32, uint64, uint8:
-			//Change const to: Float64 Unsigned64 Signed64?
+		case bool, float64, int64:
 			basetype := NewConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
 			init = append(init, featureToInit{basetype, nil, nil, false, feature.export})

@@ -1,6 +1,7 @@
 package flows
 
 import "fmt"
+import "reflect"
 
 type ConstantFeature struct {
 	value interface{}
@@ -21,8 +22,19 @@ func (f *ConstantFeature) setBaseType(string)           {}
 func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
 
 func NewConstantMetaFeature(value interface{}) metaFeature {
-	t := fmt.Sprintf("___const<%v>", value)
-	feature := &ConstantFeature{value, t}
+	var f interface{}
+	switch value.(type) {
+	case bool:
+		f = value
+	case float64:
+		f = Float64(value.(float64))
+	case int64:
+		f = Signed64(value.(int64))
+	default:
+		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
+	}
+	t := fmt.Sprintf("___const<%v>", f)
+	feature := &ConstantFeature{f, t}
 	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
 }
 
