@@ -4,3 +4,4 @@
 go-flows
 *.tar*
 *.trace
+tmp
