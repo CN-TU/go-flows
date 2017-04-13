@@ -57,9 +57,10 @@ func (f *BaseFeature) SetValue(new interface{}, when Time) {
 }
 
 type FeatureListCreator struct {
-	returns   []FeatureType
-	arguments [][]FeatureType
-	creator   func() *FeatureList
+	returns    []FeatureType
+	arguments  [][]FeatureType
+	composites []string
+	creator    func() *FeatureList
 }
 
 type FeatureCreator struct {
@@ -115,6 +116,7 @@ type BaseFeatureCreator interface {
 func (f metaFeature) BaseType() string { return f.basetype }
 
 var featureRegistry = make([]map[string][]metaFeature, featureTypeMax)
+var compositeFeatures = make(map[string][]string)
 
 func init() {
 	for i := range featureRegistry {
@@ -122,14 +124,20 @@ func init() {
 	}
 }
 
-func RegisterFeature(name string, types []FeatureCreator) string {
+func RegisterFeature(name string, types []FeatureCreator) {
 	for _, t := range types {
 		/* if _, ok := featureRegistry[t.Ret][name]; ok {
 			panic(fmt.Sprintf("Feature (%v) %s already defined!", t.Ret, name))
 		}*/ //FIXME add some kind of konsistency check!
 		featureRegistry[t.Ret][name] = append(featureRegistry[t.Ret][name], metaFeature{t, name})
 	}
-	return name
+}
+
+func RegisterCompositeFeature(name string, definition []string) {
+	if _, ok := compositeFeatures[name]; ok {
+		panic(fmt.Sprint("Feature %s already registered", name))
+	}
+	compositeFeatures[name] = definition
 }
 
 func ListFeatures() {
@@ -297,9 +305,10 @@ func feature2id(feature interface{}, ret FeatureType) string {
 
 func NewFeatureListCreator(features []interface{}, exporter Exporter, base FeatureType) FeatureListCreator {
 	type featureWithType struct {
-		feature interface{}
-		ret     FeatureType
-		export  bool
+		feature   interface{}
+		ret       FeatureType
+		export    bool
+		composite string
 	}
 
 	type featureToInit struct {
@@ -308,6 +317,7 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 		call      []int
 		event     bool
 		export    bool
+		composite string
 	}
 
 	init := make([]featureToInit, 0, len(features))
@@ -315,7 +325,7 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 	seen := make(map[string]int, len(features))
 	stack := make([]featureWithType, len(features))
 	for i := range features {
-		stack[i] = featureWithType{features[i], base, true}
+		stack[i] = featureWithType{features[i], base, true, ""}
 	}
 
 	var feature featureWithType
@@ -329,15 +339,24 @@ MAIN:
 		switch feature.feature.(type) {
 		case string:
 			if basetype, ok := getFeature(feature.feature.(string), feature.ret, 0); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
+				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
+					panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
+				} else {
+					compositeInterface := make([]interface{}, len(composite))
+					for i := range composite {
+						compositeInterface[i] = composite[i]
+					}
+					newstack := []featureWithType{{compositeInterface, feature.ret, feature.export, feature.feature.(string)}}
+					stack = append(newstack, stack...)
+				}
 			} else {
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, nil, nil, true, feature.export})
+				init = append(init, featureToInit{basetype, nil, nil, true, feature.export, feature.composite})
 			}
 		case bool, float64, int64:
 			basetype := NewConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, nil, nil, false, feature.export})
+			init = append(init, featureToInit{basetype, nil, nil, false, feature.export, feature.composite})
 		case []interface{}:
 			arguments := feature.feature.([]interface{})
 			if basetype, ok := getFeature(arguments[0].(string), feature.ret, len(arguments)-1); !ok {
@@ -349,7 +368,7 @@ MAIN:
 					if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
 						newstack := make([]featureWithType, len(arguments)-1)
 						for i, arg := range arguments[1:] {
-							newstack[i] = featureWithType{arg, argumentTypes[i], false}
+							newstack[i] = featureWithType{arg, argumentTypes[i], false, ""}
 						}
 						stack = append(append(newstack, feature), stack...)
 						continue MAIN
@@ -358,7 +377,7 @@ MAIN:
 					}
 				}
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, argumentPos, nil, false, feature.export}) //fake BaseType?
+				init = append(init, featureToInit{basetype, argumentPos, nil, false, feature.export, feature.composite}) //fake BaseType?
 			}
 		default:
 			panic(fmt.Sprint("Don't know what to do with ", feature))
@@ -376,11 +395,20 @@ MAIN:
 	nexport := 0
 	returns := make([]FeatureType, len(init))
 	arguments := make([][]FeatureType, len(init))
+	composites := make([]string, len(init))
 	for i, feature := range init {
 		returns[i] = feature.feature.creator.Ret
 		arguments[i] = feature.feature.creator.Arguments
 		if feature.export {
-			basetypes = append(basetypes, feature.feature.BaseType())
+			var basetype string
+			if feature.composite != "" {
+				basetype = feature.composite
+				composites[i] = feature.composite
+			} else {
+				basetype = feature.feature.BaseType()
+			}
+			basetypes = append(basetypes, basetype)
+
 			nexport++
 		}
 		if feature.event {
@@ -395,6 +423,7 @@ MAIN:
 	return FeatureListCreator{
 		returns,
 		arguments,
+		composites,
 		func() *FeatureList {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
@@ -429,9 +458,9 @@ MAIN:
 
 var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
 	label="call graph"
-	node [shape=box]
+	node [shape=box, gradientangle=90]
 	"event" [style="rounded,filled", fillcolor=red]
-	{{ range .Nodes }}"{{.Name}}" [label="{{.Label}}"{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{ range .Nodes }}"{{.Name}}" [label="{{if .Composite}}{{.Label}}\n{{.Composite}}{{else}}{{.Label}}{{end}}"{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
 	{{end}}
 	"export" [style="rounded,filled", fillcolor=red]
 	{{ range .Edges }}"{{.Start}}"{{if .StartNode}}:{{.StartNode}}{{end}} -> "{{.Stop}}"{{if .StopNode}}:{{.StopNode}}{{end}}
@@ -448,16 +477,16 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 		},
 		FeatureTypePacket: {
 			{"style", "filled"},
-			{"fillcolor", "orange"},
 		},
 		featureTypeAny: {
 			{"shape", "oval"},
 		},
 	}
 	type Node struct {
-		Name  string
-		Label string
-		Style [][]string
+		Name      string
+		Composite string
+		Label     string
+		Style     [][]string
 	}
 	type Edge struct {
 		Start     string
@@ -472,11 +501,16 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 	for i, feature := range featurelist.startup {
 		var node Node
 		node.Label = feature.BaseType()
+		node.Composite = fl.composites[i]
 		node.Name = fmt.Sprintf("%p", feature)
 		if len(fl.arguments[i]) == 0 {
 			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green"})
 		} else if len(fl.arguments[i]) == 1 {
-			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "orange"})
+			if fl.composites[i] == "" {
+				node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "orange"})
+			} else {
+				node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green:orange"})
+			}
 		}
 		//handle multiFeatures
 		data.Nodes = append(data.Nodes, node)
