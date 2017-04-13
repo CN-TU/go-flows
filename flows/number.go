@@ -27,16 +27,16 @@ type Number interface {
 //go:generate go run tool/number_generate.go
 
 func (a Unsigned8) To64() Number {
-	return Unsigned64(a)
+	return Signed64(a)
 }
 func (a Unsigned16) To64() Number {
-	return Unsigned64(a)
+	return Signed64(a)
 }
 func (a Unsigned32) To64() Number {
-	return Unsigned64(a)
+	return Signed64(a)
 }
 func (a Unsigned64) To64() Number {
-	return Unsigned64(a)
+	return Signed64(a)
 }
 func (a Signed8) To64() Number {
 	return Signed64(a)
