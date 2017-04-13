@@ -206,6 +206,6 @@ func init() {
 		{flows.FeatureTypeFlow, func() flows.Feature { return &ipTotalLengthFlow{} }, nil},
 		{flows.FeatureTypePacket, func() flows.Feature { return &ipTotalLengthPacket{} }, nil},
 	})
-	flows.RegisterCompositeFeature("minimumIpTotalLength", []string{"min", "ipTotalLength"})
-	flows.RegisterCompositeFeature("maximumIpTotalLength", []string{"max", "ipTotalLength"})
+	flows.RegisterCompositeFeature("minimumIpTotalLength", []interface{}{"min", "ipTotalLength"})
+	flows.RegisterCompositeFeature("maximumIpTotalLength", []interface{}{"max", "ipTotalLength"})
 }

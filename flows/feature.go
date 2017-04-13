@@ -116,7 +116,7 @@ type BaseFeatureCreator interface {
 func (f metaFeature) BaseType() string { return f.basetype }
 
 var featureRegistry = make([]map[string][]metaFeature, featureTypeMax)
-var compositeFeatures = make(map[string][]string)
+var compositeFeatures = make(map[string][]interface{})
 
 func init() {
 	for i := range featureRegistry {
@@ -133,9 +133,9 @@ func RegisterFeature(name string, types []FeatureCreator) {
 	}
 }
 
-func RegisterCompositeFeature(name string, definition []string) {
+func RegisterCompositeFeature(name string, definition []interface{}) {
 	if _, ok := compositeFeatures[name]; ok {
-		panic(fmt.Sprint("Feature %s already registered", name))
+		panic(fmt.Sprintf("Feature %s already registered", name))
 	}
 	compositeFeatures[name] = definition
 }
@@ -342,11 +342,7 @@ MAIN:
 				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
 					panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
 				} else {
-					compositeInterface := make([]interface{}, len(composite))
-					for i := range composite {
-						compositeInterface[i] = composite[i]
-					}
-					newstack := []featureWithType{{compositeInterface, feature.ret, feature.export, feature.feature.(string)}}
+					newstack := []featureWithType{{composite, feature.ret, feature.export, feature.feature.(string)}}
 					stack = append(newstack, stack...)
 				}
 			} else {
