@@ -10,14 +10,23 @@ import (
 	"text/template"
 )
 
+// Feature interfaces, which all features need to implement
 type Feature interface {
+	// Event gets called for every event. Data is provided via the first argument and current time via the second.
 	Event(interface{}, Time)
+	// Value provides the current stored value.
 	Value() interface{}
+	// SetValue stores a new value with the associated time.
 	SetValue(interface{}, Time)
+	// Start gets called when the flow starts.
 	Start(Time)
+	// Stop gets called with an end reason and time when a flow stops
 	Stop(FlowEndReason, Time)
+	// Key returns the current flow key.
 	Key() FlowKey
+	// Type returns the type associated with the current value, which can be different from BaseType.
 	Type() string
+	// BaseType returns the type of the feature.
 	BaseType() string
 	setFlow(Flow)
 	setBaseType(string)
@@ -26,6 +35,8 @@ type Feature interface {
 	getDependent() []Feature
 }
 
+// BaseFeature includes all the basic functionality to fulfill the Feature interface.
+// Embedd this struct for creating new features.
 type BaseFeature struct {
 	value     interface{}
 	dependent []Feature
@@ -33,19 +44,34 @@ type BaseFeature struct {
 	basetype  string
 }
 
-func (f *BaseFeature) setDependent(dep []Feature)   { f.dependent = dep }
-func (f *BaseFeature) getDependent() []Feature      { return f.dependent }
-func (f *BaseFeature) Event(interface{}, Time)      {}
-func (f *BaseFeature) Value() interface{}           { return f.value }
-func (f *BaseFeature) Start(Time)                   {}
-func (f *BaseFeature) Stop(FlowEndReason, Time)     {}
-func (f *BaseFeature) Key() FlowKey                 { return f.flow.Key() }
-func (f *BaseFeature) Type() string                 { return f.basetype }
+func (f *BaseFeature) setDependent(dep []Feature) { f.dependent = dep }
+func (f *BaseFeature) getDependent() []Feature    { return f.dependent }
+
+// Event gets called for every event. Data is provided via the first argument and current time via the second.
+func (f *BaseFeature) Event(interface{}, Time) {}
+
+// Value provides the current stored value.
+func (f *BaseFeature) Value() interface{} { return f.value }
+
+// Start gets called when the flow starts.
+func (f *BaseFeature) Start(Time) {}
+
+// Stop gets called with an end reason and time when a flow stops
+func (f *BaseFeature) Stop(FlowEndReason, Time) {}
+
+// Key returns the current flow key.
+func (f *BaseFeature) Key() FlowKey { return f.flow.Key() }
+
+// Type returns the type associated with the current value, which can be different from BaseType.
+func (f *BaseFeature) Type() string { return f.basetype }
+
+// BaseType returns the type of the feature.
 func (f *BaseFeature) BaseType() string             { return f.basetype }
 func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
 
+// SetValue stores a new value with the associated time.
 func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	f.value = new
 	if new != nil {
@@ -55,16 +81,21 @@ func (f *BaseFeature) SetValue(new interface{}, when Time) {
 	}
 }
 
+// FeatureListCreator represents a way to instantiate a tree of features.
 type FeatureListCreator struct {
 	returns    []FeatureType
 	arguments  [][]FeatureType
 	composites []string
-	creator    func() *FeatureList
+	creator    func() *featureList
 }
 
+// FeatureCreator represents a single uninstantiated feature.
 type FeatureCreator struct {
-	Ret       FeatureType
-	Create    func() Feature
+	// Ret specifies the return type of the feature.
+	Ret FeatureType
+	// Create is a function for creating a new feature of this type.
+	Create func() Feature
+	// Arguments specifies the feature types expected for computing this feature.
 	Arguments []FeatureType
 }
 
@@ -77,12 +108,15 @@ func (m metaFeature) String() string {
 	return fmt.Sprintf("<%s>%s(%s)", m.creator.Ret, m.basetype, m.creator.Arguments)
 }
 
-func (f metaFeature) NewFeature() Feature {
-	ret := f.creator.Create()
-	ret.setBaseType(f.basetype)
+func (m metaFeature) NewFeature() Feature {
+	ret := m.creator.Create()
+	ret.setBaseType(m.basetype)
 	return ret
 }
 
+func (m metaFeature) BaseType() string { return m.basetype }
+
+// FeatureType represents if the feature is a flow or packet feature.
 type FeatureType int
 
 func (f FeatureType) String() string {
@@ -100,19 +134,15 @@ func (f FeatureType) String() string {
 }
 
 const (
+	// FeatureTypePacket represents a packet feature.
 	FeatureTypePacket FeatureType = iota
+	// FeatureTypeFlow represents a flow feature.
 	FeatureTypeFlow
-	featureTypeAny      //for constants
-	FeatureTypeEllipsis //for variadic
+	featureTypeAny //for constants
+	// FeatureTypeEllipsis can be used to mark a function with variadic arguments. It represents a continuation of the previous argument type.
+	FeatureTypeEllipsis
 	featureTypeMax
 )
-
-type BaseFeatureCreator interface {
-	NewFeature() Feature
-	BaseType() string
-}
-
-func (f metaFeature) BaseType() string { return f.basetype }
 
 var featureRegistry = make([]map[string][]metaFeature, featureTypeMax)
 var compositeFeatures = make(map[string][]interface{})
@@ -123,6 +153,7 @@ func init() {
 	}
 }
 
+// RegisterFeature registers a new feature with the given name. types can be used to create features returning different FeatureType with the same name.
 func RegisterFeature(name string, types []FeatureCreator) {
 	for _, t := range types {
 		/* if _, ok := featureRegistry[t.Ret][name]; ok {
@@ -132,6 +163,8 @@ func RegisterFeature(name string, types []FeatureCreator) {
 	}
 }
 
+// RegisterCompositeFeature registers a new composite feature with the given name. Composite features are features that depend on other features and need to be
+// represented in the form ["featurea", ["featureb", "featurec"]]
 func RegisterCompositeFeature(name string, definition []interface{}) {
 	if _, ok := compositeFeatures[name]; ok {
 		panic(fmt.Sprintf("Feature %s already registered", name))
@@ -139,6 +172,7 @@ func RegisterCompositeFeature(name string, definition []interface{}) {
 	compositeFeatures[name] = definition
 }
 
+// ListFeatures creates a table of available features and outputs it to w.
 func ListFeatures(w io.Writer) {
 	t := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
 	pf := make(map[string]string)
@@ -207,11 +241,13 @@ func ListFeatures(w io.Writer) {
 	t.Flush()
 }
 
+// CleanupFeatures deletes _all_ feature definitions for conserving memory. Call this after you've finished creating all feature lists with NewFeatureListCreator.
 func CleanupFeatures() {
 	featureRegistry = nil
+	compositeFeatures = nil
 }
 
-type FeatureList struct {
+type featureList struct {
 	event    []Feature
 	export   []Feature
 	startup  []Feature
@@ -222,31 +258,31 @@ type FeatureList struct {
 //stop event features and propagate?
 //same for start?
 
-func (list *FeatureList) Init(flow Flow) {
+func (list *featureList) Init(flow Flow) {
 	for _, feature := range list.startup {
 		feature.setFlow(flow)
 	}
 }
 
-func (list *FeatureList) Start(start Time) {
+func (list *featureList) Start(start Time) {
 	for _, feature := range list.startup {
 		feature.Start(start)
 	}
 }
 
-func (list *FeatureList) Stop(reason FlowEndReason, time Time) {
+func (list *featureList) Stop(reason FlowEndReason, time Time) {
 	for _, feature := range list.startup {
 		feature.Stop(reason, time)
 	}
 }
 
-func (list *FeatureList) Event(data interface{}, when Time) {
+func (list *featureList) Event(data interface{}, when Time) {
 	for _, feature := range list.event {
 		feature.Event(data, when)
 	}
 }
 
-func (list *FeatureList) Export(when Time) {
+func (list *featureList) Export(when Time) {
 	list.exporter.Export(list.export, when)
 }
 
@@ -302,6 +338,7 @@ func feature2id(feature interface{}, ret FeatureType) string {
 	}
 }
 
+// NewFeatureListCreator creates a new featurelist description for the specified exporter with the given features using base as feature type for exported features.
 func NewFeatureListCreator(features []interface{}, exporter Exporter, base FeatureType) FeatureListCreator {
 	type featureWithType struct {
 		feature   interface{}
@@ -349,7 +386,7 @@ MAIN:
 				init = append(init, featureToInit{basetype, nil, nil, true, feature.export, feature.composite})
 			}
 		case bool, float64, int64:
-			basetype := NewConstantMetaFeature(feature.feature)
+			basetype := newConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
 			init = append(init, featureToInit{basetype, nil, nil, false, feature.export, feature.composite})
 		case []interface{}:
@@ -419,7 +456,7 @@ MAIN:
 		returns,
 		arguments,
 		composites,
-		func() *FeatureList {
+		func() *featureList {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
 			export := make([]Feature, 0, nexport)
@@ -441,7 +478,7 @@ MAIN:
 					f[i].setDependent(args)
 				}
 			}
-			return &FeatureList{
+			return &featureList{
 				startup:  f,
 				event:    event,
 				export:   export,
@@ -463,6 +500,7 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 }
 `))
 
+// CallGraph generates a call graph in the graphviz language and writes the result to w.
 func (fl FeatureListCreator) CallGraph(w io.Writer) {
 	featurelist := fl.creator()
 	styles := map[FeatureType][][]string{

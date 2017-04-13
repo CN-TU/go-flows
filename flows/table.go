@@ -1,7 +1,9 @@
 package flows
 
+// FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
 
+// FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
 	flows         map[FlowKey]int
 	flowlist      []Flow
@@ -14,6 +16,7 @@ type FlowTable struct {
 	eof           bool
 }
 
+// NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]int, 1000000),
@@ -26,18 +29,20 @@ func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeou
 	}
 }
 
+// Expire expires all unhandled timer events. Can be called periodically to conserve memory.
 func (tab *FlowTable) Expire() {
 	when := tab.now
 	for _, elem := range tab.flowlist {
 		if elem == nil {
 			continue
 		}
-		if when > elem.NextEvent() {
-			elem.Expire(when)
+		if when > elem.nextEvent() {
+			elem.expire(when)
 		}
 	}
 }
 
+// Event needs to be called for every event (e.g., a received packet). Handles flow expiry if the event belongs to a flow, flow creation, and forwarding the event to the flow.
 func (tab *FlowTable) Event(event Event) {
 	when := event.Timestamp()
 	key := event.Key()
@@ -48,8 +53,8 @@ func (tab *FlowTable) Event(event Event) {
 	if ok {
 		elem := tab.flowlist[elem]
 		if elem != nil {
-			if when > elem.NextEvent() {
-				elem.Expire(when)
+			if when > elem.nextEvent() {
+				elem.expire(when)
 				ok = elem.Active()
 			}
 			elem.Event(event, when)
@@ -73,7 +78,7 @@ func (tab *FlowTable) Event(event Event) {
 	}
 }
 
-func (tab *FlowTable) Remove(entry Flow) {
+func (tab *FlowTable) remove(entry Flow) {
 	if !tab.eof {
 		old := tab.flows[entry.Key()]
 		tab.flowlist[old] = nil
@@ -82,14 +87,15 @@ func (tab *FlowTable) Remove(entry Flow) {
 	}
 }
 
+// EOF needs to be called upon end of file (e.g., program termination). All outstanding timers get expired, and the rest of the flows terminated with an eof event.
 func (tab *FlowTable) EOF(now Time) {
 	tab.eof = true
 	for _, v := range tab.flowlist {
 		if v == nil {
 			continue
 		}
-		if now > v.NextEvent() {
-			v.Expire(now)
+		if now > v.nextEvent() {
+			v.expire(now)
 		}
 		if v.Active() {
 			v.EOF(now)

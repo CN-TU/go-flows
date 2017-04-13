@@ -3,26 +3,26 @@ package flows
 import "fmt"
 import "reflect"
 
-type ConstantFeature struct {
+type constantFeature struct {
 	value interface{}
 	t     string
 }
 
-func (f *ConstantFeature) setDependent([]Feature)       {}
-func (f *ConstantFeature) getDependent() []Feature      { return nil }
-func (f *ConstantFeature) Event(interface{}, Time)      {}
-func (f *ConstantFeature) Value() interface{}           { return f.value }
-func (f *ConstantFeature) SetValue(interface{}, Time)   {}
-func (f *ConstantFeature) Start(Time)                   {}
-func (f *ConstantFeature) Stop(FlowEndReason, Time)     {}
-func (f *ConstantFeature) Key() FlowKey                 { return nil }
-func (f *ConstantFeature) Type() string                 { return f.t }
-func (f *ConstantFeature) BaseType() string             { return f.t }
-func (f *ConstantFeature) setFlow(Flow)                 {}
-func (f *ConstantFeature) setBaseType(string)           {}
-func (f *ConstantFeature) getBaseFeature() *BaseFeature { return nil }
+func (f *constantFeature) setDependent([]Feature)       {}
+func (f *constantFeature) getDependent() []Feature      { return nil }
+func (f *constantFeature) Event(interface{}, Time)      {}
+func (f *constantFeature) Value() interface{}           { return f.value }
+func (f *constantFeature) SetValue(interface{}, Time)   {}
+func (f *constantFeature) Start(Time)                   {}
+func (f *constantFeature) Stop(FlowEndReason, Time)     {}
+func (f *constantFeature) Key() FlowKey                 { return nil }
+func (f *constantFeature) Type() string                 { return f.t }
+func (f *constantFeature) BaseType() string             { return f.t }
+func (f *constantFeature) setFlow(Flow)                 {}
+func (f *constantFeature) setBaseType(string)           {}
+func (f *constantFeature) getBaseFeature() *BaseFeature { return nil }
 
-func NewConstantMetaFeature(value interface{}) metaFeature {
+func newConstantMetaFeature(value interface{}) metaFeature {
 	var f interface{}
 	switch value.(type) {
 	case bool:
@@ -35,7 +35,7 @@ func NewConstantMetaFeature(value interface{}) metaFeature {
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
 	t := fmt.Sprintf("___const{%v}", f)
-	feature := &ConstantFeature{f, t}
+	feature := &constantFeature{f, t}
 	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
 }
 
