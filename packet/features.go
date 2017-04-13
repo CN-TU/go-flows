@@ -3,6 +3,9 @@ package packet
 import (
 	"net"
 
+	"encoding/binary"
+
+	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
@@ -143,4 +146,66 @@ func init() {
 		{flows.FeatureTypeFlow, func() flows.Feature { return &octetTotalCountFlow{} }, nil},
 		{flows.FeatureTypePacket, func() flows.Feature { return &octetTotalCountPacket{} }, nil},
 	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func ipTotalLength(packet *packetBuffer) flows.Unsigned64 {
+	network := packet.NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		return flows.Unsigned64(ip.Length)
+	}
+	if ip, ok := network.(*layers.IPv6); ok {
+		if ip.HopByHop != nil {
+			var tlv *layers.IPv6HopByHopOption
+			for _, t := range ip.HopByHop.Options {
+				if t.OptionType == layers.IPv6HopByHopOptionJumbogram {
+					tlv = t
+					break
+				}
+			}
+			if tlv != nil && len(tlv.OptionData) == 4 {
+				l := binary.BigEndian.Uint32(tlv.OptionData)
+				if l > 65535 {
+					return flows.Unsigned64(l)
+				}
+			}
+		}
+		return flows.Unsigned64(ip.Length)
+	}
+	return 0
+}
+
+type ipTotalLengthPacket struct {
+	flows.BaseFeature
+}
+
+func (f *ipTotalLengthPacket) Event(new interface{}, when flows.Time) {
+	f.SetValue(ipTotalLength(new.(*packetBuffer)), when)
+}
+
+type ipTotalLengthFlow struct {
+	flows.BaseFeature
+	total flows.Unsigned64
+}
+
+func (f *ipTotalLengthFlow) Start(when flows.Time) {
+	f.total = 0
+}
+
+func (f *ipTotalLengthFlow) Event(new interface{}, when flows.Time) {
+	f.total = f.total.Add(ipTotalLength(new.(*packetBuffer))).(flows.Unsigned64)
+}
+
+func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.total, when)
+}
+
+func init() {
+	flows.RegisterFeature("ipTotalLength", []flows.FeatureCreator{
+		{flows.FeatureTypeFlow, func() flows.Feature { return &ipTotalLengthFlow{} }, nil},
+		{flows.FeatureTypePacket, func() flows.Feature { return &ipTotalLengthPacket{} }, nil},
+	})
+	flows.RegisterCompositeFeature("minimumIpTotalLength", []string{"min", "ipTotalLength"})
+	flows.RegisterCompositeFeature("maximumIpTotalLength", []string{"max", "ipTotalLength"})
 }
