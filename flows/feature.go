@@ -172,12 +172,33 @@ func RegisterCompositeFeature(name string, definition []interface{}) {
 	compositeFeatures[name] = definition
 }
 
+func compositeToCall(features []interface{}) []string {
+	var ret []string
+	flen := len(features) - 2
+	for i, feature := range features {
+		if str, ok := feature.(string); ok {
+			ret = append(ret, str)
+		} else {
+			ret = append(ret, compositeToCall(feature.([]interface{}))...)
+		}
+		if i == 0 {
+			ret = append(ret, "(")
+		} else if i < flen {
+			ret = append(ret, ",")
+		} else {
+			ret = append(ret, ")")
+		}
+	}
+	return ret
+}
+
 // ListFeatures creates a table of available features and outputs it to w.
 func ListFeatures(w io.Writer) {
 	t := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
 	pf := make(map[string]string)
 	ff := make(map[string]string)
 	args := make(map[string]string)
+	impl := make(map[string]string)
 	var base, functions []string
 	for ret, features := range featureRegistry {
 		for name, featurelist := range features {
@@ -209,6 +230,17 @@ func ListFeatures(w io.Writer) {
 			}
 		}
 	}
+	for name, implementation := range compositeFeatures {
+		impl[name] = fmt.Sprint(" = ", strings.Join(compositeToCall(implementation), ""))
+		fun := implementation[0].(string)
+		if _, ok := featureRegistry[FeatureTypeFlow][fun]; ok {
+			ff[name] = "X"
+		}
+		if _, ok := featureRegistry[FeatureTypePacket][fun]; ok {
+			pf[name] = "X"
+		}
+		base = append(base, name)
+	}
 	sort.Strings(base)
 	sort.Strings(functions)
 	fmt.Fprintln(w, "P ... Packet Feature")
@@ -223,7 +255,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s\n", pf[name], ff[name], name)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\n", pf[name], ff[name], name, impl[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()
