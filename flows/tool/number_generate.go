@@ -14,10 +14,11 @@ import (
 )
 
 type function struct {
-	Name   string
-	Return string
-	Args   string
-	Code   string
+	Name    string
+	Return  string
+	Args    string
+	Code    string
+	Comment []string
 }
 
 /*
@@ -113,7 +114,8 @@ package flows
 
 {{range $key, $value := .Imports }}import "{{ $key }}"
 {{ end }}
-{{ $functions := .Functions }}{{range .Types }}{{ $t := . }}{{range $functions }}
+{{ $functions := .Functions }}{{range .Types }}{{ $t := . }}{{range $functions }}{{range .Comment}}
+// {{.}}{{end}}
 func (a {{ $t }}) {{ .Name }}({{ .Args }}) {{ .Return }} {
 	return {{CallTemplate .Name $t}};
 }{{end}}{{end}}
@@ -125,21 +127,31 @@ func (a {{ $t }}) {{ .Name }}({{ .Args }}) {{ .Return }} {
 		case *ast.GenDecl:
 			node := node.(*ast.GenDecl)
 			if node.Tok == token.TYPE {
-				types = append(types, node.Specs[0].(*ast.TypeSpec).Name.String())
+				if _, ok := node.Specs[0].(*ast.TypeSpec).Type.(*ast.InterfaceType); !ok {
+					types = append(types, node.Specs[0].(*ast.TypeSpec).Name.String())
+				}
 			}
 		case *ast.Field:
+			var code string
+			var functioncomment []string
+			for i := range comment {
+				tmp := strings.SplitN(comment[i].Text(), ":", 2)
+				if tmp[0] != "oper" {
+					functioncomment = append(functioncomment, strings.TrimRight(comment[i].Text(), "\n"))
+				} else {
+					code = tmp[1]
+				}
+			}
+			if code == "" {
+				continue
+			}
 			node := node.(*ast.Field)
-			comment := strings.SplitN(comment[0].Text(), ":", 2)
 			var f function
 			f.Name = node.Names[0].String()
 			funcDef := node.Type.(*ast.FuncType)
 			f.Return = fmt.Sprint(funcDef.Results.List[0].Type)
 
-			if comment[0] != "oper" {
-				continue
-			}
-
-			expr, err := parser.ParseExpr(comment[1])
+			expr, err := parser.ParseExpr(code)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -173,6 +185,7 @@ func (a {{ $t }}) {{ .Name }}({{ .Args }}) {{ .Return }} {
 				arguments[i] = fmt.Sprintf("%c Number", 'b'+i)
 			}
 			f.Args = strings.Join(arguments, ", ")
+			f.Comment = functioncomment
 			functions = append(functions, f)
 		}
 	}
