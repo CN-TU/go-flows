@@ -123,7 +123,7 @@ func decodeJSON(inputfile, key string, id int) []interface{} {
 func main() {
 	flag.Parse()
 	if *list {
-		flows.ListFeatures()
+		flows.ListFeatures(os.Stdout)
 		return
 	}
 	var exporter flows.Exporter

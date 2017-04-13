@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -140,8 +139,8 @@ func RegisterCompositeFeature(name string, definition []interface{}) {
 	compositeFeatures[name] = definition
 }
 
-func ListFeatures() {
-	w := tabwriter.NewWriter(os.Stdout, 0, 1, 1, ' ', 0)
+func ListFeatures(w io.Writer) {
+	t := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
 	pf := make(map[string]string)
 	ff := make(map[string]string)
 	args := make(map[string]string)
@@ -178,11 +177,11 @@ func ListFeatures() {
 	}
 	sort.Strings(base)
 	sort.Strings(functions)
-	fmt.Println("P ... Packet Feature")
-	fmt.Println("F ... Flow Feature")
-	fmt.Println()
-	fmt.Println("Base Features:")
-	fmt.Println("  P F Name")
+	fmt.Fprintln(w, "P ... Packet Feature")
+	fmt.Fprintln(w, "F ... Flow Feature")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Base Features:")
+	fmt.Fprintln(w, "  P F Name")
 	var last string
 	for _, name := range base {
 		if name == last {
@@ -191,11 +190,11 @@ func ListFeatures() {
 		last = name
 		line := new(bytes.Buffer)
 		fmt.Fprintf(line, "  %1s\t%1s\t%s\n", pf[name], ff[name], name)
-		w.Write(line.Bytes())
+		t.Write(line.Bytes())
 	}
-	w.Flush()
-	fmt.Println("Functions:")
-	fmt.Println("  P F Name")
+	t.Flush()
+	fmt.Fprintln(w, "Functions:")
+	fmt.Fprintln(w, "  P F Name")
 	for _, name := range functions {
 		if name == last {
 			continue
@@ -203,9 +202,9 @@ func ListFeatures() {
 		last = name
 		line := new(bytes.Buffer)
 		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
-		w.Write(line.Bytes())
+		t.Write(line.Bytes())
 	}
-	w.Flush()
+	t.Flush()
 }
 
 func CleanupFeatures() {
