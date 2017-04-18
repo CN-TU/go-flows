@@ -14,9 +14,9 @@ type sourceIPAddress struct {
 	flows.BaseFeature
 }
 
-func (f *sourceIPAddress) Event(new interface{}, when flows.Time) {
+func (f *sourceIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(f.Key().SrcIP()), when)
+		f.SetValue(net.IP(f.Key().SrcIP()), when, f)
 	}
 }
 
@@ -39,9 +39,9 @@ type destinationIPAddress struct {
 	flows.BaseFeature
 }
 
-func (f *destinationIPAddress) Event(new interface{}, when flows.Time) {
+func (f *destinationIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(f.Key().DstIP()), when)
+		f.SetValue(net.IP(f.Key().DstIP()), when, f)
 	}
 }
 
@@ -64,9 +64,9 @@ type protocolIdentifier struct {
 	flows.BaseFeature
 }
 
-func (f *protocolIdentifier) Event(new interface{}, when flows.Time) {
+func (f *protocolIdentifier) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(f.Key().Proto(), when)
+		f.SetValue(f.Key().Proto(), when, f)
 	}
 }
 
@@ -82,7 +82,7 @@ type flowEndReason struct {
 }
 
 func (f *flowEndReason) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(reason, when)
+	f.SetValue(reason, when, f)
 }
 
 func init() {
@@ -97,7 +97,7 @@ type flowEndNanoSeconds struct {
 }
 
 func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(when, when)
+	f.SetValue(when, when, f)
 }
 
 func init() {
@@ -120,8 +120,8 @@ func octetCount(packet *packetBuffer) flows.Unsigned64 {
 	return flows.Unsigned64(length)
 }
 
-func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time) {
-	f.SetValue(octetCount(new.(*packetBuffer)), when)
+func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+	f.SetValue(octetCount(new.(*packetBuffer)), when, f)
 }
 
 type octetTotalCountFlow struct {
@@ -133,12 +133,12 @@ func (f *octetTotalCountFlow) Start(when flows.Time) {
 	f.total = 0
 }
 
-func (f *octetTotalCountFlow) Event(new interface{}, when flows.Time) {
+func (f *octetTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
 	f.total = f.total.Add(octetCount(new.(*packetBuffer))).(flows.Unsigned64)
 }
 
 func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.total, when)
+	f.SetValue(f.total, when, f)
 }
 
 func init() {
@@ -180,8 +180,8 @@ type ipTotalLengthPacket struct {
 	flows.BaseFeature
 }
 
-func (f *ipTotalLengthPacket) Event(new interface{}, when flows.Time) {
-	f.SetValue(ipTotalLength(new.(*packetBuffer)), when)
+func (f *ipTotalLengthPacket) Event(new interface{}, when flows.Time, src interface{}) {
+	f.SetValue(ipTotalLength(new.(*packetBuffer)), when, f)
 }
 
 type ipTotalLengthFlow struct {
@@ -193,12 +193,12 @@ func (f *ipTotalLengthFlow) Start(when flows.Time) {
 	f.total = 0
 }
 
-func (f *ipTotalLengthFlow) Event(new interface{}, when flows.Time) {
+func (f *ipTotalLengthFlow) Event(new interface{}, when flows.Time, src interface{}) {
 	f.total = f.total.Add(ipTotalLength(new.(*packetBuffer))).(flows.Unsigned64)
 }
 
 func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.total, when)
+	f.SetValue(f.total, when, f)
 }
 
 func init() {

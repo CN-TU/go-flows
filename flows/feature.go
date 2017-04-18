@@ -13,11 +13,13 @@ import (
 // Feature interfaces, which all features need to implement
 type Feature interface {
 	// Event gets called for every event. Data is provided via the first argument and current time via the second.
-	Event(interface{}, Time)
+	Event(interface{}, Time, interface{})
+	// FinishEvent gets called after every Event happened
+	FinishEvent()
 	// Value provides the current stored value.
 	Value() interface{}
 	// SetValue stores a new value with the associated time.
-	SetValue(interface{}, Time)
+	SetValue(interface{}, Time, interface{})
 	// Start gets called when the flow starts.
 	Start(Time)
 	// Stop gets called with an end reason and time when a flow stops
@@ -33,6 +35,8 @@ type Feature interface {
 	getBaseFeature() *BaseFeature
 	setDependent([]Feature)
 	getDependent() []Feature
+	setArguments([]Feature)
+	getArguments() []Feature
 }
 
 // BaseFeature includes all the basic functionality to fulfill the Feature interface.
@@ -46,9 +50,14 @@ type BaseFeature struct {
 
 func (f *BaseFeature) setDependent(dep []Feature) { f.dependent = dep }
 func (f *BaseFeature) getDependent() []Feature    { return f.dependent }
+func (f *BaseFeature) setArguments([]Feature)     {}
+func (f *BaseFeature) getArguments() []Feature    { return nil }
 
 // Event gets called for every event. Data is provided via the first argument and current time via the second.
-func (f *BaseFeature) Event(interface{}, Time) {}
+func (f *BaseFeature) Event(interface{}, Time, interface{}) {}
+
+// FinishEvent gets called after every Event happened
+func (f *BaseFeature) FinishEvent() {}
 
 // Value provides the current stored value.
 func (f *BaseFeature) Value() interface{} { return f.value }
@@ -72,11 +81,11 @@ func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
 
 // SetValue stores a new value with the associated time.
-func (f *BaseFeature) SetValue(new interface{}, when Time) {
+func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
 	f.value = new
 	if new != nil {
 		for _, v := range f.dependent {
-			v.Event(new, when)
+			v.Event(new, when, self)
 		}
 	}
 }
@@ -129,6 +138,10 @@ func (f FeatureType) String() string {
 		return "AnyFeature"
 	case FeatureTypeEllipsis:
 		return "..."
+	case FeatureTypeSelection:
+		return "Selection"
+	case FeatureTypeMatch:
+		return "Match"
 	}
 	return "???"
 }
@@ -141,6 +154,10 @@ const (
 	featureTypeAny //for constants
 	// FeatureTypeEllipsis can be used to mark a function with variadic arguments. It represents a continuation of the previous argument type.
 	FeatureTypeEllipsis
+	// FeatureTypeMatch specifies that the argument type has to match the return type
+	FeatureTypeMatch
+	// FeatureTypeSelection specifies a selection
+	FeatureTypeSelection
 	featureTypeMax
 )
 
@@ -215,6 +232,12 @@ func ListFeatures(w io.Writer) {
 							tmp[i] = "P"
 						case FeatureTypeEllipsis:
 							tmp[i] = "..."
+						case FeatureTypeMatch:
+							tmp[i] = "X"
+						case FeatureTypeSelection:
+							tmp[i] = "S"
+						case featureTypeAny:
+							tmp[i] = "C"
 						}
 					}
 					args[name] = strings.Join(tmp, ",")
@@ -224,6 +247,9 @@ func ListFeatures(w io.Writer) {
 				case FeatureTypePacket:
 					pf[name] = "X"
 				case FeatureTypeFlow:
+					ff[name] = "X"
+				case FeatureTypeMatch:
+					pf[name] = "X"
 					ff[name] = "X"
 				}
 
@@ -239,12 +265,18 @@ func ListFeatures(w io.Writer) {
 		if _, ok := featureRegistry[FeatureTypePacket][fun]; ok {
 			pf[name] = "X"
 		}
+		if _, ok := featureRegistry[FeatureTypeMatch][fun]; ok {
+			ff[name] = "X"
+			pf[name] = "X"
+		}
 		base = append(base, name)
 	}
 	sort.Strings(base)
 	sort.Strings(functions)
 	fmt.Fprintln(w, "P ... Packet Feature")
 	fmt.Fprintln(w, "F ... Flow Feature")
+	fmt.Fprintln(w, "S ... Selection")
+	fmt.Fprintln(w, "C ... Constant")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Base Features:")
 	fmt.Fprintln(w, "  P F Name")
@@ -286,10 +318,6 @@ type featureList struct {
 	exporter Exporter
 }
 
-//Rework stop (for slice?)
-//stop event features and propagate?
-//same for start?
-
 func (list *featureList) Init(flow Flow) {
 	for _, feature := range list.startup {
 		feature.setFlow(flow)
@@ -310,7 +338,10 @@ func (list *featureList) Stop(reason FlowEndReason, time Time) {
 
 func (list *featureList) Event(data interface{}, when Time) {
 	for _, feature := range list.event {
-		feature.Event(data, when)
+		feature.Event(data, when, nil)
+	}
+	for _, feature := range list.event {
+		feature.FinishEvent()
 	}
 }
 
@@ -321,12 +352,14 @@ func (list *featureList) Export(when Time) {
 func getFeature(feature string, ret FeatureType, nargs int) (metaFeature, bool) {
 	variadicFound := false
 	var variadic metaFeature
-	for _, f := range featureRegistry[ret][feature] {
-		if len(f.creator.Arguments) >= 2 && f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
-			variadicFound = true
-			variadic = f
-		} else if len(f.creator.Arguments) == nargs {
-			return f, true
+	for _, t := range []FeatureType{ret, FeatureTypeMatch} {
+		for _, f := range featureRegistry[t][feature] {
+			if len(f.creator.Arguments) >= 2 && f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
+				variadicFound = true
+				variadic = f
+			} else if len(f.creator.Arguments) == nargs {
+				return f, true
+			}
 		}
 	}
 	if variadicFound {
@@ -335,16 +368,35 @@ func getFeature(feature string, ret FeatureType, nargs int) (metaFeature, bool) 
 	return metaFeature{}, false
 }
 
-func getArgumentTypes(feature string, ret FeatureType, nargs int) []FeatureType {
-	f, found := getFeature(feature, ret, nargs)
-	if !found {
-		return nil
-	}
+func getArgumentTypes(f metaFeature, ret FeatureType, nargs int) []FeatureType {
 	if f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
 		r := make([]FeatureType, nargs)
-		variadic := f.creator.Arguments[len(f.creator.Arguments)-2]
+		last := len(f.creator.Arguments) - 2
+		variadic := f.creator.Arguments[last]
+		if variadic == FeatureTypeMatch {
+			variadic = ret
+		}
+		for i := 0; i < nargs; i++ {
+			if i > last {
+				r[i] = variadic
+			} else {
+				if f.creator.Arguments[i] == FeatureTypeMatch {
+					r[i] = ret
+				} else {
+					r[i] = f.creator.Arguments[i]
+				}
+			}
+		}
+		return r
+	}
+	if ret == FeatureTypeMatch {
+		r := make([]FeatureType, nargs)
 		for i := range r {
-			r[i] = variadic
+			if f.creator.Arguments[i] == FeatureTypeMatch {
+				r[i] = ret
+			} else {
+				r[i] = f.creator.Arguments[i]
+			}
 		}
 		return r
 	}
@@ -360,7 +412,11 @@ func feature2id(feature interface{}, ret FeatureType) string {
 	case []interface{}:
 		feature := feature.([]interface{})
 		features := make([]string, len(feature))
-		arguments := append([]FeatureType{ret}, getArgumentTypes(feature[0].(string), ret, len(feature)-1)...)
+		f, found := getFeature(feature[0].(string), ret, len(feature)-1)
+		if !found {
+			panic(fmt.Sprintf("Feature %s with return type %s and %d arguments not found!", feature[0].(string), ret, len(feature)-1))
+		}
+		arguments := append([]FeatureType{ret}, getArgumentTypes(f, ret, len(feature)-1)...)
 		for i, f := range feature {
 			features[i] = feature2id(f, arguments[i])
 		}
@@ -377,6 +433,8 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 		ret       FeatureType
 		export    bool
 		composite string
+		reset     bool
+		selection string
 	}
 
 	type featureToInit struct {
@@ -390,17 +448,28 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 
 	init := make([]featureToInit, 0, len(features))
 
-	seen := make(map[string]int, len(features))
 	stack := make([]featureWithType, len(features))
 	for i := range features {
-		stack[i] = featureWithType{features[i], base, true, ""}
+		stack[i] = featureWithType{features[i], base, true, "", false, ""}
 	}
+
+	type selection struct {
+		argument []int
+		seen     map[string]int
+	}
+
+	selections := make(map[string]*selection)
+
+	mainSelection := &selection{nil, make(map[string]int, len(features))}
+	selections[feature2id([]interface{}{"select", true}, FeatureTypeSelection)] = mainSelection
+	currentSelection := mainSelection
 
 	var feature featureWithType
 MAIN:
 	for len(stack) > 0 {
 		feature, stack = stack[0], stack[1:]
 		id := feature2id(feature.feature, feature.ret)
+		seen := currentSelection.seen
 		if _, ok := seen[id]; ok {
 			continue MAIN
 		}
@@ -410,12 +479,11 @@ MAIN:
 				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
 					panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
 				} else {
-					newstack := []featureWithType{{composite, feature.ret, feature.export, feature.feature.(string)}}
-					stack = append(newstack, stack...)
+					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, ""}}, stack...)
 				}
 			} else {
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, nil, nil, true, feature.export, feature.composite})
+				init = append(init, featureToInit{basetype, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite})
 			}
 		case bool, float64, int64:
 			basetype := newConstantMetaFeature(feature.feature)
@@ -423,28 +491,54 @@ MAIN:
 			init = append(init, featureToInit{basetype, nil, nil, false, feature.export, feature.composite})
 		case []interface{}:
 			arguments := feature.feature.([]interface{})
-			if basetype, ok := getFeature(arguments[0].(string), feature.ret, len(arguments)-1); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", arguments[0].(string), feature.ret, arguments[1:]))
+			fun := arguments[0].(string)
+			if basetype, ok := getFeature(fun, feature.ret, len(arguments)-1); !ok {
+				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, feature.ret, arguments[1:]))
 			} else {
-				argumentTypes := getArgumentTypes(arguments[0].(string), feature.ret, len(arguments)-1)
-				argumentPos := make([]int, 0, len(arguments)-1)
-				for i, f := range arguments[1:] {
-					if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
-						newstack := make([]featureWithType, len(arguments)-1)
-						for i, arg := range arguments[1:] {
-							newstack[i] = featureWithType{arg, argumentTypes[i], false, ""}
-						}
-						stack = append(append(newstack, feature), stack...)
-						continue MAIN
-					} else {
-						argumentPos = append(argumentPos, pos)
+				if fun == "apply" || fun == "map" {
+					sel := feature2id(arguments[2], FeatureTypeSelection)
+					if fun == "apply" && feature.ret != FeatureTypeFlow {
+						panic("Unexpected apply - did you mean map?")
+					} else if fun == "map" && feature.ret != FeatureTypePacket {
+						panic("Unexpected map - did you mean apply?")
 					}
+					if s, ok := selections[sel]; ok {
+						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, ""}}, stack...)
+						currentSelection = s
+					} else {
+						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel},
+							featureWithType{arguments[1], feature.ret, feature.export, fun, true, ""}}, stack...)
+					}
+					continue MAIN
+				} else {
+					argumentTypes := getArgumentTypes(basetype, feature.ret, len(arguments)-1)
+					argumentPos := make([]int, 0, len(arguments)-1)
+					for i, f := range arguments[1:] {
+						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
+							newstack := make([]featureWithType, len(arguments)-1)
+							for i, arg := range arguments[1:] {
+								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, ""}
+							}
+							stack = append(append(newstack, feature), stack...)
+							continue MAIN
+						} else {
+							argumentPos = append(argumentPos, pos)
+						}
+					}
+					seen[id] = len(init)
+					if feature.selection != "" {
+						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
+						selections[feature.selection] = currentSelection
+					}
+					//select: set event true (event from logic + event from base)
+					init = append(init, featureToInit{basetype, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite}) //fake BaseType?
 				}
-				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, argumentPos, nil, false, feature.export, feature.composite}) //fake BaseType?
 			}
 		default:
 			panic(fmt.Sprint("Don't know what to do with ", feature))
+		}
+		if feature.reset {
+			currentSelection = mainSelection
 		}
 	}
 
@@ -461,13 +555,15 @@ MAIN:
 	arguments := make([][]FeatureType, len(init))
 	composites := make([]string, len(init))
 	for i, feature := range init {
-		returns[i] = feature.feature.creator.Ret
+		returns[i] = feature.feature.creator.Ret //FIXME FeatureTypeMatch!
 		arguments[i] = feature.feature.creator.Arguments
+		if feature.composite != "" {
+			composites[i] = feature.composite
+		}
 		if feature.export {
 			var basetype string
 			if feature.composite != "" {
 				basetype = feature.composite
-				composites[i] = feature.composite
 			} else {
 				basetype = feature.feature.BaseType()
 			}
@@ -508,6 +604,13 @@ MAIN:
 						args[i] = f[call]
 					}
 					f[i].setDependent(args)
+				}
+				if len(feature.arguments) > 0 {
+					args := make([]Feature, len(feature.arguments))
+					for i, arg := range feature.arguments {
+						args[i] = f[arg]
+					}
+					f[i].setArguments(args)
 				}
 			}
 			return &featureList{
@@ -567,6 +670,9 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 		var node Node
 		node.Label = feature.BaseType()
 		node.Composite = fl.composites[i]
+		if node.Composite == "apply" || node.Composite == "map" {
+			node.Label, node.Composite = node.Composite, node.Label
+		}
 		node.Name = fmt.Sprintf("%p", feature)
 		if len(fl.arguments[i]) == 0 {
 			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green"})
