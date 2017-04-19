@@ -36,7 +36,7 @@ type Feature interface {
 	setDependent([]Feature)
 	getDependent() []Feature
 	setArguments([]Feature)
-	getArguments() []Feature
+	isConstant() bool
 }
 
 // BaseFeature includes all the basic functionality to fulfill the Feature interface.
@@ -51,7 +51,6 @@ type BaseFeature struct {
 func (f *BaseFeature) setDependent(dep []Feature) { f.dependent = dep }
 func (f *BaseFeature) getDependent() []Feature    { return f.dependent }
 func (f *BaseFeature) setArguments([]Feature)     {}
-func (f *BaseFeature) getArguments() []Feature    { return nil }
 
 // Event gets called for every event. Data is provided via the first argument and current time via the second.
 func (f *BaseFeature) Event(interface{}, Time, interface{}) {}
@@ -79,6 +78,7 @@ func (f *BaseFeature) BaseType() string             { return f.basetype }
 func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
+func (f *BaseFeature) isConstant() bool             { return false }
 
 // SetValue stores a new value with the associated time.
 func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
@@ -87,6 +87,146 @@ func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
 		for _, v := range f.dependent {
 			v.Event(new, when, self)
 		}
+	}
+}
+
+type multiEvent interface {
+	CheckAll(interface{}, interface{}) []interface{}
+	Reset()
+}
+
+// singleMultiEvent (one not const) (every event is the right one!)
+type singleMultiEvent struct {
+	c []interface{}
+}
+
+func (m *singleMultiEvent) CheckAll(new interface{}, which interface{}) []interface{} {
+	ret := make([]interface{}, len(m.c))
+	for i, c := range m.c {
+		if c == nil {
+			ret[i] = new
+		} else {
+			ret[i] = c
+		}
+	}
+	return ret
+}
+
+func (m *singleMultiEvent) Reset() {}
+
+// dualMultiEvent (two not const)
+type dualMultiEvent struct {
+	c     []interface{}
+	nc    [2]Feature
+	state [2]bool
+}
+
+func (m *dualMultiEvent) CheckAll(new interface{}, which interface{}) []interface{} {
+	if which == m.nc[0] {
+		m.state[0] = true
+	} else if which == m.nc[1] {
+		m.state[1] = true
+	}
+	if m.state[0] && m.state[1] {
+		ret := make([]interface{}, len(m.c))
+		j := 0
+		for i, c := range m.c {
+			if c == nil {
+				ret[i] = m.nc[j].Value()
+				j++
+			} else {
+				ret[i] = c
+			}
+		}
+		return ret
+	}
+	return nil
+}
+
+func (m *dualMultiEvent) Reset() {
+	m.state[0] = false
+	m.state[1] = false
+}
+
+// genericMultiEvent (generic map implementation)
+type genericMultiEvent struct {
+	c     []interface{}
+	nc    map[Feature]int
+	state []bool
+}
+
+func (m *genericMultiEvent) CheckAll(new interface{}, which interface{}) []interface{} {
+	m.state[m.nc[which.(Feature)]] = true
+	for _, state := range m.state {
+		if !state {
+			return nil
+		}
+	}
+
+	ret := make([]interface{}, len(m.c))
+	for i, c := range m.c {
+		if f, ok := c.(Feature); ok {
+			ret[i] = f.Value()
+		} else {
+			ret[i] = c
+		}
+	}
+	return ret
+
+}
+
+func (m *genericMultiEvent) Reset() {
+	for i := range m.state {
+		m.state[i] = false
+	}
+}
+
+// MultiBaseFeature extends BaseFeature with event tracking.
+// Embedd this struct for creating new features with multiple arguments.
+type MultiBaseFeature struct {
+	BaseFeature
+	eventReady multiEvent
+}
+
+// EventResult returns the list of values for a multievent or nil if not every argument had an event
+func (f *MultiBaseFeature) EventResult(new interface{}, which interface{}) []interface{} {
+	return f.eventReady.CheckAll(new, which)
+}
+
+// FinishEvent gets called after every Event happened
+func (f *MultiBaseFeature) FinishEvent() {
+	f.eventReady.Reset()
+}
+
+func (f *MultiBaseFeature) setArguments(args []Feature) {
+	featurelist := make([]interface{}, len(args))
+	features := make([]int, 0, len(args))
+	for i, feature := range args {
+		if feature.isConstant() {
+			featurelist[i] = feature.Value()
+		} else {
+			featurelist[i] = feature
+			features = append(features, i)
+		}
+	}
+	switch len(features) {
+	case 1:
+		featurelist[features[0]] = nil
+		f.eventReady = &singleMultiEvent{featurelist}
+	case 2:
+		event := &dualMultiEvent{}
+		event.nc[0] = featurelist[features[0]].(Feature)
+		event.nc[1] = featurelist[features[1]].(Feature)
+		featurelist[features[0]] = nil
+		featurelist[features[1]] = nil
+		event.c = featurelist
+		f.eventReady = event
+	default:
+		nc := make(map[Feature]int, len(features))
+		for _, feature := range features {
+			nc[featurelist[feature].(Feature)] = feature
+		}
+		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))}
 	}
 }
 
