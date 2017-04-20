@@ -37,6 +37,42 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type sourceTransportPort struct {
+	flows.BaseFeature
+}
+
+func (f *sourceTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
+	if f.Value() == nil {
+		f.SetValue(binary.BigEndian.Uint16(f.Key().SrcPort()), when, f)
+	}
+}
+
+func init() {
+	flows.RegisterFeature("sourceTransportPort", []flows.FeatureCreator{
+		{flows.FeatureTypeFlow, func() flows.Feature { return &sourceTransportPort{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type destinationTransportPort struct {
+	flows.BaseFeature
+}
+
+func (f *destinationTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
+	if f.Value() == nil {
+		f.SetValue(binary.BigEndian.Uint16(f.Key().DstPort()), when, f)
+	}
+}
+
+func init() {
+	flows.RegisterFeature("destinationTransportPort", []flows.FeatureCreator{
+		{flows.FeatureTypeFlow, func() flows.Feature { return &destinationTransportPort{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type destinationIPAddress struct {
 	flows.BaseFeature
 }
