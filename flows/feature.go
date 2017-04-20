@@ -808,7 +808,11 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 	}{}
 	for i, feature := range featurelist.startup {
 		var node Node
-		node.Label = feature.BaseType()
+		if feature.isConstant() {
+			node.Label = fmt.Sprint(feature.Value())
+		} else {
+			node.Label = feature.BaseType()
+		}
 		node.Composite = fl.composites[i]
 		if node.Composite == "apply" || node.Composite == "map" {
 			node.Label, node.Composite = node.Composite, node.Label
