@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"text/template"
@@ -230,12 +231,20 @@ func (f *MultiBaseFeature) setArguments(args []Feature) {
 	}
 }
 
+type featureToInit struct {
+	feature   metaFeature
+	ret       interface{}
+	arguments []int
+	call      []int
+	event     bool
+	export    bool
+	composite string
+}
+
 // FeatureListCreator represents a way to instantiate a tree of features.
 type FeatureListCreator struct {
-	returns    []FeatureType
-	arguments  [][]FeatureType
-	composites []string
-	creator    func() *featureList
+	init    []featureToInit
+	creator func() *featureList
 }
 
 // FeatureCreator represents a single uninstantiated feature.
@@ -577,15 +586,6 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 		selection string
 	}
 
-	type featureToInit struct {
-		feature   metaFeature
-		arguments []int
-		call      []int
-		event     bool
-		export    bool
-		composite string
-	}
-
 	init := make([]featureToInit, 0, len(features))
 
 	stack := make([]featureWithType, len(features))
@@ -623,12 +623,12 @@ MAIN:
 				}
 			} else {
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite})
+				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite})
 			}
 		case bool, float64, int64:
 			basetype := newConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, nil, nil, false, feature.export, feature.composite})
+			init = append(init, featureToInit{basetype, feature.feature, nil, nil, false, feature.export, feature.composite})
 		case []interface{}:
 			arguments := feature.feature.([]interface{})
 			fun := arguments[0].(string)
@@ -671,7 +671,7 @@ MAIN:
 						selections[feature.selection] = currentSelection
 					}
 					//select: set event true (event from logic + event from base)
-					init = append(init, featureToInit{basetype, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite}) //fake BaseType?
+					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite}) //fake BaseType?
 				}
 			}
 		default:
@@ -691,15 +691,7 @@ MAIN:
 	basetypes := make([]string, 0, len(features))
 	nevent := 0
 	nexport := 0
-	returns := make([]FeatureType, len(init))
-	arguments := make([][]FeatureType, len(init))
-	composites := make([]string, len(init))
-	for i, feature := range init {
-		returns[i] = feature.feature.creator.Ret //FIXME FeatureTypeMatch!
-		arguments[i] = feature.feature.creator.Arguments
-		if feature.composite != "" {
-			composites[i] = feature.composite
-		}
+	for _, feature := range init {
 		if feature.export {
 			var basetype string
 			if feature.composite != "" {
@@ -721,9 +713,7 @@ MAIN:
 	}
 
 	return FeatureListCreator{
-		returns,
-		arguments,
-		composites,
+		init,
 		func() *featureList {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
@@ -767,7 +757,7 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 	label="call graph"
 	node [shape=box, gradientangle=90]
 	"event" [style="rounded,filled", fillcolor=red]
-	{{ range .Nodes }}"{{.Name}}" [label="{{if .Composite}}{{.Label}}\n{{.Composite}}{{else}}{{.Label}}{{end}}"{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{ range .Nodes }}"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
 	{{end}}
 	"export" [style="rounded,filled", fillcolor=red]
 	{{ range .Edges }}"{{.Start}}"{{if .StartNode}}:{{.StartNode}}{{end}} -> "{{.Stop}}"{{if .StopNode}}:{{.StopNode}}{{end}}
@@ -777,7 +767,6 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 
 // CallGraph generates a call graph in the graphviz language and writes the result to w.
 func (fl FeatureListCreator) CallGraph(w io.Writer) {
-	featurelist := fl.creator()
 	styles := map[FeatureType][][]string{
 		FeatureTypeFlow: {
 			{"shape", "invhouse"},
@@ -791,10 +780,10 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 		},
 	}
 	type Node struct {
-		Name      string
-		Composite string
-		Label     string
-		Style     [][]string
+		Name  string
+		Label string
+		HTML  string
+		Style [][]string
 	}
 	type Edge struct {
 		Start     string
@@ -806,41 +795,54 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 		Nodes []Node
 		Edges []Edge
 	}{}
-	for i, feature := range featurelist.startup {
+	for i, feature := range fl.init {
 		var node Node
-		if feature.isConstant() {
-			node.Label = fmt.Sprint(feature.Value())
-		} else {
-			node.Label = feature.BaseType()
+		node.Label = feature.feature.BaseType()
+		if feature.composite == "apply" || feature.composite == "map" {
+			node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
+		} else if feature.composite != "" {
+			node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
 		}
-		node.Composite = fl.composites[i]
-		if node.Composite == "apply" || node.Composite == "map" {
-			node.Label, node.Composite = node.Composite, node.Label
-		}
-		node.Name = fmt.Sprintf("%p", feature)
-		if len(fl.arguments[i]) == 0 {
-			node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green"})
-		} else if len(fl.arguments[i]) == 1 {
-			if fl.composites[i] == "" {
-				node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "orange"})
+		node.Name = strconv.Itoa(i)
+		if ret, ok := feature.ret.(FeatureType); ok {
+			if len(feature.arguments) == 0 {
+				node.Style = append(styles[ret], []string{"fillcolor", "green"})
+			} else if len(feature.arguments) == 1 {
+				if feature.composite == "" {
+					node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+				} else {
+					node.Style = append(styles[ret], []string{"fillcolor", "green:orange"})
+				}
 			} else {
-				node.Style = append(styles[fl.returns[i]], []string{"fillcolor", "green:orange"})
+				node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+				args := make([]string, len(feature.arguments))
+				for i := range args {
+					args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
+				}
+				node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), node.Label)
+				node.Label = ""
 			}
+		} else {
+			node.Label = fmt.Sprint(feature.ret)
+			node.Style = styles[featureTypeAny]
 		}
-		//handle multiFeatures
+
 		data.Nodes = append(data.Nodes, node)
 	}
-	for _, feature := range featurelist.event {
-		data.Edges = append(data.Edges, Edge{"event", "", fmt.Sprintf("%p", feature), ""})
-	}
-	for _, start := range featurelist.startup {
-		for _, stop := range start.getDependent() {
-			data.Edges = append(data.Edges, Edge{fmt.Sprintf("%p", start), "", fmt.Sprintf("%p", stop), ""})
+	for i, feature := range fl.init {
+		if feature.event {
+			data.Edges = append(data.Edges, Edge{"event", "", strconv.Itoa(i), ""})
 		}
-		//handle multiFeatures
-	}
-	for _, feature := range featurelist.export {
-		data.Edges = append(data.Edges, Edge{fmt.Sprintf("%p", feature), "", "export", ""})
+		if feature.export {
+			data.Edges = append(data.Edges, Edge{strconv.Itoa(i), "", "export", ""})
+		}
+		for index, j := range feature.arguments {
+			index := strconv.Itoa(index)
+			if len(feature.arguments) <= 1 {
+				index = ""
+			}
+			data.Edges = append(data.Edges, Edge{strconv.Itoa(j), "", strconv.Itoa(i), index})
+		}
 	}
 	graphTemplate.Execute(w, data)
 }
