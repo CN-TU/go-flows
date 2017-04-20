@@ -226,7 +226,8 @@ func (f *less) Event(new interface{}, when Time, src interface{}) {
 	if values == nil {
 		return
 	}
-	if values[0].(Number).Less(values[1].(Number)) {
+	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	if a.Less(b) {
 		f.SetValue(true, when, f)
 	} else {
 		f.SetValue(false, when, f)

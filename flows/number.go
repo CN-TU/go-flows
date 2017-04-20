@@ -102,3 +102,20 @@ func (a Float32) To64() Number {
 func (a Float64) To64() Number {
 	return Float64(a)
 }
+
+// UpConvert returns either two Signed64 or two Float64 depending on the numbers
+func UpConvert(a, b Number) (a64, b64 Number) {
+	a64 = a.To64()
+	b64 = b.To64()
+	if _, ok := a64.(Float64); ok {
+		if _, ok := b64.(Float64); !ok {
+			b64 = Float64(b64.(Signed64))
+		}
+	} else {
+		if _, ok := b64.(Float64); ok {
+			a64 = Float64(a64.(Signed64))
+		}
+	}
+
+	return
+}
