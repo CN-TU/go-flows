@@ -529,7 +529,7 @@ func getArgumentTypes(f metaFeature, ret FeatureType, nargs int) []FeatureType {
 		}
 		return r
 	}
-	if ret == FeatureTypeMatch {
+	if f.creator.Ret == FeatureTypeMatch {
 		r := make([]FeatureType, nargs)
 		for i := range r {
 			if f.creator.Arguments[i] == FeatureTypeMatch {
