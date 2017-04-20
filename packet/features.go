@@ -119,7 +119,7 @@ type octetTotalCountPacket struct {
 
 func octetCount(packet *packetBuffer) flows.Unsigned64 {
 	length := packet.Metadata().Length
-	if net := packet.NetworkLayer(); net != nil {
+	if net := packet.LinkLayer(); net != nil {
 		length -= len(net.LayerContents())
 	}
 	return flows.Unsigned64(length)
