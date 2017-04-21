@@ -239,6 +239,7 @@ type featureToInit struct {
 	event     bool
 	export    bool
 	composite string
+	function  string
 }
 
 // FeatureListCreator represents a way to instantiate a tree of features.
@@ -340,12 +341,12 @@ func RegisterCompositeFeature(name string, definition []interface{}) {
 
 func compositeToCall(features []interface{}) []string {
 	var ret []string
-	flen := len(features) - 2
+	flen := len(features) - 1
 	for i, feature := range features {
-		if str, ok := feature.(string); ok {
-			ret = append(ret, str)
+		if list, ok := feature.([]interface{}); ok {
+			ret = append(ret, compositeToCall(list)...)
 		} else {
-			ret = append(ret, compositeToCall(feature.([]interface{}))...)
+			ret = append(ret, fmt.Sprint(feature))
 		}
 		if i == 0 {
 			ret = append(ret, "(")
@@ -584,13 +585,14 @@ func NewFeatureListCreator(features []interface{}, exporter Exporter, base Featu
 		composite string
 		reset     bool
 		selection string
+		function  string
 	}
 
 	init := make([]featureToInit, 0, len(features))
 
 	stack := make([]featureWithType, len(features))
 	for i := range features {
-		stack[i] = featureWithType{features[i], base, true, "", false, ""}
+		stack[i] = featureWithType{features[i], base, true, "", false, "", ""}
 	}
 
 	type selection struct {
@@ -619,16 +621,16 @@ MAIN:
 				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
 					panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
 				} else {
-					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, ""}}, stack...)
+					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, "", ""}}, stack...)
 				}
 			} else {
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite})
+				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite, feature.function})
 			}
 		case bool, float64, int64:
 			basetype := newConstantMetaFeature(feature.feature)
 			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, feature.feature, nil, nil, false, feature.export, feature.composite})
+			init = append(init, featureToInit{basetype, feature.feature, nil, nil, false, feature.export, feature.composite, feature.function})
 		case []interface{}:
 			arguments := feature.feature.([]interface{})
 			fun := arguments[0].(string)
@@ -642,12 +644,15 @@ MAIN:
 					} else if fun == "map" && feature.ret != FeatureTypePacket {
 						panic("Unexpected map - did you mean apply?")
 					}
+					if feature.export {
+						feature.function = strings.Join(compositeToCall(arguments), "")
+					}
 					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, ""}}, stack...)
+						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function}}, stack...)
 						currentSelection = s
 					} else {
-						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel},
-							featureWithType{arguments[1], feature.ret, feature.export, fun, true, ""}}, stack...)
+						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel, ""},
+							featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function}}, stack...)
 					}
 					continue MAIN
 				} else {
@@ -657,7 +662,7 @@ MAIN:
 						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
 							newstack := make([]featureWithType, len(arguments)-1)
 							for i, arg := range arguments[1:] {
-								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, ""}
+								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", ""}
 							}
 							stack = append(append(newstack, feature), stack...)
 							continue MAIN
@@ -670,8 +675,11 @@ MAIN:
 						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
 						selections[feature.selection] = currentSelection
 					}
+					if feature.export {
+						feature.function = strings.Join(compositeToCall(arguments), "")
+					}
 					//select: set event true (event from logic + event from base)
-					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite}) //fake BaseType?
+					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite, feature.function}) //fake BaseType?
 				}
 			}
 		default:
@@ -694,8 +702,10 @@ MAIN:
 	for _, feature := range init {
 		if feature.export {
 			var basetype string
-			if feature.composite != "" {
+			if feature.composite != "" && feature.composite != "apply" && feature.composite != "map" {
 				basetype = feature.composite
+			} else if feature.function != "" {
+				basetype = feature.function
 			} else {
 				basetype = feature.feature.BaseType()
 			}
