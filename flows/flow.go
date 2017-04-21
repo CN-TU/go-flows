@@ -74,6 +74,9 @@ func (flow *BaseFlow) Key() FlowKey { return flow.key }
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
 func (flow *BaseFlow) expire(when Time) {
+	if flow.expireNext == 0 {
+		return
+	}
 	flow.expireNext = flow.timers.expire(when)
 }
 
