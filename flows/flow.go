@@ -95,6 +95,9 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
 func (flow *BaseFlow) Export(reason FlowEndReason, when Time, now Time) {
+	if !flow.active {
+		return //WTF, this should not happen
+	}
 	flow.features.Stop(reason, when)
 	flow.features.Export(now)
 	flow.Stop()
