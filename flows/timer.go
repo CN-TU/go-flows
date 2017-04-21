@@ -43,3 +43,51 @@ var (
 	timerIdle   = RegisterTimer()
 	timerActive = RegisterTimer()
 )
+
+type funcEntry struct {
+	function TimerCallback
+	when     Time
+}
+
+type funcEntries []funcEntry
+
+func makeFuncEntries() funcEntries {
+	return make(funcEntries, 2)
+}
+
+func (fe *funcEntries) expire(when Time) Time {
+	var next Time
+	fep := *fe
+	for i, v := range fep {
+		if v.when != 0 {
+			if v.when <= when {
+				fep[i].function(v.when, when)
+				fep[i].when = 0
+			} else if next == 0 || v.when <= next {
+				next = v.when
+			}
+		}
+	}
+	return next
+}
+
+func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, when Time) {
+	fep := *fe
+	if int(id) >= len(fep) {
+		fep = append(fep, make(funcEntries, len(fep)-int(id)+1)...)
+		*fe = fep
+	}
+	fep[id].function = f
+	fep[id].when = when
+}
+
+func (fe *funcEntries) hasTimer(id TimerID) bool {
+	fep := *fe
+	if int(id) >= len(fep) {
+		return false
+	}
+	if fep[id].when == 0 {
+		return false
+	}
+	return true
+}

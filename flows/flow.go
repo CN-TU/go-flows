@@ -1,9 +1,5 @@
 package flows
 
-import (
-	"sort"
-)
-
 // FlowEndReason holds the flowEndReason as specified by RFC5102
 type FlowEndReason byte
 
@@ -50,23 +46,11 @@ type Flow interface {
 	expire(Time)
 }
 
-type funcEntry struct {
-	function TimerCallback
-	when     Time
-	id       TimerID
-}
-
-type funcEntries []*funcEntry
-
-func (s funcEntries) Len() int           { return len(s) }
-func (s funcEntries) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s funcEntries) Less(i, j int) bool { return s[i].when < s[j].when }
-
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
 type BaseFlow struct {
 	key        FlowKey
 	table      *FlowTable
-	timers     map[TimerID]*funcEntry
+	timers     funcEntries
 	expireNext Time
 	features   *featureList
 	active     bool
@@ -90,34 +74,12 @@ func (flow *BaseFlow) Key() FlowKey { return flow.key }
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
 func (flow *BaseFlow) expire(when Time) {
-	values := make(funcEntries, 0, len(flow.timers))
-	for _, v := range flow.timers {
-		values = append(values, v)
-	}
-	sort.Sort(values)
-	for _, v := range values {
-		if v.when <= when {
-			v.function(v.when, when)
-			delete(flow.timers, v.id)
-		} else {
-			flow.expireNext = v.when
-			break
-		}
-	}
+	flow.expireNext = flow.timers.expire(when)
 }
 
 // AddTimer adds a new timer with the associated id, callback, at the time when. If the timerid already exists, then the old timer will be overwritten.
 func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
-	if entry, existing := flow.timers[id]; existing {
-		entry.function = f
-		entry.when = when
-	} else {
-		t := new(funcEntry)
-		t.function = f
-		t.when = when
-		t.id = id
-		flow.timers[id] = t
-	}
+	flow.timers.addTimer(id, f, when)
 	if when < flow.expireNext || flow.expireNext == 0 {
 		flow.expireNext = when
 	}
@@ -125,8 +87,7 @@ func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
 
 // HasTimer returns true if the timer with id is active.
 func (flow *BaseFlow) HasTimer(id TimerID) bool {
-	_, ret := flow.timers[id]
-	return ret
+	return flow.timers.hasTimer(id)
 }
 
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
@@ -157,7 +118,7 @@ func (flow *BaseFlow) Event(event Event, when Time) {
 func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.key = key
 	flow.table = table
-	flow.timers = make(map[TimerID]*funcEntry, 2)
+	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.features = table.features.creator()
 	flow.features.Init(flow)
