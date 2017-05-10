@@ -257,38 +257,46 @@ type tcpControlBits struct {
 	flows.BaseFeature
 }
 
+func getTcp(packet *packetBuffer) *layers.TCP {
+    tcp := packet.Layer(layers.LayerTypeTCP)
+    if tcp == nil {
+        return nil
+    }
+    packet_tcp := tcp.(*layers.TCP)
+    return packet_tcp
+}
+
 func (f *tcpControlBits) Event(new interface{}, when flows.Time, src interface{}) {
     var value uint16
-    tcp := new.(*packetBuffer).Layer(layers.LayerTypeTCP)
+    tcp := getTcp(new.(*packetBuffer))
     if tcp == nil {
         return
     }
-    packet := tcp.(*layers.TCP)
-    if packet.FIN {
+    if tcp.FIN {
         value += 1 << 0
     }
-    if packet.SYN {
+    if tcp.SYN {
         value += 1 << 1
     }
-    if packet.RST {
+    if tcp.RST {
         value += 1 << 2
     }
-    if packet.PSH {
+    if tcp.PSH {
         value += 1 << 3
     }
-    if packet.ACK {
+    if tcp.ACK {
         value += 1 << 4
     }
-    if packet.URG {
+    if tcp.URG {
         value += 1 << 5
     }
-    if packet.ECE {
+    if tcp.ECE {
         value += 1 << 6
     }
-    if packet.CWR {
+    if tcp.CWR {
         value += 1 << 7
     }
-    if packet.NS {
+    if tcp.NS {
         value += 1 << 8
     }
     f.SetValue(value, when, f)
@@ -343,4 +351,390 @@ func init() {
         {flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow}},
         {flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow, flows.FeatureTypeEllipsis}},
     })
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpSynTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpSynTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpSynTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func boolInt(b bool) flows.Unsigned64 {
+    if b {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+func (f *tcpSynTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.SYN)).(flows.Unsigned64)
+}
+
+type tcpSynTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpSynTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.SYN), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpSynTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpSynTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpSynTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpFinTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpFinTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpFinTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *tcpFinTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.FIN)).(flows.Unsigned64)
+}
+
+type tcpFinTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpFinTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.FIN), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpFinTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpFinTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpFinTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpRstTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpRstTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpRstTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *tcpRstTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.RST)).(flows.Unsigned64)
+}
+
+type tcpRstTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpRstTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.RST), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpRstTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpRstTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpRstTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpPshTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpPshTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpPshTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *tcpPshTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.PSH)).(flows.Unsigned64)
+}
+
+type tcpPshTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpPshTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.PSH), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpPshTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpPshTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpPshTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpAckTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpAckTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpAckTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *tcpAckTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.ACK)).(flows.Unsigned64)
+}
+
+type tcpAckTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpAckTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.ACK), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpAckTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpAckTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpAckTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpUrgTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *tcpUrgTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *tcpUrgTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *tcpUrgTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.URG)).(flows.Unsigned64)
+}
+
+type tcpUrgTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *tcpUrgTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.URG), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpUrgTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpUrgTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpUrgTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _tcpEceTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *_tcpEceTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *_tcpEceTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *_tcpEceTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.ECE)).(flows.Unsigned64)
+}
+
+type _tcpEceTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *_tcpEceTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.ECE), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("_tcpEceTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpEceTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpEceTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _tcpCwrTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *_tcpCwrTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *_tcpCwrTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *_tcpCwrTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.CWR)).(flows.Unsigned64)
+}
+
+type _tcpCwrTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *_tcpCwrTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.CWR), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("_tcpCwrTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpCwrTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpCwrTotalCountFlow{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _tcpNsTotalCountFlow struct {
+	flows.BaseFeature
+    count flows.Unsigned64
+}
+
+func (f *_tcpNsTotalCountFlow) Start(when flows.Time) {
+	f.count = 0
+}
+
+func (f *_tcpNsTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
+	f.SetValue(f.count, when, f)
+}
+
+func (f *_tcpNsTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.count = f.count.Add(boolInt(tcp.NS)).(flows.Unsigned64)
+}
+
+type _tcpNsTotalCountPacket struct {
+    flows.BaseFeature
+}
+
+func (f *_tcpNsTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+    tcp := getTcp(new.(*packetBuffer))
+    if tcp == nil {
+        return
+    }
+    f.SetValue(boolInt(tcp.NS), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("_tcpNsTotalCount", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpNsTotalCountPacket{} }, nil},
+		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, nil},
+	})
 }
