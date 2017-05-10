@@ -250,3 +250,97 @@ func init() {
 	flows.RegisterCompositeFeature("minimumIpTotalLength", []interface{}{"min", "ipTotalLength"})
 	flows.RegisterCompositeFeature("maximumIpTotalLength", []interface{}{"max", "ipTotalLength"})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpControlBits struct {
+	flows.BaseFeature
+}
+
+func (f *tcpControlBits) Event(new interface{}, when flows.Time, src interface{}) {
+    var value uint16
+    tcp := new.(*packetBuffer).Layer(layers.LayerTypeTCP)
+    if tcp == nil {
+        return
+    }
+    packet := tcp.(*layers.TCP)
+    if packet.FIN {
+        value += 1 << 0
+    }
+    if packet.SYN {
+        value += 1 << 1
+    }
+    if packet.RST {
+        value += 1 << 2
+    }
+    if packet.PSH {
+        value += 1 << 3
+    }
+    if packet.ACK {
+        value += 1 << 4
+    }
+    if packet.URG {
+        value += 1 << 5
+    }
+    if packet.ECE {
+        value += 1 << 6
+    }
+    if packet.CWR {
+        value += 1 << 7
+    }
+    if packet.NS {
+        value += 1 << 8
+    }
+    f.SetValue(value, when, f)
+}
+
+func init() {
+	flows.RegisterFeature("tcpControlBits", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpControlBits{} }, nil},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _intraPacketTimeNanoseconds struct {
+	flows.BaseFeature
+    time int64
+}
+
+func (f *_intraPacketTimeNanoseconds) Event(new interface{}, when flows.Time, src interface{}) {
+    var time int64
+    if f.time != 0 {
+        time = int64(when) - f.time
+    }
+    f.time = int64(when)
+    f.SetValue(time, when, f)
+}
+
+func init() {
+    flows.RegisterFeature("_intraPacketTimeNanoseconds", []flows.FeatureCreator{
+        {flows.FeatureTypePacket, func() flows.Feature { return &_intraPacketTimeNanoseconds{} }, nil},
+    })
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type join struct {
+    flows.MultiBaseFeature
+}
+
+func (f *join) Event(new interface{}, when flows.Time, src interface{}) {
+    values := f.EventResult(new, src)
+    if values == nil {
+        return
+    }
+    f.SetValue(values, when, f)
+}
+
+func init() {
+    flows.RegisterFeature("join", []flows.FeatureCreator{
+        {flows.FeatureTypePacket, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypePacket}},
+        {flows.FeatureTypePacket, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypePacket, flows.FeatureTypeEllipsis}},
+        {flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow}},
+        {flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow, flows.FeatureTypeEllipsis}},
+    })
+}

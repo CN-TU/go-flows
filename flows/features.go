@@ -239,3 +239,30 @@ func init() {
 		{FeatureTypeMatch, func() Feature { return &less{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type accumulate struct {
+	MultiBaseFeature
+    vector []interface{}
+}
+
+func (f *accumulate) Start(when Time) {
+    f.vector = nil
+}
+
+func (f *accumulate) Stop(reason FlowEndReason, when Time) {
+    if len(f.vector) != 0 {
+        f.SetValue(f.vector, when, f)
+    }
+}
+
+func (f *accumulate) Event(new interface{}, when Time, src interface{}) {
+    f.vector = append(f.vector, new)
+}
+
+func init() {
+    RegisterFeature("accumulate", []FeatureCreator{
+        {FeatureTypeMatch, func() Feature { return &accumulate{} }, []FeatureType{FeatureTypePacket}},
+    })
+}
