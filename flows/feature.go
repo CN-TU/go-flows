@@ -490,7 +490,7 @@ func (list *featureList) Event(data interface{}, when Time) {
 	for _, feature := range list.event {
 		feature.Event(data, when, nil)
 	}
-	for _, feature := range list.event {
+	for _, feature := range list.startup {
 		feature.FinishEvent()
 	}
 }
