@@ -205,7 +205,15 @@ func main() {
 		flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds,
 		flows.Time(*flowExpire)*flows.Seconds)
 
-	time := packet.ReadFiles(flag.Args(), int(*maxPacket), flowtable)
+	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
+
+	var time flows.Time
+
+	for _, fname := range flag.Args() {
+		time = buffer.ReadFile(fname)
+	}
+
+	buffer.Finish()
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)

@@ -18,10 +18,14 @@ const (
 	shallowBuffers = 10
 )
 
-func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
-	result := make(chan *multiPacketBuffer, fullBuffers)
-	empty := make(chan *multiPacketBuffer, fullBuffers)
+type PcapBuffer struct {
+	result chan *multiPacketBuffer
+	empty  chan *multiPacketBuffer
+	plen   int
+}
 
+func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
+	ret := &PcapBuffer{make(chan *multiPacketBuffer, fullBuffers), make(chan *multiPacketBuffer, fullBuffers), plen}
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
@@ -30,83 +34,18 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 	for i := 0; i < fullBuffers; i++ {
 		buf := &multiPacketBuffer{
 			buffers: make([]*packetBuffer, batchSize),
-			empty:   &empty,
+			empty:   &ret.empty,
 		}
 		for j := 0; j < batchSize; j++ {
 			buf.buffers[j] = &packetBuffer{buffer: make([]byte, prealloc), multibuffer: buf}
 		}
-		empty <- buf
+		ret.empty <- buf
 	}
 
 	go func() {
-		multiBuffer := <-empty
-		pos := 0
-		defer func() {
-			if pos != 0 {
-				multiBuffer.buffers = multiBuffer.buffers[:pos]
-				result <- multiBuffer
-			} else {
-				empty <- multiBuffer
-			}
-			close(result)
-			// consume empty buffers -> let every go routine finish
-			for i := 0; i < fullBuffers; i++ {
-				<-empty
-			}
-		}()
-		for _, fname := range fnames {
-			fhandle, err := pcap.OpenOffline(fname)
-			if err != nil {
-				log.Fatalf("Couldn't open file %s", fname)
-			}
-			var lt gopacket.LayerType
-			switch fhandle.LinkType() {
-			case layers.LinkTypeEthernet:
-				lt = layers.LayerTypeEthernet
-			case layers.LinkTypeRaw, layers.LinkType(12):
-				lt = layerTypeIPv46
-			default:
-				log.Fatalf("File format not implemented")
-			}
-			for {
-				data, ci, err := fhandle.ZeroCopyReadPacketData()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					log.Println("Error:", err)
-					continue
-				}
-				dlen := len(data)
-				buffer := multiBuffer.buffers[pos]
-				pos++
-				if plen == 0 && cap(buffer.buffer) < dlen {
-					buffer.buffer = make([]byte, dlen)
-				} else if dlen < cap(buffer.buffer) {
-					buffer.buffer = buffer.buffer[0:dlen]
-				} else {
-					buffer.buffer = buffer.buffer[0:cap(buffer.buffer)]
-				}
-				clen := copy(buffer.buffer, data)
-				buffer.time = flows.Time(ci.Timestamp.UnixNano())
-				buffer.ci.CaptureInfo = ci
-				buffer.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
-				buffer.first = lt
-				if pos == batchSize {
-					pos = 0
-					result <- multiBuffer
-					multiBuffer = <-empty
-				}
-			}
-			fhandle.Close()
-		}
-	}()
-
-	c := make(chan flows.Time)
-	go func() {
-		var time flows.Time
 		discard := newShallowMultiPacketBuffer(batchSize)
 		forward := newShallowMultiPacketBuffer(batchSize)
-		for multibuffer := range result {
+		for multibuffer := range ret.result {
 			discard.multiBuffer = multibuffer
 			forward.multiBuffer = multibuffer
 			for _, buffer := range multibuffer.buffers {
@@ -115,7 +54,6 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 					discard.add(buffer)
 				} else {
 					buffer.key, buffer.Forward = fivetuple(buffer)
-					time = buffer.time
 					if buffer.key != nil {
 						forward.add(buffer)
 					} else {
@@ -127,8 +65,75 @@ func ReadFiles(fnames []string, plen int, flowtable EventTable) flows.Time {
 			forward.reset()
 			discard.recycle()
 		}
-		c <- time
 	}()
 
-	return <-c
+	return ret
+}
+
+func (input *PcapBuffer) Finish() {
+	close(input.result)
+	// consume empty buffers -> let every go routine finish
+	for i := 0; i < fullBuffers; i++ {
+		<-input.empty
+	}
+}
+
+func (input *PcapBuffer) ReadFile(fname string) flows.Time {
+	var time flows.Time
+	multiBuffer := <-input.empty
+	pos := 0
+	defer func() {
+		if pos != 0 {
+			multiBuffer.buffers = multiBuffer.buffers[:pos]
+			input.result <- multiBuffer
+		} else {
+			input.empty <- multiBuffer
+		}
+	}()
+
+	fhandle, err := pcap.OpenOffline(fname)
+	if err != nil {
+		log.Fatalf("Couldn't open file %s", fname)
+	}
+	var lt gopacket.LayerType
+	switch fhandle.LinkType() {
+	case layers.LinkTypeEthernet:
+		lt = layers.LayerTypeEthernet
+	case layers.LinkTypeRaw, layers.LinkType(12):
+		lt = layerTypeIPv46
+	default:
+		log.Fatalf("File format not implemented")
+	}
+	for {
+		data, ci, err := fhandle.ZeroCopyReadPacketData()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Println("Error:", err)
+			continue
+		}
+		dlen := len(data)
+		buffer := multiBuffer.buffers[pos]
+		pos++
+		if input.plen == 0 && cap(buffer.buffer) < dlen {
+			buffer.buffer = make([]byte, dlen)
+		} else if dlen < cap(buffer.buffer) {
+			buffer.buffer = buffer.buffer[0:dlen]
+		} else {
+			buffer.buffer = buffer.buffer[0:cap(buffer.buffer)]
+		}
+		clen := copy(buffer.buffer, data)
+		time = flows.Time(ci.Timestamp.UnixNano())
+		buffer.time = time
+		buffer.ci.CaptureInfo = ci
+		buffer.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
+		buffer.first = lt
+		if pos == batchSize {
+			pos = 0
+			input.result <- multiBuffer
+			multiBuffer = <-input.empty
+		}
+	}
+	fhandle.Close()
+	return time
 }
