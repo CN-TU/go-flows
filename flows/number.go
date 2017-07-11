@@ -49,6 +49,7 @@ type Number interface {
 	// ToUint returns the number converted to uint64
 	ToUint() uint64 //oper:uint64(a)
 	To64() Number
+	GoValue() interface{}
 }
 
 //go:generate go run tool/number_generate.go
@@ -58,9 +59,19 @@ func (a Unsigned8) To64() Number {
 	return Signed64(a)
 }
 
+// GoValue returns the number converted to the underlying go type
+func (a Unsigned8) GoValue() interface{} {
+	return uint8(a)
+}
+
 // To64 returns the number converted to a 64 bit wide Number
 func (a Unsigned16) To64() Number {
 	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a Unsigned16) GoValue() interface{} {
+	return uint16(a)
 }
 
 // To64 returns the number converted to a 64 bit wide Number
@@ -68,9 +79,19 @@ func (a Unsigned32) To64() Number {
 	return Signed64(a)
 }
 
+// GoValue returns the number converted to the underlying go type
+func (a Unsigned32) GoValue() interface{} {
+	return uint32(a)
+}
+
 // To64 returns the number converted to a 64 bit wide Number
 func (a Unsigned64) To64() Number {
 	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a Unsigned64) GoValue() interface{} {
+	return uint64(a)
 }
 
 // To64 returns the number converted to a 64 bit wide Number
@@ -78,9 +99,19 @@ func (a Signed8) To64() Number {
 	return Signed64(a)
 }
 
+// GoValue returns the number converted to the underlying go type
+func (a Signed8) GoValue() interface{} {
+	return int8(a)
+}
+
 // To64 returns the number converted to a 64 bit wide Number
 func (a Signed16) To64() Number {
 	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a Signed16) GoValue() interface{} {
+	return int16(a)
 }
 
 // To64 returns the number converted to a 64 bit wide Number
@@ -88,9 +119,19 @@ func (a Signed32) To64() Number {
 	return Signed64(a)
 }
 
+// GoValue returns the number converted to the underlying go type
+func (a Signed32) GoValue() interface{} {
+	return int32(a)
+}
+
 // To64 returns the number converted to a 64 bit wide Number
 func (a Signed64) To64() Number {
 	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a Signed64) GoValue() interface{} {
+	return int64(a)
 }
 
 // To64 returns the number converted to a 64 bit wide Number
@@ -98,9 +139,19 @@ func (a Float32) To64() Number {
 	return Float64(a)
 }
 
+// GoValue returns the number converted to the underlying go type
+func (a Float32) GoValue() interface{} {
+	return float32(a)
+}
+
 // To64 returns the number converted to a 64 bit wide Number
 func (a Float64) To64() Number {
 	return Float64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a Float64) GoValue() interface{} {
+	return float64(a)
 }
 
 // UpConvert returns either two Signed64 or two Float64 depending on the numbers
