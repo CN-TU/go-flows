@@ -198,7 +198,7 @@ func main() {
 
 	flows.CleanupFeatures()
 
-	debug.SetGCPercent(-1) //We manually call gc after timing out flows; make that optional?
+	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featurelist, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
 

@@ -403,7 +403,7 @@ type SingleFlowTable struct {
 
 func (sft *SingleFlowTable) Expire() {
 	sft.expire <- struct{}{}
-	runtime.GC()
+	go runtime.GC()
 }
 
 func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
@@ -507,7 +507,7 @@ func (pft *ParallelFlowTable) Expire() {
 		e <- struct{}{}
 	}
 	pft.expirewg.Wait()
-	runtime.GC()
+	go runtime.GC()
 }
 
 func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
