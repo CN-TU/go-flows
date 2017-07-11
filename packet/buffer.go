@@ -53,6 +53,7 @@ func (b *multiPacketBuffer) recycle(num int) {
 	b.recycled += num
 	if b.recycled == len(b.buffers) {
 		b.recycled = 0
+		b.buffers = b.buffers[:cap(b.buffers)]
 		*b.empty <- b
 	}
 	b.recycleMutex.Unlock()
