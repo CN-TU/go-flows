@@ -132,6 +132,8 @@ func main() {
 		exporter = exporters.NewPrintExporter(*output)
 	case "csv":
 		exporter = exporters.NewCSVExporter(*output)
+	case "msgpack":
+		exporter = exporters.NewMsgPack(*output)
 	case "none":
 		exporter = nil
 	default:
