@@ -25,7 +25,18 @@ func (pe *csvExporter) Export(features []flows.Feature, when flows.Time) {
 	n := len(features)
 	var list = make([]string, n)
 	for i, elem := range features {
-		list[i] = fmt.Sprint(elem.Value())
+		switch val := elem.Value().(type) {
+		case flows.Number:
+			list[i] = fmt.Sprint(val.GoValue())
+		case byte:
+			list[i] = fmt.Sprint(int(val))
+		case flows.Time:
+			list[i] = fmt.Sprint(int64(val))
+		case flows.FlowEndReason:
+			list[i] = fmt.Sprint(int(val))
+		default:
+			list[i] = fmt.Sprint(val)
+		}
 	}
 	pe.exportlist <- list
 }
