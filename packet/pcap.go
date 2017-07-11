@@ -21,11 +21,12 @@ const (
 type PcapBuffer struct {
 	result chan *multiPacketBuffer
 	empty  chan *multiPacketBuffer
+	filter string
 	plen   int
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
-	ret := &PcapBuffer{make(chan *multiPacketBuffer, fullBuffers), make(chan *multiPacketBuffer, fullBuffers), plen}
+	ret := &PcapBuffer{make(chan *multiPacketBuffer, fullBuffers), make(chan *multiPacketBuffer, fullBuffers), "", plen}
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
@@ -70,6 +71,12 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	return ret
 }
 
+func (input *PcapBuffer) SetFilter(filter string) (old string) {
+	old = input.filter
+	input.filter = filter
+	return
+}
+
 func (input *PcapBuffer) Finish() {
 	close(input.result)
 	// consume empty buffers -> let every go routine finish
@@ -95,6 +102,13 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 	if err != nil {
 		log.Fatalf("Couldn't open file %s", fname)
 	}
+	var filter *pcap.BPF
+	if input.filter != "" {
+		filter, err = fhandle.NewBPF(input.filter)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	var lt gopacket.LayerType
 	switch fhandle.LinkType() {
 	case layers.LinkTypeEthernet:
@@ -110,6 +124,9 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 			break
 		} else if err != nil {
 			log.Println("Error:", err)
+			continue
+		}
+		if filter != nil && !filter.Matches(ci, data) {
 			continue
 		}
 		dlen := len(data)

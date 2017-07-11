@@ -37,6 +37,7 @@ var (
 	idleTimeout   = flag.Uint("idle", 300, "idle timeout in seconds")
 	flowExpire    = flag.Uint("expire", 100, "Check for expired Timers after this time. Lower number = lower memory usage, but longer execution time")
 	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
+	bpfFilter     = flag.String("filter", "", "Process only packets matching specified bpf filter")
 )
 
 func usage() {
@@ -206,6 +207,7 @@ func main() {
 		flows.Time(*flowExpire)*flows.Seconds)
 
 	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
+	buffer.SetFilter(*bpfFilter)
 
 	var time flows.Time
 
