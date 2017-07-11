@@ -35,6 +35,7 @@ var (
 	numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
 	activeTimeout = flag.Uint("active", 1800, "active timeout in seconds")
 	idleTimeout   = flag.Uint("idle", 300, "idle timeout in seconds")
+	flowExpire    = flag.Uint("expire", 100, "Check for expired Timers after this time. Lower number = lower memory usage, but longer execution time")
 	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
 )
 
@@ -200,7 +201,9 @@ func main() {
 
 	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featurelist, packet.NewFlow, flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds, 100*flows.Seconds)
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featurelist, packet.NewFlow,
+		flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds,
+		flows.Time(*flowExpire)*flows.Seconds)
 
 	time := packet.ReadFiles(flag.Args(), int(*maxPacket), flowtable)
 
