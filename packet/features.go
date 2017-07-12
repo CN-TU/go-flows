@@ -332,6 +332,29 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type _intraPacketTimeMilliseconds struct {
+	flows.BaseFeature
+    time int64
+}
+
+func (f *_intraPacketTimeMilliseconds) Event(new interface{}, when flows.Time, src interface{}) {
+    var time int64
+    if f.time != 0 {
+        time = int64(when) - f.time
+    }
+    f.time = int64(when)
+    new_time := float64(time) / 1000000.
+    f.SetValue(new_time, when, f)
+}
+
+func init() {
+    flows.RegisterFeature("_intraPacketTimeMilliseconds", []flows.FeatureCreator{
+        {flows.FeatureTypePacket, func() flows.Feature { return &_intraPacketTimeMilliseconds{} }, nil},
+    })
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type join struct {
     flows.MultiBaseFeature
 }
