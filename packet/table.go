@@ -156,7 +156,7 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 		pft.tmp[i].multiBuffer = buffer.multiBuffer
 	}
 	for _, packet := range buffer.buffers {
-		h := packet.key.Hash() % uint64(num)
+		h := packet.Key().Hash() % uint64(num)
 		pft.tmp[h].add(packet)
 	}
 	for i := 0; i < num; i++ {

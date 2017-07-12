@@ -9,22 +9,22 @@ import (
 )
 
 type multiPacketBuffer struct {
-	buffers      []*packetBuffer
+	buffers      []PacketBuffer
 	empty        *chan *multiPacketBuffer
 	recycled     int
 	recycleMutex sync.Mutex
 }
 
 type shallowMultiPacketBuffer struct {
-	buffers     []*packetBuffer
+	buffers     []PacketBuffer
 	multiBuffer *multiPacketBuffer
 }
 
 func newShallowMultiPacketBuffer(size int) *shallowMultiPacketBuffer {
-	return &shallowMultiPacketBuffer{buffers: make([]*packetBuffer, 0, size)}
+	return &shallowMultiPacketBuffer{buffers: make([]PacketBuffer, 0, size)}
 }
 
-func (b *shallowMultiPacketBuffer) add(p *packetBuffer) {
+func (b *shallowMultiPacketBuffer) add(p PacketBuffer) {
 	b.buffers = append(b.buffers, p)
 }
 
@@ -59,7 +59,17 @@ func (b *multiPacketBuffer) recycle(num int) {
 	b.recycleMutex.Unlock()
 }
 
-type packetBuffer struct {
+type PacketBuffer interface {
+	gopacket.Packet
+	Forward() bool
+	Timestamp() flows.Time
+	Key() flows.FlowKey
+	setInfo(flows.FlowKey, bool)
+	recycle()
+	decode() bool
+}
+
+type pcapPacketBuffer struct {
 	key         flows.FlowKey
 	multibuffer *multiPacketBuffer
 	time        flows.Time
@@ -78,10 +88,10 @@ type packetBuffer struct {
 	application gopacket.ApplicationLayer
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
-	Forward     bool
+	forward     bool
 }
 
-func (pb *packetBuffer) recycle() {
+func (pb *pcapPacketBuffer) recycle() {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -90,21 +100,30 @@ func (pb *packetBuffer) recycle() {
 	pb.tcp.Payload = nil
 }
 
-func (pb *packetBuffer) Key() flows.FlowKey {
+func (pb *pcapPacketBuffer) Key() flows.FlowKey {
 	return pb.key
 }
 
-func (pb *packetBuffer) Timestamp() flows.Time {
+func (pb *pcapPacketBuffer) Timestamp() flows.Time {
 	return pb.time
 }
 
+func (pb *pcapPacketBuffer) Forward() bool {
+	return pb.forward
+}
+
+func (pb *pcapPacketBuffer) setInfo(key flows.FlowKey, forward bool) {
+	pb.key = key
+	pb.forward = forward
+}
+
 //DecodeFeedback
-func (pb *packetBuffer) SetTruncated() { pb.ci.Truncated = true }
+func (pb *pcapPacketBuffer) SetTruncated() { pb.ci.Truncated = true }
 
 //gopacket.Packet
-func (pb *packetBuffer) String() string { return "PacketBuffer" }
-func (pb *packetBuffer) Dump() string   { return "" }
-func (pb *packetBuffer) Layers() []gopacket.Layer {
+func (pb *pcapPacketBuffer) String() string { return "PacketBuffer" }
+func (pb *pcapPacketBuffer) Dump() string   { return "" }
+func (pb *pcapPacketBuffer) Layers() []gopacket.Layer {
 	ret := make([]gopacket.Layer, 0, 3)
 	if pb.link != nil {
 		ret = append(ret, pb.link)
@@ -117,7 +136,7 @@ func (pb *packetBuffer) Layers() []gopacket.Layer {
 	}
 	return ret
 }
-func (pb *packetBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
+func (pb *pcapPacketBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
 	if pb.link.LayerType() == lt {
 		return pb.link
 	}
@@ -129,7 +148,7 @@ func (pb *packetBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
 	}
 	return nil
 }
-func (pb *packetBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
+func (pb *pcapPacketBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 	if lc.Contains(pb.link.LayerType()) {
 		return pb.link
 	}
@@ -141,16 +160,16 @@ func (pb *packetBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 	}
 	return nil
 }
-func (pb *packetBuffer) LinkLayer() gopacket.LinkLayer               { return pb.link }
-func (pb *packetBuffer) NetworkLayer() gopacket.NetworkLayer         { return pb.network }
-func (pb *packetBuffer) TransportLayer() gopacket.TransportLayer     { return pb.transport }
-func (pb *packetBuffer) ApplicationLayer() gopacket.ApplicationLayer { return nil }
-func (pb *packetBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
-func (pb *packetBuffer) Data() []byte                                { return pb.buffer }
-func (pb *packetBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
+func (pb *pcapPacketBuffer) LinkLayer() gopacket.LinkLayer               { return pb.link }
+func (pb *pcapPacketBuffer) NetworkLayer() gopacket.NetworkLayer         { return pb.network }
+func (pb *pcapPacketBuffer) TransportLayer() gopacket.TransportLayer     { return pb.transport }
+func (pb *pcapPacketBuffer) ApplicationLayer() gopacket.ApplicationLayer { return nil }
+func (pb *pcapPacketBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
+func (pb *pcapPacketBuffer) Data() []byte                                { return pb.buffer }
+func (pb *pcapPacketBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
-func (pb *packetBuffer) decode() (ret bool) {
+func (pb *pcapPacketBuffer) decode() (ret bool) {
 	defer func(r *bool) {
 		if err := recover(); err != nil {
 			if pb.tcp.Payload != nil {

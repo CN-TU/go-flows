@@ -34,11 +34,11 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 
 	for i := 0; i < fullBuffers; i++ {
 		buf := &multiPacketBuffer{
-			buffers: make([]*packetBuffer, batchSize),
+			buffers: make([]PacketBuffer, batchSize),
 			empty:   &ret.empty,
 		}
 		for j := 0; j < batchSize; j++ {
-			buf.buffers[j] = &packetBuffer{buffer: make([]byte, prealloc), multibuffer: buf}
+			buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf}
 		}
 		ret.empty <- buf
 	}
@@ -54,8 +54,9 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 					//count non interesting packets?
 					discard.add(buffer)
 				} else {
-					buffer.key, buffer.Forward = fivetuple(buffer)
-					if buffer.key != nil {
+					key, fw := fivetuple(buffer)
+					if key != nil {
+						buffer.setInfo(key, fw)
 						forward.add(buffer)
 					} else {
 						discard.add(buffer)
@@ -130,7 +131,7 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 			continue
 		}
 		dlen := len(data)
-		buffer := multiBuffer.buffers[pos]
+		buffer := multiBuffer.buffers[pos].(*pcapPacketBuffer)
 		pos++
 		if input.plen == 0 && cap(buffer.buffer) < dlen {
 			buffer.buffer = make([]byte, dlen)

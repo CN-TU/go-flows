@@ -27,13 +27,13 @@ func (f *_characters) Event(new interface{}, when flows.Time, src interface{}) {
 		time = int64(when) - f.time
 	}
 	if len(f.src) == 0 {
-		tmp_src, _ := new.(*packetBuffer).NetworkLayer().NetworkFlow().Endpoints()
+		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmp_src.Raw()
 	}
 	f.time = int64(when)
 	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
 
-	srcIP, _ := new.(*packetBuffer).NetworkLayer().NetworkFlow().Endpoints()
+	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 
 	var buffer bytes.Buffer
 	if bytes.Equal(f.src, srcIP.Raw()) {
@@ -67,14 +67,14 @@ func (f *_characters2) Event(new interface{}, when flows.Time, src interface{}) 
 		time = int64(when) - f.time
 	}
 	if len(f.src) == 0 {
-		tmp_src, _ := new.(*packetBuffer).NetworkLayer().NetworkFlow().Endpoints()
+		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmp_src.Raw()
 	}
 	f.time = int64(when)
 	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
 
-	srcIP, _ := new.(*packetBuffer).NetworkLayer().NetworkFlow().Endpoints()
-	tcp := getTcp(new.(*packetBuffer))
+	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
+	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}

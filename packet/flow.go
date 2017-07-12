@@ -107,7 +107,7 @@ type UniFlow struct {
 }
 
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.Time) flows.Flow {
-	tp := event.(*packetBuffer).TransportLayer()
+	tp := event.(PacketBuffer).TransportLayer()
 	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 		ret := new(TCPFlow)
 		ret.Init(table, key, time)
@@ -123,13 +123,13 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
 	if !flow.Active() {
 		return
 	}
-	buffer := event.(*packetBuffer)
+	buffer := event.(PacketBuffer)
 	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export(flows.FlowEndReasonEnd, when, when)
 		return
 	}
-	if buffer.Forward {
+	if buffer.Forward() {
 		if tcp.FIN {
 			flow.srcFIN = true
 		}
