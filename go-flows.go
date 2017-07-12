@@ -38,10 +38,11 @@ var (
 	flowExpire    = flag.Uint("expire", 100, "Check for expired Timers after this time. Lower number = lower memory usage, but longer execution time")
 	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
 	bpfFilter     = flag.String("filter", "", "Process only packets matching specified bpf filter")
+	iface         = flag.String("interface", "", "Capture packets from specified interface")
 )
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [args] file1 [file2] [...] \n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage: %s [args] [file1] [file2] [...] \n", os.Args[0])
 	flag.PrintDefaults()
 	os.Exit(-1)
 }
@@ -141,7 +142,7 @@ func main() {
 	default:
 		usage()
 	}
-	if exporter != nil && flag.NArg() == 0 {
+	if (exporter != nil && (flag.NArg() == 0 && *iface == "")) || (flag.NArg() != 0 && *iface != "") {
 		usage()
 	}
 	if *cpuprofile != "" {
@@ -211,8 +212,12 @@ func main() {
 
 	var time flows.Time
 
-	for _, fname := range flag.Args() {
-		time = buffer.ReadFile(fname)
+	if *iface != "" {
+		time = buffer.ReadInterface(*iface)
+	} else {
+		for _, fname := range flag.Args() {
+			time = buffer.ReadFile(fname)
+		}
 	}
 
 	buffer.Finish()

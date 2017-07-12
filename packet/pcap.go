@@ -3,6 +3,7 @@ package packet
 import (
 	"io"
 	"log"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -102,6 +103,30 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 	return input.readHandle(fhandle, filter)
 }
 
+func (input *PcapBuffer) ReadInterface(dname string) flows.Time {
+	inactive, err := pcap.NewInactiveHandle(dname)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer inactive.CleanUp()
+
+	if err = inactive.SetTimeout(100 * time.Millisecond); err != nil {
+		log.Fatal(err)
+	}
+
+	handle, err := inactive.Activate()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer handle.Close()
+
+	if err = handle.SetBPFFilter(input.filter); err != nil {
+		log.Fatal(err)
+	}
+
+	return input.readHandle(handle, nil)
+}
+
 func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) flows.Time {
 	var time flows.Time
 	multiBuffer := <-input.empty
@@ -126,6 +151,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) flow
 	}
 	for {
 		data, ci, err := fhandle.ZeroCopyReadPacketData()
+		log.Println("test")
 		if err == io.EOF {
 			break
 		} else if err != nil {
