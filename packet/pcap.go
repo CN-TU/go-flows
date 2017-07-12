@@ -87,6 +87,22 @@ func (input *PcapBuffer) Finish() {
 }
 
 func (input *PcapBuffer) ReadFile(fname string) flows.Time {
+	fhandle, err := pcap.OpenOffline(fname)
+	defer fhandle.Close()
+	if err != nil {
+		log.Fatalf("Couldn't open file %s", fname)
+	}
+	var filter *pcap.BPF
+	if input.filter != "" {
+		filter, err = fhandle.NewBPF(input.filter)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	return input.readHandle(fhandle, filter)
+}
+
+func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) flows.Time {
 	var time flows.Time
 	multiBuffer := <-input.empty
 	pos := 0
@@ -99,17 +115,6 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 		}
 	}()
 
-	fhandle, err := pcap.OpenOffline(fname)
-	if err != nil {
-		log.Fatalf("Couldn't open file %s", fname)
-	}
-	var filter *pcap.BPF
-	if input.filter != "" {
-		filter, err = fhandle.NewBPF(input.filter)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 	var lt gopacket.LayerType
 	switch fhandle.LinkType() {
 	case layers.LinkTypeEthernet:
@@ -152,6 +157,5 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 			multiBuffer = <-input.empty
 		}
 	}
-	fhandle.Close()
 	return time
 }
