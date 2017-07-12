@@ -5,3 +5,4 @@ go-flows
 *.tar*
 *.trace
 tmp
+*.csv
