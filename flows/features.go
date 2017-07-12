@@ -1,5 +1,6 @@
 package flows
 
+import "bytes"
 import "fmt"
 import "reflect"
 
@@ -265,4 +266,29 @@ func init() {
     RegisterFeature("accumulate", []FeatureCreator{
         {FeatureTypeMatch, func() Feature { return &accumulate{} }, []FeatureType{FeatureTypePacket}},
     })
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type concatenate struct {
+	BaseFeature
+    buffer bytes.Buffer
+}
+
+func (f *concatenate) Start(when Time) {
+    f.buffer = *(bytes.NewBufferString(""))
+}
+
+func (f *concatenate) Event(new interface{}, when Time, src interface{}) {
+    f.buffer.WriteString(new.(string))
+}
+
+func (f *concatenate) Stop(reason FlowEndReason, when Time) {
+	f.SetValue(f.buffer.String(), when, f)
+}
+
+func init() {
+	RegisterFeature("concatenate", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &concatenate{} }, []FeatureType{FeatureTypePacket}},
+	})
 }
