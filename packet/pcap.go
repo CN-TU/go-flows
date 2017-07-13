@@ -40,14 +40,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	}
 
 	for i := 0; i < fullBuffers; i++ {
-		buf := &multiPacketBuffer{
-			buffers: make([]PacketBuffer, batchSize),
-			empty:   &ret.empty,
-		}
-		for j := 0; j < batchSize; j++ {
-			buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf, resize: plen == 0}
-		}
-		ret.empty <- buf
+		ret.empty <- newMultiPacketBuffer(&ret.empty, batchSize, prealloc, plen == 0)
 	}
 
 	go func() {
