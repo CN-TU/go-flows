@@ -88,7 +88,8 @@ func (input *PcapBuffer) SetFilter(filter string) (old string) {
 }
 
 func (input *PcapBuffer) Finish() {
-	if input.current.halfFull() {
+	if input.current != nil {
+		input.current.halfFull()
 		input.result <- input.current
 	}
 

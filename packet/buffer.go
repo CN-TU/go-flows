@@ -74,13 +74,10 @@ func (b *multiPacketBuffer) reset() {
 	b.pos = 0
 }
 
-func (b *multiPacketBuffer) halfFull() (ret bool) {
-	ret = false
+func (b *multiPacketBuffer) halfFull() {
 	if b.pos != 0 {
-		ret = true
 		b.buffers = b.buffers[:b.pos]
 	}
-	return
 }
 
 type PacketBuffer interface {
