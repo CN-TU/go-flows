@@ -11,8 +11,9 @@ import (
 type multiPacketBuffer struct {
 	buffers      []PacketBuffer
 	empty        *chan *multiPacketBuffer
-	recycled     int
 	recycleMutex sync.Mutex
+	recycled     int
+	pos          int
 }
 
 type shallowMultiPacketBuffer struct {
@@ -59,6 +60,29 @@ func (b *multiPacketBuffer) recycle(num int) {
 	b.recycleMutex.Unlock()
 }
 
+func (b *multiPacketBuffer) current() (ret PacketBuffer) {
+	ret = b.buffers[b.pos]
+	b.pos++
+	return
+}
+
+func (b *multiPacketBuffer) finished() bool {
+	return b.pos == batchSize
+}
+
+func (b *multiPacketBuffer) reset() {
+	b.pos = 0
+}
+
+func (b *multiPacketBuffer) halfFull() (ret bool) {
+	ret = false
+	if b.pos != 0 {
+		ret = true
+		b.buffers = b.buffers[:b.pos]
+	}
+	return
+}
+
 type PacketBuffer interface {
 	gopacket.Packet
 	Forward() bool
@@ -89,6 +113,23 @@ type pcapPacketBuffer struct {
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
 	forward     bool
+	resize      bool
+}
+
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) {
+	dlen := len(data)
+	if pb.resize && cap(pb.buffer) < dlen {
+		pb.buffer = make([]byte, dlen)
+	} else if dlen < cap(pb.buffer) {
+		pb.buffer = pb.buffer[0:dlen]
+	} else {
+		pb.buffer = pb.buffer[0:cap(pb.buffer)]
+	}
+	clen := copy(pb.buffer, data)
+	pb.time = flows.Time(ci.Timestamp.UnixNano())
+	pb.ci.CaptureInfo = ci
+	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
+	pb.first = lt
 }
 
 func (pb *pcapPacketBuffer) recycle() {

@@ -3,6 +3,8 @@ package packet
 import (
 	"io"
 	"log"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/google/gopacket"
@@ -20,14 +22,18 @@ const (
 )
 
 type PcapBuffer struct {
-	result chan *multiPacketBuffer
-	empty  chan *multiPacketBuffer
-	filter string
-	plen   int
+	result  chan *multiPacketBuffer
+	empty   chan *multiPacketBuffer
+	current *multiPacketBuffer
+	filter  string
+	plen    int
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
-	ret := &PcapBuffer{make(chan *multiPacketBuffer, fullBuffers), make(chan *multiPacketBuffer, fullBuffers), "", plen}
+	ret := &PcapBuffer{
+		result: make(chan *multiPacketBuffer, fullBuffers),
+		empty:  make(chan *multiPacketBuffer, fullBuffers),
+		plen:   plen}
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
@@ -39,7 +45,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 			empty:   &ret.empty,
 		}
 		for j := 0; j < batchSize; j++ {
-			buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf}
+			buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf, resize: plen == 0}
 		}
 		ret.empty <- buf
 	}
@@ -70,6 +76,8 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 		}
 	}()
 
+	ret.current = <-ret.empty
+
 	return ret
 }
 
@@ -80,6 +88,10 @@ func (input *PcapBuffer) SetFilter(filter string) (old string) {
 }
 
 func (input *PcapBuffer) Finish() {
+	if input.current.halfFull() {
+		input.result <- input.current
+	}
+
 	close(input.result)
 	// consume empty buffers -> let every go routine finish
 	for i := 0; i < fullBuffers; i++ {
@@ -100,44 +112,46 @@ func (input *PcapBuffer) ReadFile(fname string) flows.Time {
 			log.Fatal(err)
 		}
 	}
-	return input.readHandle(fhandle, filter)
+	t, _ := input.readHandle(fhandle, filter)
+	return t
 }
 
-func (input *PcapBuffer) ReadInterface(dname string) flows.Time {
+func (input *PcapBuffer) ReadInterface(dname string) (t flows.Time) {
 	inactive, err := pcap.NewInactiveHandle(dname)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer inactive.CleanUp()
 
 	if err = inactive.SetTimeout(100 * time.Millisecond); err != nil {
 		log.Fatal(err)
 	}
+	// FIXME: set other options here
 
 	handle, err := inactive.Activate()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer handle.Close()
 
 	if err = handle.SetBPFFilter(input.filter); err != nil {
 		log.Fatal(err)
 	}
 
-	return input.readHandle(handle, nil)
+	t, stop := input.readHandle(handle, nil)
+
+	if !stop {
+		inactive.CleanUp()
+		handle.Close()
+	}
+
+	return
 }
 
-func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) flows.Time {
-	var time flows.Time
-	multiBuffer := <-input.empty
-	pos := 0
+func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.Time, stop bool) {
+	cancel := make(chan os.Signal, 1)
+	finished := make(chan interface{}, 1)
+	signal.Notify(cancel, os.Interrupt)
 	defer func() {
-		if pos != 0 {
-			multiBuffer.buffers = multiBuffer.buffers[:pos]
-			input.result <- multiBuffer
-		} else {
-			input.empty <- multiBuffer
-		}
+		signal.Stop(cancel)
 	}()
 
 	var lt gopacket.LayerType
@@ -149,39 +163,35 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) flow
 	default:
 		log.Fatalf("File format not implemented")
 	}
-	for {
-		data, ci, err := fhandle.ZeroCopyReadPacketData()
-		log.Println("test")
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			log.Println("Error:", err)
-			continue
+	go func(time *flows.Time, stop *bool) {
+		for {
+			data, ci, err := fhandle.ZeroCopyReadPacketData()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				log.Println("Error:", err)
+				continue
+			}
+			if filter != nil && !filter.Matches(ci, data) {
+				continue
+			}
+			if *stop {
+				return
+			}
+			input.current.current().(*pcapPacketBuffer).assign(data, ci, lt)
+			if input.current.finished() {
+				input.result <- input.current
+				input.current = <-input.empty
+				input.current.reset()
+			}
 		}
-		if filter != nil && !filter.Matches(ci, data) {
-			continue
-		}
-		dlen := len(data)
-		buffer := multiBuffer.buffers[pos].(*pcapPacketBuffer)
-		pos++
-		if input.plen == 0 && cap(buffer.buffer) < dlen {
-			buffer.buffer = make([]byte, dlen)
-		} else if dlen < cap(buffer.buffer) {
-			buffer.buffer = buffer.buffer[0:dlen]
-		} else {
-			buffer.buffer = buffer.buffer[0:cap(buffer.buffer)]
-		}
-		clen := copy(buffer.buffer, data)
-		time = flows.Time(ci.Timestamp.UnixNano())
-		buffer.time = time
-		buffer.ci.CaptureInfo = ci
-		buffer.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
-		buffer.first = lt
-		if pos == batchSize {
-			pos = 0
-			input.result <- multiBuffer
-			multiBuffer = <-input.empty
-		}
+		finished <- nil
+	}(&time, &stop)
+	select {
+	case <-finished:
+		stop = false
+	case <-cancel:
+		stop = true
 	}
-	return time
+	return
 }
