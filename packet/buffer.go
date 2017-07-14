@@ -99,6 +99,7 @@ type PacketBuffer interface {
 	Key() flows.FlowKey
 	Copy() PacketBuffer
 	Destroy()
+	Hlen() int
 	setInfo(flows.FlowKey, bool)
 	recycle()
 	decode() bool
@@ -124,6 +125,7 @@ type pcapPacketBuffer struct {
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
 	shared      []*shallowPcapPacketBuffer
+	hlen        int
 	forward     bool
 	resize      bool
 }
@@ -151,6 +153,10 @@ func (sb *shallowPcapPacketBuffer) unshare() {
 		forward: old.forward,
 	}
 	sb.decode()
+}
+
+func (pb *pcapPacketBuffer) Hlen() int {
+	return pb.hlen
 }
 
 func (pb *pcapPacketBuffer) Copy() PacketBuffer {
@@ -201,6 +207,7 @@ func (pb *pcapPacketBuffer) recycle() {
 	pb.application = nil
 	pb.failure = nil
 	pb.tcp.Payload = nil
+	pb.hlen = 0
 }
 
 func (pb *pcapPacketBuffer) Key() flows.FlowKey {
@@ -273,6 +280,7 @@ func (pb *pcapPacketBuffer) Metadata() *gopacket.PacketMetadata          { retur
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *pcapPacketBuffer) decode() (ret bool) {
+	var ip6skipper layers.IPv6ExtensionSkipper
 	defer func(r *bool) {
 		if err := recover(); err != nil {
 			if pb.tcp.Payload != nil {
@@ -315,7 +323,11 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 				return false
 			}
 		default:
-			return false
+			if layers.LayerClassIPv6Extension.Contains(typ) {
+				decoder = &ip6skipper
+			} else {
+				return false
+			}
 		}
 		if err := decoder.DecodeFromBytes(data, pb); err != nil {
 			return false
@@ -323,22 +335,33 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 		switch typ {
 		case layers.LayerTypeEthernet:
 			pb.link = &pb.eth
+			pb.hlen += len(pb.eth.Contents)
 		case layers.LayerTypeIPv4:
 			pb.network = &pb.ip4
+			pb.hlen += len(pb.ip4.Contents)
 		case layers.LayerTypeIPv6:
 			pb.network = &pb.ip6
+			pb.hlen += len(pb.ip6.Contents)
 		case layers.LayerTypeUDP:
 			pb.transport = &pb.udp
+			pb.hlen += len(pb.udp.Contents)
 			return true
 		case layers.LayerTypeTCP:
 			pb.transport = &pb.tcp
+			pb.hlen += len(pb.tcp.Contents)
 			return true
 		case layers.LayerTypeICMPv4:
 			pb.transport = &pb.icmpv4
+			pb.hlen += len(pb.icmpv4.Contents)
 			return true
 		case layers.LayerTypeICMPv6:
 			pb.transport = &pb.icmpv6
+			pb.hlen += len(pb.icmpv6.Contents)
 			return true
+		default:
+			if layers.LayerClassIPv6Extension.Contains(typ) {
+				pb.hlen += len(ip6skipper.Contents)
+			}
 		}
 		typ = decoder.NextLayerType()
 		data = decoder.LayerPayload()
