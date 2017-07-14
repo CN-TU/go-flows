@@ -245,42 +245,42 @@ func init() {
 
 type accumulate struct {
 	MultiBaseFeature
-    vector []interface{}
+	vector []interface{}
 }
 
 func (f *accumulate) Start(when Time) {
-    f.vector = nil
+	f.vector = make([]interface{}, 0)
 }
 
 func (f *accumulate) Stop(reason FlowEndReason, when Time) {
-    if len(f.vector) != 0 {
-        f.SetValue(f.vector, when, f)
-    }
+	if len(f.vector) != 0 {
+		f.SetValue(f.vector, when, f)
+	}
 }
 
 func (f *accumulate) Event(new interface{}, when Time, src interface{}) {
-    f.vector = append(f.vector, new)
+	f.vector = append(f.vector, new)
 }
 
 func init() {
-    RegisterFeature("accumulate", []FeatureCreator{
-        {FeatureTypeMatch, func() Feature { return &accumulate{} }, []FeatureType{FeatureTypePacket}},
-    })
+	RegisterFeature("accumulate", []FeatureCreator{
+		{FeatureTypeMatch, func() Feature { return &accumulate{} }, []FeatureType{FeatureTypePacket}},
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type concatenate struct {
 	BaseFeature
-    buffer bytes.Buffer
+	buffer *bytes.Buffer
 }
 
 func (f *concatenate) Start(when Time) {
-    f.buffer = *(bytes.NewBufferString(""))
+	f.buffer = new(bytes.Buffer)
 }
 
 func (f *concatenate) Event(new interface{}, when Time, src interface{}) {
-    f.buffer.WriteString(new.(string))
+	fmt.Fprint(f.buffer, new)
 }
 
 func (f *concatenate) Stop(reason FlowEndReason, when Time) {
