@@ -32,6 +32,8 @@ type Feature interface {
 	Type() string
 	// BaseType returns the type of the feature.
 	BaseType() string
+	// Emit sends value new, with time when, and source self to the dependent Features
+	Emit(new interface{}, when Time, self interface{})
 	setFlow(Flow)
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
@@ -88,6 +90,13 @@ func (f *EmptyBaseFeature) IsConstant() bool { return false }
 func (f *EmptyBaseFeature) SetValue(new interface{}, when Time, self interface{}) {
 }
 
+// Emit sends value new, with time when, and source self to the dependent Features
+func (f *EmptyBaseFeature) Emit(new interface{}, when Time, self interface{}) {
+	for _, v := range f.dependent {
+		v.Event(new, when, self)
+	}
+}
+
 // BaseFeature includes all the basic functionality to fulfill the Feature interface.
 // Embedd this struct for creating new features.
 type BaseFeature struct {
@@ -111,9 +120,7 @@ func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
 func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
 	f.value = new
 	if new != nil {
-		for _, v := range f.dependent {
-			v.Event(new, when, self)
-		}
+		f.Emit(new, when, self)
 	}
 }
 

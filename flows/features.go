@@ -25,6 +25,7 @@ func (f *constantFeature) setFlow(Flow)                            {}
 func (f *constantFeature) setBaseType(string)                      {}
 func (f *constantFeature) getBaseFeature() *BaseFeature            { return nil }
 func (f *constantFeature) IsConstant() bool                        { return true }
+func (f *constantFeature) Emit(interface{}, Time, interface{})     {}
 
 func newConstantMetaFeature(value interface{}) metaFeature {
 	var f interface{}
