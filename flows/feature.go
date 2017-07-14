@@ -57,7 +57,11 @@ func (f *BaseFeature) setArguments([]Feature)     {}
 func (f *BaseFeature) Event(interface{}, Time, interface{}) {}
 
 // FinishEvent gets called after every Event happened
-func (f *BaseFeature) FinishEvent() {}
+func (f *BaseFeature) FinishEvent() {
+	for _, v := range f.dependent {
+		v.FinishEvent()
+	}
+}
 
 // Value provides the current stored value.
 func (f *BaseFeature) Value() interface{} { return f.value }
@@ -197,6 +201,7 @@ func (f *MultiBaseFeature) EventResult(new interface{}, which interface{}) []int
 // FinishEvent gets called after every Event happened
 func (f *MultiBaseFeature) FinishEvent() {
 	f.eventReady.Reset()
+	f.BaseFeature.FinishEvent()
 }
 
 func (f *MultiBaseFeature) setArguments(args []Feature) {
@@ -490,7 +495,7 @@ func (list *featureList) Event(data interface{}, when Time) {
 	for _, feature := range list.event {
 		feature.Event(data, when, nil)
 	}
-	for _, feature := range list.startup {
+	for _, feature := range list.event {
 		feature.FinishEvent()
 	}
 }

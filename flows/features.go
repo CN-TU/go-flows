@@ -53,7 +53,6 @@ type selectF struct {
 func (f *selectF) setDependent(dependent []Feature)        { f.dependent = dependent }
 func (f *selectF) getDependent() []Feature                 { return f.dependent }
 func (f *selectF) setArguments([]Feature)                  {}
-func (f *selectF) FinishEvent()                            {}
 func (f *selectF) Value() interface{}                      { return nil }
 func (f *selectF) SetValue(interface{}, Time, interface{}) {}
 func (f *selectF) Start(Time)                              { f.sel = false }
@@ -65,6 +64,11 @@ func (f *selectF) setFlow(Flow)                            {}
 func (f *selectF) setBaseType(string)                      {}
 func (f *selectF) getBaseFeature() *BaseFeature            { return nil }
 func (f *selectF) isConstant() bool                        { return false }
+func (f *selectF) FinishEvent() {
+	for _, v := range f.dependent {
+		v.FinishEvent()
+	}
+}
 
 func (f *selectF) Event(new interface{}, when Time, src interface{}) {
 	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
@@ -93,7 +97,6 @@ func (f *selectS) setArguments(arguments []Feature) {
 	f.start = int(arguments[0].Value().(Number).ToInt())
 	f.stop = int(arguments[1].Value().(Number).ToInt())
 }
-func (f *selectS) FinishEvent()                            {}
 func (f *selectS) Value() interface{}                      { return nil }
 func (f *selectS) SetValue(interface{}, Time, interface{}) {}
 func (f *selectS) Start(Time)                              { f.current = 0 }
@@ -105,6 +108,11 @@ func (f *selectS) setFlow(Flow)                            {}
 func (f *selectS) setBaseType(string)                      {}
 func (f *selectS) getBaseFeature() *BaseFeature            { return nil }
 func (f *selectS) isConstant() bool                        { return false }
+func (f *selectS) FinishEvent() {
+	for _, v := range f.dependent {
+		v.FinishEvent()
+	}
+}
 
 func (f *selectS) Event(new interface{}, when Time, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
