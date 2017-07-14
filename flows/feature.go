@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,54 +37,75 @@ type Feature interface {
 	getBaseFeature() *BaseFeature
 	setDependent([]Feature)
 	getDependent() []Feature
-	setArguments([]Feature)
-	isConstant() bool
+	SetArguments([]Feature)
+	IsConstant() bool
 }
 
-// BaseFeature includes all the basic functionality to fulfill the Feature interface.
-// Embedd this struct for creating new features.
-type BaseFeature struct {
-	value     interface{}
+type EmptyBaseFeature struct {
 	dependent []Feature
 	flow      Flow
-	basetype  string
 }
 
-func (f *BaseFeature) setDependent(dep []Feature) { f.dependent = dep }
-func (f *BaseFeature) getDependent() []Feature    { return f.dependent }
-func (f *BaseFeature) setArguments([]Feature)     {}
+func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
+func (f *EmptyBaseFeature) getDependent() []Feature    { return f.dependent }
+func (f *EmptyBaseFeature) SetArguments([]Feature)     {}
+
+// Key returns the current flow key.
+func (f *EmptyBaseFeature) Key() FlowKey { return f.flow.Key() }
 
 // Event gets called for every event. Data is provided via the first argument and current time via the second.
-func (f *BaseFeature) Event(interface{}, Time, interface{}) {}
+func (f *EmptyBaseFeature) Event(interface{}, Time, interface{}) {}
 
 // FinishEvent gets called after every Event happened
-func (f *BaseFeature) FinishEvent() {
+func (f *EmptyBaseFeature) FinishEvent() {
 	for _, v := range f.dependent {
 		v.FinishEvent()
 	}
 }
 
 // Value provides the current stored value.
-func (f *BaseFeature) Value() interface{} { return f.value }
+func (f *EmptyBaseFeature) Value() interface{} { return nil }
 
 // Start gets called when the flow starts.
-func (f *BaseFeature) Start(Time) {}
+func (f *EmptyBaseFeature) Start(Time) {}
 
 // Stop gets called with an end reason and time when a flow stops
-func (f *BaseFeature) Stop(FlowEndReason, Time) {}
+func (f *EmptyBaseFeature) Stop(FlowEndReason, Time) {}
 
-// Key returns the current flow key.
-func (f *BaseFeature) Key() FlowKey { return f.flow.Key() }
+// Type returns the type associated with the current value, which can be different from BaseType.
+func (f *EmptyBaseFeature) Type() string { log.Fatal("Not implemented"); return "" }
+
+// BaseType returns the type of the feature.
+func (f *EmptyBaseFeature) BaseType() string             { log.Fatal("Not implemented"); return "" }
+func (f *EmptyBaseFeature) setFlow(flow Flow)            { f.flow = flow }
+func (f *EmptyBaseFeature) setBaseType(basetype string)  {}
+func (f *EmptyBaseFeature) getBaseFeature() *BaseFeature { log.Fatal("Not implemented"); return nil }
+
+// IsConstant returns true if the feature is constant
+func (f *EmptyBaseFeature) IsConstant() bool { return false }
+
+// SetValue stores a new value with the associated time.
+func (f *EmptyBaseFeature) SetValue(new interface{}, when Time, self interface{}) {
+}
+
+// BaseFeature includes all the basic functionality to fulfill the Feature interface.
+// Embedd this struct for creating new features.
+type BaseFeature struct {
+	EmptyBaseFeature
+	value    interface{}
+	basetype string
+}
+
+// Value provides the current stored value.
+func (f *BaseFeature) Value() interface{} { return f.value }
 
 // Type returns the type associated with the current value, which can be different from BaseType.
 func (f *BaseFeature) Type() string { return f.basetype }
 
 // BaseType returns the type of the feature.
 func (f *BaseFeature) BaseType() string             { return f.basetype }
-func (f *BaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
-func (f *BaseFeature) isConstant() bool             { return false }
 
 // SetValue stores a new value with the associated time.
 func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
@@ -204,11 +226,11 @@ func (f *MultiBaseFeature) FinishEvent() {
 	f.BaseFeature.FinishEvent()
 }
 
-func (f *MultiBaseFeature) setArguments(args []Feature) {
+func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	featurelist := make([]interface{}, len(args))
 	features := make([]int, 0, len(args))
 	for i, feature := range args {
-		if feature.isConstant() {
+		if feature.IsConstant() {
 			featurelist[i] = feature.Value()
 		} else {
 			featurelist[i] = feature
@@ -755,7 +777,7 @@ MAIN:
 					for i, arg := range feature.arguments {
 						args[i] = f[arg]
 					}
-					f[i].setArguments(args)
+					f[i].SetArguments(args)
 				}
 			}
 			return &featureList{

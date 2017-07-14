@@ -11,7 +11,7 @@ type constantFeature struct {
 
 func (f *constantFeature) setDependent([]Feature)                  {}
 func (f *constantFeature) getDependent() []Feature                 { return nil }
-func (f *constantFeature) setArguments([]Feature)                  {}
+func (f *constantFeature) SetArguments([]Feature)                  {}
 func (f *constantFeature) Event(interface{}, Time, interface{})    {}
 func (f *constantFeature) FinishEvent()                            {}
 func (f *constantFeature) Value() interface{}                      { return f.value }
@@ -24,7 +24,7 @@ func (f *constantFeature) BaseType() string                        { return f.t 
 func (f *constantFeature) setFlow(Flow)                            {}
 func (f *constantFeature) setBaseType(string)                      {}
 func (f *constantFeature) getBaseFeature() *BaseFeature            { return nil }
-func (f *constantFeature) isConstant() bool                        { return true }
+func (f *constantFeature) IsConstant() bool                        { return true }
 
 func newConstantMetaFeature(value interface{}) metaFeature {
 	var f interface{}
@@ -46,29 +46,13 @@ func newConstantMetaFeature(value interface{}) metaFeature {
 ////////////////////////////////////////////////////////////////////////////////
 
 type selectF struct {
-	dependent []Feature
-	sel       bool
+	EmptyBaseFeature
+	sel bool
 }
 
-func (f *selectF) setDependent(dependent []Feature)        { f.dependent = dependent }
-func (f *selectF) getDependent() []Feature                 { return f.dependent }
-func (f *selectF) setArguments([]Feature)                  {}
-func (f *selectF) Value() interface{}                      { return nil }
-func (f *selectF) SetValue(interface{}, Time, interface{}) {}
-func (f *selectF) Start(Time)                              { f.sel = false }
-func (f *selectF) Stop(FlowEndReason, Time)                {}
-func (f *selectF) Key() FlowKey                            { return nil }
-func (f *selectF) Type() string                            { return "select" }
-func (f *selectF) BaseType() string                        { return "select" }
-func (f *selectF) setFlow(Flow)                            {}
-func (f *selectF) setBaseType(string)                      {}
-func (f *selectF) getBaseFeature() *BaseFeature            { return nil }
-func (f *selectF) isConstant() bool                        { return false }
-func (f *selectF) FinishEvent() {
-	for _, v := range f.dependent {
-		v.FinishEvent()
-	}
-}
+func (f *selectF) Start(Time)       { f.sel = false }
+func (f *selectF) Type() string     { return "select" }
+func (f *selectF) BaseType() string { return "select" }
 
 func (f *selectF) Event(new interface{}, when Time, src interface{}) {
 	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
@@ -87,32 +71,17 @@ func (f *selectF) Event(new interface{}, when Time, src interface{}) {
 }
 
 type selectS struct {
-	dependent            []Feature
+	EmptyBaseFeature
 	start, stop, current int
 }
 
-func (f *selectS) setDependent(dependent []Feature) { f.dependent = dependent }
-func (f *selectS) getDependent() []Feature          { return f.dependent }
-func (f *selectS) setArguments(arguments []Feature) {
+func (f *selectS) SetArguments(arguments []Feature) {
 	f.start = int(arguments[0].Value().(Number).ToInt())
 	f.stop = int(arguments[1].Value().(Number).ToInt())
 }
-func (f *selectS) Value() interface{}                      { return nil }
-func (f *selectS) SetValue(interface{}, Time, interface{}) {}
-func (f *selectS) Start(Time)                              { f.current = 0 }
-func (f *selectS) Stop(FlowEndReason, Time)                {}
-func (f *selectS) Key() FlowKey                            { return nil }
-func (f *selectS) Type() string                            { return "select" }
-func (f *selectS) BaseType() string                        { return "select" }
-func (f *selectS) setFlow(Flow)                            {}
-func (f *selectS) setBaseType(string)                      {}
-func (f *selectS) getBaseFeature() *BaseFeature            { return nil }
-func (f *selectS) isConstant() bool                        { return false }
-func (f *selectS) FinishEvent() {
-	for _, v := range f.dependent {
-		v.FinishEvent()
-	}
-}
+func (f *selectS) Start(Time)       { f.current = 0 }
+func (f *selectS) Type() string     { return "select" }
+func (f *selectS) BaseType() string { return "select" }
 
 func (f *selectS) Event(new interface{}, when Time, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
