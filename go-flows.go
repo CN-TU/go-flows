@@ -31,6 +31,7 @@ var (
 	cpuprofile    = flag.String("cpuprofile", "", "write cpu profile to file")
 	memprofile    = flag.String("memprofile", "", "write mem profile to file")
 	blockprofile  = flag.String("blockprofile", "", "write block profile to file")
+	mutexprofile  = flag.String("mutexprofile", "", "write mutex profile to file")
 	tracefile     = flag.String("trace", "", "set tracing file")
 	numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
 	activeTimeout = flag.Uint("active", 1800, "active timeout in seconds")
@@ -160,6 +161,14 @@ func main() {
 		}
 		runtime.SetBlockProfileRate(1)
 		defer pprof.Lookup("block").WriteTo(f, 0)
+	}
+	if *mutexprofile != "" {
+		f, err := os.Create(*mutexprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		runtime.SetMutexProfileFraction(1)
+		defer pprof.Lookup("mutex").WriteTo(f, 0)
 	}
 	if *tracefile != "" {
 		f, err := os.Create(*tracefile)
