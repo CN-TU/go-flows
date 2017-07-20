@@ -22,54 +22,42 @@ const (
 )
 
 type PcapBuffer struct {
-	result  chan *multiPacketBuffer
-	empty   chan *multiPacketBuffer
-	current *multiPacketBuffer
-	filter  string
-	plen    int
+	result chan PacketBuffer
+	empty  chan PacketBuffer
+	filter string
+	plen   int
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	ret := &PcapBuffer{
-		result: make(chan *multiPacketBuffer, fullBuffers),
-		empty:  make(chan *multiPacketBuffer, fullBuffers),
+		result: make(chan PacketBuffer, fullBuffers*batchSize),
+		empty:  make(chan PacketBuffer, fullBuffers*batchSize),
 		plen:   plen}
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
 	}
 
-	for i := 0; i < fullBuffers; i++ {
-		ret.empty <- newMultiPacketBuffer(&ret.empty, batchSize, prealloc, plen == 0)
+	for i := 0; i < fullBuffers*batchSize; i++ {
+		ret.empty <- &pcapPacketBuffer{buffer: make([]byte, prealloc), empty: &ret.empty, resize: plen == 0}
 	}
 
 	go func() {
-		discard := newShallowMultiPacketBuffer(batchSize)
-		forward := newShallowMultiPacketBuffer(batchSize)
-		for multibuffer := range ret.result {
-			discard.multiBuffer = multibuffer
-			forward.multiBuffer = multibuffer
-			for _, buffer := range multibuffer.buffers {
-				if !buffer.decode() {
-					//count non interesting packets?
-					discard.add(buffer)
+		for buffer := range ret.result {
+			if !buffer.decode() {
+				//count non interesting packets?
+				buffer.recycle()
+			} else {
+				key, fw := fivetuple(buffer)
+				if key != nil {
+					buffer.setInfo(key, fw)
+					flowtable.Event(buffer)
 				} else {
-					key, fw := fivetuple(buffer)
-					if key != nil {
-						buffer.setInfo(key, fw)
-						forward.add(buffer)
-					} else {
-						discard.add(buffer)
-					}
+					buffer.recycle()
 				}
 			}
-			flowtable.Event(forward)
-			forward.reset()
-			discard.recycle()
 		}
 	}()
-
-	ret.current = <-ret.empty
 
 	return ret
 }
@@ -81,14 +69,9 @@ func (input *PcapBuffer) SetFilter(filter string) (old string) {
 }
 
 func (input *PcapBuffer) Finish() {
-	if input.current != nil {
-		input.current.halfFull()
-		input.result <- input.current
-	}
-
 	close(input.result)
 	// consume empty buffers -> let every go routine finish
-	for i := 0; i < fullBuffers; i++ {
+	for i := 0; i < fullBuffers*batchSize; i++ {
 		<-input.empty
 	}
 }
@@ -172,12 +155,9 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 			if *stop {
 				return
 			}
-			input.current.current().(*pcapPacketBuffer).assign(data, ci, lt)
-			if input.current.finished() {
-				input.result <- input.current
-				input.current = <-input.empty
-				input.current.reset()
-			}
+			buffer := <-input.empty
+			buffer.(*pcapPacketBuffer).assign(data, ci, lt)
+			input.result <- buffer
 		}
 		finished <- nil
 	}(&time, &stop)

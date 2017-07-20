@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 
@@ -8,18 +9,16 @@ import (
 )
 
 type EventTable interface {
-	Event(buffer *shallowMultiPacketBuffer)
+	Event(buffer PacketBuffer)
 	Expire()
 	EOF(flows.Time)
 }
 
 type ParallelFlowTable struct {
 	tables     []*flows.FlowTable
-	full       []chan *shallowMultiPacketBuffer
+	full       []chan PacketBuffer
 	expire     []chan struct{}
 	expirewg   sync.WaitGroup
-	empty      []chan *shallowMultiPacketBuffer
-	tmp        []*shallowMultiPacketBuffer
 	wg         sync.WaitGroup
 	expireTime flows.Time
 	nextExpire flows.Time
@@ -27,9 +26,8 @@ type ParallelFlowTable struct {
 
 type SingleFlowTable struct {
 	table      *flows.FlowTable
-	full       chan *shallowMultiPacketBuffer
+	full       chan PacketBuffer
 	expire     chan struct{}
-	empty      chan *shallowMultiPacketBuffer
 	done       chan struct{}
 	expireTime flows.Time
 	nextExpire flows.Time
@@ -40,15 +38,13 @@ func (sft *SingleFlowTable) Expire() {
 	go runtime.GC()
 }
 
-func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
-	current := buffer.buffers[0].Timestamp()
+func (sft *SingleFlowTable) Event(buffer PacketBuffer) {
+	current := buffer.Timestamp()
 	if current > sft.nextExpire {
 		sft.Expire()
 		sft.nextExpire = current + sft.expireTime
 	}
-	tmp := <-sft.empty
-	tmp.copy(buffer)
-	sft.full <- tmp
+	sft.full <- buffer
 }
 
 func (sft *SingleFlowTable) EOF(now flows.Time) {
@@ -63,12 +59,8 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 			table:      flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout),
 			expireTime: expire,
 		}
-		ret.full = make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		ret.full = make(chan PacketBuffer, shallowBuffers)
 		ret.expire = make(chan struct{}, 1)
-		ret.empty = make(chan *shallowMultiPacketBuffer, shallowBuffers)
-		for i := 0; i < shallowBuffers; i++ {
-			ret.empty <- newShallowMultiPacketBuffer(batchSize)
-		}
 		ret.done = make(chan struct{})
 		go func() {
 			t := ret.table
@@ -81,11 +73,8 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 					if !ok {
 						return
 					}
-					for _, b := range buffer.buffers {
-						t.Event(b)
-					}
+					t.Event(buffer)
 					buffer.recycle()
-					ret.empty <- buffer
 				}
 			}
 		}()
@@ -93,22 +82,15 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 	}
 	ret := &ParallelFlowTable{
 		tables:     make([]*flows.FlowTable, num),
-		full:       make([]chan *shallowMultiPacketBuffer, num),
+		full:       make([]chan PacketBuffer, num),
 		expire:     make([]chan struct{}, num),
-		empty:      make([]chan *shallowMultiPacketBuffer, num),
-		tmp:        make([]*shallowMultiPacketBuffer, num),
 		expireTime: expire,
 	}
 	for i := 0; i < num; i++ {
-		c := make(chan *shallowMultiPacketBuffer, shallowBuffers)
+		c := make(chan PacketBuffer, shallowBuffers)
 		expire := make(chan struct{}, 1)
-		e := make(chan *shallowMultiPacketBuffer, shallowBuffers)
 		ret.full[i] = c
 		ret.expire[i] = expire
-		ret.empty[i] = e
-		for j := 0; j < shallowBuffers; j++ {
-			ret.empty[i] <- newShallowMultiPacketBuffer(batchSize)
-		}
 		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout)
 		ret.tables[i] = t
 		ret.wg.Add(1)
@@ -123,11 +105,8 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow fl
 					if !ok {
 						return
 					}
-					for _, b := range buffer.buffers {
-						t.Event(b)
-					}
+					t.Event(buffer)
 					buffer.recycle()
-					e <- buffer
 				}
 			}
 		}()
@@ -144,24 +123,16 @@ func (pft *ParallelFlowTable) Expire() {
 	go runtime.GC()
 }
 
-func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
-	current := buffer.buffers[0].Timestamp()
+func (pft *ParallelFlowTable) Event(buffer PacketBuffer) {
+	current := buffer.Timestamp()
 	if current > pft.nextExpire {
 		pft.Expire()
 		pft.nextExpire = current + pft.expireTime
 	}
 	num := len(pft.tables)
-	for i := 0; i < num; i++ {
-		pft.tmp[i] = <-pft.empty[i]
-		pft.tmp[i].multiBuffer = buffer.multiBuffer
-	}
-	for _, packet := range buffer.buffers {
-		h := packet.Key().Hash() % uint64(num)
-		pft.tmp[h].add(packet)
-	}
-	for i := 0; i < num; i++ {
-		pft.full[i] <- pft.tmp[i]
-	}
+	h := buffer.Key().Hash() % uint64(num)
+	fmt.Println(h)
+	pft.full[h] <- buffer
 }
 
 func (pft *ParallelFlowTable) EOF(now flows.Time) {

@@ -1,104 +1,17 @@
 package packet
 
 import (
-	"log"
-	"sync"
-
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
-
-type multiPacketBuffer struct {
-	buffers      []PacketBuffer
-	empty        *chan *multiPacketBuffer
-	recycleMutex sync.Mutex
-	recycled     int
-	pos          int
-}
-
-func newMultiPacketBuffer(empty *chan *multiPacketBuffer, buffers int, prealloc int, resize bool) *multiPacketBuffer {
-	buf := &multiPacketBuffer{
-		buffers: make([]PacketBuffer, buffers),
-		empty:   empty,
-	}
-	for j := 0; j < buffers; j++ {
-		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf, resize: resize}
-	}
-	return buf
-}
-
-type shallowMultiPacketBuffer struct {
-	buffers     []PacketBuffer
-	multiBuffer *multiPacketBuffer
-}
-
-func newShallowMultiPacketBuffer(size int) *shallowMultiPacketBuffer {
-	return &shallowMultiPacketBuffer{buffers: make([]PacketBuffer, 0, size)}
-}
-
-func (b *shallowMultiPacketBuffer) add(p PacketBuffer) {
-	b.buffers = append(b.buffers, p)
-}
-
-func (b *shallowMultiPacketBuffer) copy(src *shallowMultiPacketBuffer) {
-	b.buffers = b.buffers[:len(src.buffers)]
-	copy(b.buffers, src.buffers)
-	b.multiBuffer = src.multiBuffer
-}
-
-func (b *shallowMultiPacketBuffer) reset() {
-	b.buffers = b.buffers[:0]
-	b.multiBuffer = nil
-}
-
-func (b *shallowMultiPacketBuffer) recycle() {
-	b.multiBuffer.recycle(len(b.buffers))
-	b.buffers = b.buffers[:0]
-	b.multiBuffer = nil
-}
-
-func (b *multiPacketBuffer) recycle(num int) {
-	b.recycleMutex.Lock()
-	b.recycled += num
-	if b.recycled == len(b.buffers) {
-		b.recycled = 0
-		b.buffers = b.buffers[:cap(b.buffers)]
-		*b.empty <- b
-	}
-	b.recycleMutex.Unlock()
-}
-
-func (b *multiPacketBuffer) current() (ret PacketBuffer) {
-	ret = b.buffers[b.pos]
-	b.pos++
-	return
-}
-
-func (b *multiPacketBuffer) finished() bool {
-	return b.pos == len(b.buffers)
-}
-
-func (b *multiPacketBuffer) reset() {
-	for _, buffer := range b.buffers {
-		buffer.recycle()
-	}
-	b.pos = 0
-}
-
-func (b *multiPacketBuffer) halfFull() {
-	if b.pos != 0 {
-		b.buffers = b.buffers[:b.pos]
-	}
-}
 
 type PacketBuffer interface {
 	gopacket.Packet
 	Forward() bool
 	Timestamp() flows.Time
 	Key() flows.FlowKey
-	Copy() PacketBuffer
-	Destroy()
+	//	Copy() PacketBuffer
 	Hlen() int
 	setInfo(flows.FlowKey, bool)
 	recycle()
@@ -107,7 +20,7 @@ type PacketBuffer interface {
 
 type pcapPacketBuffer struct {
 	key         flows.FlowKey
-	multibuffer *multiPacketBuffer
+	empty       *chan PacketBuffer
 	time        flows.Time
 	buffer      []byte
 	first       gopacket.LayerType
@@ -124,59 +37,13 @@ type pcapPacketBuffer struct {
 	application gopacket.ApplicationLayer
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
-	shared      []*shallowPcapPacketBuffer
 	hlen        int
 	forward     bool
 	resize      bool
 }
 
-type shallowPcapPacketBuffer struct {
-	*pcapPacketBuffer
-	parent *pcapPacketBuffer
-}
-
-func (sb *shallowPcapPacketBuffer) Destroy() {
-	if sb.parent != nil {
-		sb.parent.remove(sb)
-	}
-}
-
-func (sb *shallowPcapPacketBuffer) unshare() {
-	sb.parent = nil
-	old := sb.pcapPacketBuffer
-	sb.pcapPacketBuffer = &pcapPacketBuffer{
-		key:     old.key,
-		time:    old.time,
-		buffer:  append([]byte(nil), old.buffer...),
-		first:   old.first,
-		ci:      old.ci,
-		forward: old.forward,
-	}
-	sb.decode()
-}
-
 func (pb *pcapPacketBuffer) Hlen() int {
 	return pb.hlen
-}
-
-func (pb *pcapPacketBuffer) Copy() PacketBuffer {
-	ret := &shallowPcapPacketBuffer{pb, pb}
-	pb.shared = append(pb.shared, ret)
-	return ret
-}
-
-func (pb *pcapPacketBuffer) Destroy() {
-	log.Fatal("Base buffers can't be destroyed")
-}
-
-func (pb *pcapPacketBuffer) remove(sb *shallowPcapPacketBuffer) {
-	for i, cur := range pb.shared {
-		if cur == sb {
-			pb.shared[i], pb.shared[len(pb.shared)-1] = pb.shared[len(pb.shared)-1], nil
-			pb.shared = pb.shared[:len(pb.shared)-1]
-			break
-		}
-	}
 }
 
 func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) {
@@ -196,11 +63,6 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 }
 
 func (pb *pcapPacketBuffer) recycle() {
-	for i, sb := range pb.shared {
-		sb.unshare()
-		pb.shared[i] = nil
-	}
-	pb.shared = pb.shared[:0]
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -208,6 +70,7 @@ func (pb *pcapPacketBuffer) recycle() {
 	pb.failure = nil
 	pb.tcp.Payload = nil
 	pb.hlen = 0
+	(*pb.empty) <- pb
 }
 
 func (pb *pcapPacketBuffer) Key() flows.FlowKey {

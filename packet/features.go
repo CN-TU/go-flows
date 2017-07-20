@@ -761,3 +761,91 @@ func init() {
 		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, nil},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpFragment struct {
+	packet   interface{}
+	sequence int
+}
+
+type uniTCPStreamFragments struct {
+	fragments                        []tcpFragment
+	firstSequence, lastSequence, pos uint32
+	seen                             bool
+}
+
+type tcpReorder struct {
+	flows.EmptyBaseFeature
+	forward  uniTCPStreamFragments
+	backward uniTCPStreamFragments
+}
+
+func (f *tcpReorder) Type() string     { return "tcpReorder" }
+func (f *tcpReorder) BaseType() string { return "tcpReorder" }
+func (f *tcpReorder) Start(flows.Time) {
+	f.forward = uniTCPStreamFragments{}
+	f.backward = uniTCPStreamFragments{}
+}
+
+func payloadLength(packet PacketBuffer) int {
+	length := packet.Metadata().Length
+	if net := packet.LinkLayer(); net != nil {
+		length -= len(net.LayerContents())
+	}
+	return length
+}
+
+func (f *tcpReorder) Event(new interface{}, when flows.Time, src interface{}) {
+	packet := new.(PacketBuffer)
+	tcp := getTcp(packet)
+	if tcp == nil {
+		return
+	}
+	var fragments *uniTCPStreamFragments
+	if packet.Forward() {
+		fragments = &f.forward
+	} else {
+		fragments = &f.backward
+	}
+	if !fragments.seen {
+		if !tcp.FIN && !tcp.RST && tcp.SYN {
+			fragments.lastSequence = tcp.Seq
+			fragments.firstSequence = tcp.Seq
+			fragments.seen = true
+			f.Emit(new, when, src)
+		}
+		return
+	}
+	if fragments.lastSequence == (tcp.Seq + 1) {
+		// TCP keepalive -> ignore
+		return
+	}
+	position := tcp.Seq - (fragments.firstSequence + 1)
+	//plen := packet.
+	// FIXME: use plen := packet.length - packet.Hlen
+	if position == fragments.pos {
+		f.Emit(new, when, src)
+
+	}
+	/*	packet := new.()
+		/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
+		   otherwise we have an event from the flow -> forward it in case we should and reset sel
+		* /
+		if src != nil {
+			f.sel = new.(bool)
+		} else {
+			if f.sel {
+				for _, v := range f.dependent {
+					v.Event(new, when, nil) // is it ok to use nil as source? (we are faking flow source here)
+				}
+				f.sel = false
+			}
+		}*/
+}
+
+func init() {
+	flows.RegisterFeature("tcpReorder", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &tcpReorder{} }, []flows.FeatureType{flows.FeatureTypePacket}},
+	})
+}
