@@ -16,60 +16,64 @@ import (
 var layerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
 
 const (
-	batchSize      = 1000
-	fullBuffers    = 10
-	shallowBuffers = 10
+	batchSize   = 1000
+	fullBuffers = 10
 )
 
 type PcapBuffer struct {
-	result  chan *multiPacketBuffer
-	empty   chan *multiPacketBuffer
-	current *multiPacketBuffer
-	filter  string
-	plen    int
+	empty    *multiPacketBuffer
+	todecode *shallowMultiPacketBufferRing
+	current  *shallowMultiPacketBuffer
+	filter   string
+	plen     int
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
-	ret := &PcapBuffer{
-		result: make(chan *multiPacketBuffer, fullBuffers),
-		empty:  make(chan *multiPacketBuffer, fullBuffers),
-		plen:   plen}
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
 	}
-
-	for i := 0; i < fullBuffers; i++ {
-		ret.empty <- newMultiPacketBuffer(&ret.empty, batchSize, prealloc, plen == 0)
-	}
+	ret := &PcapBuffer{
+		empty:    newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
+		todecode: newShallowMultiPacketBufferRing(fullBuffers, batchSize),
+		plen:     plen}
 
 	go func() {
-		discard := newShallowMultiPacketBuffer(batchSize)
-		forward := newShallowMultiPacketBuffer(batchSize)
-		for multibuffer := range ret.result {
-			discard.multiBuffer = multibuffer
-			forward.multiBuffer = multibuffer
-			for _, buffer := range multibuffer.buffers {
+		discard := newShallowMultiPacketBuffer(batchSize, nil)
+		forward := newShallowMultiPacketBuffer(batchSize, nil)
+		for {
+			multibuffer, ok := ret.todecode.popFull()
+			if !ok {
+				return
+			}
+			for {
+				buffer := multibuffer.read()
+				if buffer == nil {
+					break
+				}
 				if !buffer.decode() {
 					//count non interesting packets?
-					discard.add(buffer)
+					discard.push(buffer)
 				} else {
 					key, fw := fivetuple(buffer)
 					if key != nil {
 						buffer.setInfo(key, fw)
-						forward.add(buffer)
+						forward.push(buffer)
 					} else {
-						discard.add(buffer)
+						discard.push(buffer)
 					}
 				}
 			}
-			flowtable.Event(forward)
+			multibuffer.recycleEmpty()
+			if !forward.empty() {
+				flowtable.Event(forward)
+			}
 			forward.reset()
 			discard.recycle()
 		}
 	}()
 
-	ret.current = <-ret.empty
+	ret.current, _ = ret.todecode.popEmpty()
 
 	return ret
 }
@@ -81,16 +85,12 @@ func (input *PcapBuffer) SetFilter(filter string) (old string) {
 }
 
 func (input *PcapBuffer) Finish() {
-	if input.current != nil {
-		input.current.halfFull()
-		input.result <- input.current
+	if !input.current.empty() {
+		input.current.finalize()
 	}
 
-	close(input.result)
 	// consume empty buffers -> let every go routine finish
-	for i := 0; i < fullBuffers; i++ {
-		<-input.empty
-	}
+	input.empty.close()
 }
 
 func (input *PcapBuffer) ReadFile(fname string) flows.Time {
@@ -172,11 +172,17 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 			if *stop {
 				return
 			}
-			input.current.current().(*pcapPacketBuffer).assign(data, ci, lt)
-			if input.current.finished() {
-				input.result <- input.current
-				input.current = <-input.empty
-				input.current.reset()
+			if input.current.empty() {
+				input.empty.Pop(input.current)
+			}
+			buffer := input.current.read()
+			buffer.assign(data, ci, lt)
+			if input.current.full() {
+				input.current.finalize()
+				var ok bool
+				if input.current, ok = input.todecode.popEmpty(); !ok {
+					return
+				}
 			}
 		}
 		finished <- nil
