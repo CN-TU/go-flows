@@ -24,7 +24,7 @@ func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacket
 	}
 	buf.cond = sync.NewCond(buf.lock)
 	for j := range buf.buffers {
-		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize, free: true}
+		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
 	}
 	return buf
 }
@@ -55,16 +55,17 @@ func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer) {
 			mpb.cond.Wait()
 		}
 	}
+	mpb.cond.L.Unlock()
 	for _, b := range mpb.buffers {
-		if b.free {
+		if atomic.LoadInt32(&b.inUse) == 0 {
 			if !buffer.push(b) {
 				break
 			}
+			atomic.StoreInt32(&b.inUse, 1)
 			num++
 		}
 	}
 	atomic.AddInt32(&mpb.numFree, -num)
-	mpb.cond.L.Unlock()
 }
 
 type shallowMultiPacketBuffer struct {
@@ -132,14 +133,12 @@ func (smpb *shallowMultiPacketBuffer) recycle() {
 	}
 	var num int32
 	mpb := smpb.buffers[0].owner
-	mpb.lock.RLock()
 	for i := 0; i < smpb.windex; i++ {
 		if smpb.buffers[i].canRecycle() {
-			smpb.buffers[i].recycleLocked()
+			atomic.StoreInt32(&smpb.buffers[i].inUse, 0)
 			num++
 		}
 	}
-	mpb.lock.RUnlock()
 	mpb.free(num)
 	smpb.reset()
 	if smpb.owner != nil {
@@ -201,6 +200,7 @@ type PacketBuffer interface {
 }
 
 type pcapPacketBuffer struct {
+	inUse       int32
 	owner       *multiPacketBuffer
 	key         flows.FlowKey
 	time        flows.Time
@@ -223,7 +223,6 @@ type pcapPacketBuffer struct {
 	used        int
 	forward     bool
 	resize      bool
-	free        bool
 }
 
 func (pb *pcapPacketBuffer) Hlen() int {
@@ -236,7 +235,7 @@ func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 }
 
 func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) {
-	pb.free = false
+	pb.recycleLocked()
 	pb.used++
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
@@ -254,7 +253,6 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 }
 
 func (pb *pcapPacketBuffer) recycleLocked() {
-	pb.free = true
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -262,7 +260,6 @@ func (pb *pcapPacketBuffer) recycleLocked() {
 	pb.failure = nil
 	pb.tcp.Payload = nil
 	pb.hlen = 0
-
 }
 
 func (pb *pcapPacketBuffer) canRecycle() bool {
@@ -277,9 +274,7 @@ func (pb *pcapPacketBuffer) Recycle() {
 	if !pb.canRecycle() {
 		return
 	}
-	pb.owner.lock.RLock()
-	pb.recycleLocked()
-	pb.owner.lock.RUnlock()
+	atomic.StoreInt32(&pb.inUse, 0)
 	pb.owner.free(1)
 }
 
