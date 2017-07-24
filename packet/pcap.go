@@ -176,7 +176,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				input.empty.Pop(input.current)
 			}
 			buffer := input.current.read()
-			buffer.assign(data, ci, lt)
+			*time = buffer.assign(data, ci, lt)
 			if input.current.full() {
 				input.current.finalize()
 				var ok bool
