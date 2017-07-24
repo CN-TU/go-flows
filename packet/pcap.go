@@ -172,7 +172,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 			if *stop {
 				return
 			}
-			input.current.current().(*pcapPacketBuffer).assign(data, ci, lt)
+			*time = input.current.current().(*pcapPacketBuffer).assign(data, ci, lt)
 			if input.current.finished() {
 				input.result <- input.current
 				input.current = <-input.empty
