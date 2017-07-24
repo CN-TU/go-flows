@@ -13,16 +13,14 @@ type multiPacketBuffer struct {
 	numFree int32
 	buffers []*pcapPacketBuffer
 	cond    *sync.Cond
-	lock    *sync.RWMutex
 }
 
 func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacketBuffer {
 	buf := &multiPacketBuffer{
 		numFree: buffers,
 		buffers: make([]*pcapPacketBuffer, buffers),
-		lock:    &sync.RWMutex{},
 	}
-	buf.cond = sync.NewCond(buf.lock)
+	buf.cond = sync.NewCond(&sync.Mutex{})
 	for j := range buf.buffers {
 		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
 	}
@@ -247,7 +245,13 @@ func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 }
 
 func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.Time {
-	pb.recycleLocked()
+	pb.link = nil
+	pb.network = nil
+	pb.transport = nil
+	pb.application = nil
+	pb.failure = nil
+	pb.tcp.Payload = nil
+	pb.hlen = 0
 	pb.used++
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
@@ -263,16 +267,6 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
 	return pb.time
-}
-
-func (pb *pcapPacketBuffer) recycleLocked() {
-	pb.link = nil
-	pb.network = nil
-	pb.transport = nil
-	pb.application = nil
-	pb.failure = nil
-	pb.tcp.Payload = nil
-	pb.hlen = 0
 }
 
 func (pb *pcapPacketBuffer) canRecycle() bool {
