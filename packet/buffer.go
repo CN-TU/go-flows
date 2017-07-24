@@ -120,6 +120,14 @@ func (smpb *shallowMultiPacketBuffer) finalize() {
 	}
 }
 
+func (smpb *shallowMultiPacketBuffer) finalizeWritten() {
+	for i := smpb.rindex; i < smpb.windex; i++ {
+		smpb.buffers[i].Recycle()
+	}
+	smpb.windex = smpb.rindex
+	smpb.finalize()
+}
+
 func (smpb *shallowMultiPacketBuffer) recycleEmpty() {
 	smpb.reset()
 	if smpb.owner != nil {

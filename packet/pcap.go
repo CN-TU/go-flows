@@ -86,7 +86,7 @@ func (input *PcapBuffer) SetFilter(filter string) (old string) {
 
 func (input *PcapBuffer) Finish() {
 	if !input.current.empty() {
-		input.current.finalize()
+		input.current.finalizeWritten()
 	}
 
 	// consume empty buffers -> let every go routine finish
