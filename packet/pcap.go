@@ -156,7 +156,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				return
 			}
 			buffer := <-input.empty
-			buffer.(*pcapPacketBuffer).assign(data, ci, lt)
+			*time = buffer.(*pcapPacketBuffer).assign(data, ci, lt)
 			input.result <- buffer
 		}
 		finished <- nil

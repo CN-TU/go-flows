@@ -46,7 +46,7 @@ func (pb *pcapPacketBuffer) Hlen() int {
 	return pb.hlen
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) {
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.Time {
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
 		pb.buffer = make([]byte, dlen)
@@ -60,6 +60,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	pb.ci.CaptureInfo = ci
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
+	return pb.time
 }
 
 func (pb *pcapPacketBuffer) recycle() {
