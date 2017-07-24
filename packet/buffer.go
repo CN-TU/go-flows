@@ -230,7 +230,7 @@ type pcapPacketBuffer struct {
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
 	hlen        int
-	used        int
+	refcnt      int
 	forward     bool
 	resize      bool
 }
@@ -240,7 +240,7 @@ func (pb *pcapPacketBuffer) Hlen() int {
 }
 
 func (pb *pcapPacketBuffer) Copy() PacketBuffer {
-	pb.used++
+	pb.refcnt++
 	return pb
 }
 
@@ -252,7 +252,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	pb.failure = nil
 	pb.tcp.Payload = nil
 	pb.hlen = 0
-	pb.used++
+	pb.refcnt = 1
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
 		pb.buffer = make([]byte, dlen)
@@ -270,8 +270,8 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 }
 
 func (pb *pcapPacketBuffer) canRecycle() bool {
-	pb.used--
-	if pb.used > 0 {
+	pb.refcnt--
+	if pb.refcnt > 0 {
 		return false
 	}
 	return true
