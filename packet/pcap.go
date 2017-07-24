@@ -88,6 +88,7 @@ func (input *PcapBuffer) Finish() {
 	if !input.current.empty() {
 		input.current.finalizeWritten()
 	}
+	input.todecode.close()
 
 	// consume empty buffers -> let every go routine finish
 	input.empty.close()

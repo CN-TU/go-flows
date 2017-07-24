@@ -195,6 +195,10 @@ func (smpbr *shallowMultiPacketBufferRing) popFull() (ret *shallowMultiPacketBuf
 	return
 }
 
+func (smpbr *shallowMultiPacketBufferRing) close() {
+	close(smpbr.full)
+}
+
 type PacketBuffer interface {
 	gopacket.Packet
 	Forward() bool
