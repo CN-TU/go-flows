@@ -1,7 +1,6 @@
 package packet
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 
@@ -131,7 +130,6 @@ func (pft *ParallelFlowTable) Event(buffer PacketBuffer) {
 	}
 	num := len(pft.tables)
 	h := buffer.Key().Hash() % uint64(num)
-	fmt.Println(h)
 	pft.full[h] <- buffer
 }
 
