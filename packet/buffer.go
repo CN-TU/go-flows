@@ -1,8 +1,8 @@
 package packet
 
 import (
-	"log"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -10,86 +10,192 @@ import (
 )
 
 type multiPacketBuffer struct {
-	buffers      []PacketBuffer
-	empty        *chan *multiPacketBuffer
-	recycleMutex sync.Mutex
-	recycled     int
-	pos          int
+	numFree int32
+	buffers []*pcapPacketBuffer
+	cond    *sync.Cond
 }
 
-func newMultiPacketBuffer(empty *chan *multiPacketBuffer, buffers int, prealloc int, resize bool) *multiPacketBuffer {
+func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacketBuffer {
 	buf := &multiPacketBuffer{
-		buffers: make([]PacketBuffer, buffers),
-		empty:   empty,
+		numFree: buffers,
+		buffers: make([]*pcapPacketBuffer, buffers),
 	}
-	for j := 0; j < buffers; j++ {
-		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), multibuffer: buf, resize: resize}
+	buf.cond = sync.NewCond(&sync.Mutex{})
+	for j := range buf.buffers {
+		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
 	}
 	return buf
 }
 
-type shallowMultiPacketBuffer struct {
-	buffers     []PacketBuffer
-	multiBuffer *multiPacketBuffer
-}
-
-func newShallowMultiPacketBuffer(size int) *shallowMultiPacketBuffer {
-	return &shallowMultiPacketBuffer{buffers: make([]PacketBuffer, 0, size)}
-}
-
-func (b *shallowMultiPacketBuffer) add(p PacketBuffer) {
-	b.buffers = append(b.buffers, p)
-}
-
-func (b *shallowMultiPacketBuffer) copy(src *shallowMultiPacketBuffer) {
-	b.buffers = b.buffers[:len(src.buffers)]
-	copy(b.buffers, src.buffers)
-	b.multiBuffer = src.multiBuffer
-}
-
-func (b *shallowMultiPacketBuffer) reset() {
-	b.buffers = b.buffers[:0]
-	b.multiBuffer = nil
-}
-
-func (b *shallowMultiPacketBuffer) recycle() {
-	b.multiBuffer.recycle(len(b.buffers))
-	b.buffers = b.buffers[:0]
-	b.multiBuffer = nil
-}
-
-func (b *multiPacketBuffer) recycle(num int) {
-	b.recycleMutex.Lock()
-	b.recycled += num
-	if b.recycled == len(b.buffers) {
-		b.recycled = 0
-		b.buffers = b.buffers[:cap(b.buffers)]
-		*b.empty <- b
+func (mpb *multiPacketBuffer) close() {
+	num := int32(len(mpb.buffers))
+	mpb.cond.L.Lock()
+	if atomic.LoadInt32(&mpb.numFree) < num {
+		for atomic.LoadInt32(&mpb.numFree) < num {
+			mpb.cond.Wait()
+		}
 	}
-	b.recycleMutex.Unlock()
+	mpb.cond.L.Unlock()
 }
 
-func (b *multiPacketBuffer) current() (ret PacketBuffer) {
-	ret = b.buffers[b.pos]
-	b.pos++
+func (mpb *multiPacketBuffer) free(num int32) {
+	if atomic.AddInt32(&mpb.numFree, num) > batchSize {
+		mpb.cond.Signal()
+	}
+}
+
+func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer) {
+	var num int32
+	buffer.reset()
+	if atomic.LoadInt32(&mpb.numFree) < batchSize {
+		mpb.cond.L.Lock()
+		for atomic.LoadInt32(&mpb.numFree) < batchSize {
+			mpb.cond.Wait()
+		}
+		mpb.cond.L.Unlock()
+	}
+
+	for _, b := range mpb.buffers {
+		if atomic.LoadInt32(&b.inUse) == 0 {
+			if !buffer.push(b) {
+				break
+			}
+			atomic.StoreInt32(&b.inUse, 1)
+			num++
+		}
+	}
+	atomic.AddInt32(&mpb.numFree, -num)
+}
+
+type shallowMultiPacketBuffer struct {
+	buffers []*pcapPacketBuffer
+	owner   *shallowMultiPacketBufferRing
+	rindex  int
+	windex  int
+}
+
+func newShallowMultiPacketBuffer(size int, owner *shallowMultiPacketBufferRing) *shallowMultiPacketBuffer {
+	return &shallowMultiPacketBuffer{
+		buffers: make([]*pcapPacketBuffer, size),
+		owner:   owner,
+	}
+}
+
+func (smpb *shallowMultiPacketBuffer) empty() bool {
+	return smpb.windex == 0
+}
+
+func (smpb *shallowMultiPacketBuffer) full() bool {
+	return smpb.windex != 0 && smpb.rindex == smpb.windex
+}
+
+func (smpb *shallowMultiPacketBuffer) reset() {
+	smpb.rindex = 0
+	smpb.windex = 0
+}
+
+func (smpb *shallowMultiPacketBuffer) push(buffer *pcapPacketBuffer) bool {
+	if smpb.windex == len(smpb.buffers) {
+		return false
+	}
+	smpb.buffers[smpb.windex] = buffer
+	smpb.windex++
+	return true
+}
+
+func (smpb *shallowMultiPacketBuffer) read() (ret *pcapPacketBuffer) {
+	if smpb.rindex >= smpb.windex {
+		return nil
+	}
+	ret = smpb.buffers[smpb.rindex]
+	smpb.rindex++
 	return
 }
 
-func (b *multiPacketBuffer) finished() bool {
-	return b.pos == len(b.buffers)
+func (smpb *shallowMultiPacketBuffer) finalize() {
+	smpb.rindex = 0
+	if smpb.owner != nil {
+		smpb.owner.full <- smpb
+	}
 }
 
-func (b *multiPacketBuffer) reset() {
-	for _, buffer := range b.buffers {
-		buffer.recycle()
+func (smpb *shallowMultiPacketBuffer) finalizeWritten() {
+	for i := smpb.rindex; i < smpb.windex; i++ {
+		smpb.buffers[i].Recycle()
 	}
-	b.pos = 0
+	smpb.windex = smpb.rindex
+	smpb.finalize()
 }
 
-func (b *multiPacketBuffer) halfFull() {
-	if b.pos != 0 {
-		b.buffers = b.buffers[:b.pos]
+func (smpb *shallowMultiPacketBuffer) recycleEmpty() {
+	smpb.reset()
+	if smpb.owner != nil {
+		smpb.owner.empty <- smpb
 	}
+}
+
+func (smpb *shallowMultiPacketBuffer) recycle() {
+	if smpb.empty() {
+		return
+	}
+	var num int32
+	mpb := smpb.buffers[0].owner
+	for i := 0; i < smpb.windex; i++ {
+		if smpb.buffers[i].canRecycle() {
+			atomic.StoreInt32(&smpb.buffers[i].inUse, 0)
+			num++
+		}
+	}
+	mpb.free(num)
+	smpb.reset()
+	if smpb.owner != nil {
+		smpb.owner.empty <- smpb
+	}
+}
+
+func (smpb *shallowMultiPacketBuffer) Timestamp() flows.Time {
+	if !smpb.empty() {
+		return smpb.buffers[0].Timestamp()
+	}
+	return 0
+}
+
+func (smpb *shallowMultiPacketBuffer) Copy(other *shallowMultiPacketBuffer) {
+	for i := 0; i < smpb.windex; i++ {
+		other.buffers[i] = smpb.buffers[i]
+	}
+	other.rindex = 0
+	other.windex = smpb.windex
+}
+
+type shallowMultiPacketBufferRing struct {
+	empty chan *shallowMultiPacketBuffer
+	full  chan *shallowMultiPacketBuffer
+}
+
+func newShallowMultiPacketBufferRing(buffers, batch int) (ret *shallowMultiPacketBufferRing) {
+	ret = &shallowMultiPacketBufferRing{
+		empty: make(chan *shallowMultiPacketBuffer, buffers),
+		full:  make(chan *shallowMultiPacketBuffer, buffers),
+	}
+	for i := 0; i < buffers; i++ {
+		ret.empty <- newShallowMultiPacketBuffer(batch, ret)
+	}
+	return
+}
+
+func (smpbr *shallowMultiPacketBufferRing) popEmpty() (ret *shallowMultiPacketBuffer, ok bool) {
+	ret, ok = <-smpbr.empty
+	return
+}
+
+func (smpbr *shallowMultiPacketBufferRing) popFull() (ret *shallowMultiPacketBuffer, ok bool) {
+	ret, ok = <-smpbr.full
+	return
+}
+
+func (smpbr *shallowMultiPacketBufferRing) close() {
+	close(smpbr.full)
 }
 
 type PacketBuffer interface {
@@ -98,16 +204,16 @@ type PacketBuffer interface {
 	Timestamp() flows.Time
 	Key() flows.FlowKey
 	Copy() PacketBuffer
-	Destroy()
 	Hlen() int
 	setInfo(flows.FlowKey, bool)
-	recycle()
+	Recycle()
 	decode() bool
 }
 
 type pcapPacketBuffer struct {
+	inUse       int32
+	owner       *multiPacketBuffer
 	key         flows.FlowKey
-	multibuffer *multiPacketBuffer
 	time        flows.Time
 	buffer      []byte
 	first       gopacket.LayerType
@@ -124,35 +230,10 @@ type pcapPacketBuffer struct {
 	application gopacket.ApplicationLayer
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
-	shared      []*shallowPcapPacketBuffer
 	hlen        int
+	refcnt      int
 	forward     bool
 	resize      bool
-}
-
-type shallowPcapPacketBuffer struct {
-	*pcapPacketBuffer
-	parent *pcapPacketBuffer
-}
-
-func (sb *shallowPcapPacketBuffer) Destroy() {
-	if sb.parent != nil {
-		sb.parent.remove(sb)
-	}
-}
-
-func (sb *shallowPcapPacketBuffer) unshare() {
-	sb.parent = nil
-	old := sb.pcapPacketBuffer
-	sb.pcapPacketBuffer = &pcapPacketBuffer{
-		key:     old.key,
-		time:    old.time,
-		buffer:  append([]byte(nil), old.buffer...),
-		first:   old.first,
-		ci:      old.ci,
-		forward: old.forward,
-	}
-	sb.decode()
 }
 
 func (pb *pcapPacketBuffer) Hlen() int {
@@ -160,26 +241,19 @@ func (pb *pcapPacketBuffer) Hlen() int {
 }
 
 func (pb *pcapPacketBuffer) Copy() PacketBuffer {
-	ret := &shallowPcapPacketBuffer{pb, pb}
-	pb.shared = append(pb.shared, ret)
-	return ret
-}
-
-func (pb *pcapPacketBuffer) Destroy() {
-	log.Fatal("Base buffers can't be destroyed")
-}
-
-func (pb *pcapPacketBuffer) remove(sb *shallowPcapPacketBuffer) {
-	for i, cur := range pb.shared {
-		if cur == sb {
-			pb.shared[i], pb.shared[len(pb.shared)-1] = pb.shared[len(pb.shared)-1], nil
-			pb.shared = pb.shared[:len(pb.shared)-1]
-			break
-		}
-	}
+	pb.refcnt++
+	return pb
 }
 
 func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.Time {
+	pb.link = nil
+	pb.network = nil
+	pb.transport = nil
+	pb.application = nil
+	pb.failure = nil
+	pb.tcp.Payload = nil
+	pb.hlen = 0
+	pb.refcnt = 1
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
 		pb.buffer = make([]byte, dlen)
@@ -196,19 +270,20 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	return pb.time
 }
 
-func (pb *pcapPacketBuffer) recycle() {
-	for i, sb := range pb.shared {
-		sb.unshare()
-		pb.shared[i] = nil
+func (pb *pcapPacketBuffer) canRecycle() bool {
+	pb.refcnt--
+	if pb.refcnt > 0 {
+		return false
 	}
-	pb.shared = pb.shared[:0]
-	pb.link = nil
-	pb.network = nil
-	pb.transport = nil
-	pb.application = nil
-	pb.failure = nil
-	pb.tcp.Payload = nil
-	pb.hlen = 0
+	return true
+}
+
+func (pb *pcapPacketBuffer) Recycle() {
+	if !pb.canRecycle() {
+		return
+	}
+	atomic.StoreInt32(&pb.inUse, 0)
+	pb.owner.free(1)
 }
 
 func (pb *pcapPacketBuffer) Key() flows.FlowKey {
