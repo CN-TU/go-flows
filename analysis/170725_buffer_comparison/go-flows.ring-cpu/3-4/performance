@@ -1,0 +1,37 @@
+gc 1 @0.017s 2%: 0.095+3.7+0.11 ms clock, 0.28+1.4/17/4.1+0.35 ms cpu, 4->4->3 MB, 5 MB goal, 40 P
+gc 2 @0.036s 2%: 0.091+1.6+0.16 ms clock, 1.4+0.35/13/11+2.6 ms cpu, 5->6->5 MB, 6 MB goal, 40 P
+gc 3 @0.061s 2%: 0.061+2.9+0.21 ms clock, 1.6+0.77/23/36+5.4 ms cpu, 10->10->9 MB, 11 MB goal, 40 P
+gc 4 @0.102s 5%: 0.085+0+3.8 ms clock, 2.7+0.77/23/36+124 ms cpu, 17->17->16 MB, 17 MB goal, 40 P (forced)
+gc 5 @0.146s 10%: 0.71+0+15 ms clock, 20+0.77/23/36+442 ms cpu, 256->256->255 MB, 256 MB goal, 40 P (forced)
+gc 6 @16.435s 4%: 0.047+0+1003 ms clock, 1.3+0.77/23/36+29106 ms cpu, 9163->9163->7046 MB, 9163 MB goal, 40 P (forced)
+gc 7 @35.697s 5%: 0.021+0+1962 ms clock, 0.63+0.77/23/36+58883 ms cpu, 16629->16629->14182 MB, 16629 MB goal, 40 P (forced)
+gc 8 @53.521s 7%: 0.035+0+2863 ms clock, 1.0+0.77/23/36+83033 ms cpu, 23212->23212->20717 MB, 23212 MB goal, 40 P (forced)
+gc 9 @81.326s 7%: 0.042+0+3253 ms clock, 1.2+0.77/23/36+97616 ms cpu, 31837->31837->21119 MB, 31837 MB goal, 40 P (forced)
+gc 10 @104.887s 8%: 0.047+0+3377 ms clock, 1.4+0.77/23/36+104695 ms cpu, 31375->31375->21007 MB, 31375 MB goal, 40 P (forced)
+gc 11 @128.839s 9%: 0.047+0+3408 ms clock, 1.4+0.77/23/36+105649 ms cpu, 31102->31102->20801 MB, 31102 MB goal, 40 P (forced)
+scvg0: inuse: 30023, idle: 1931, sys: 31955, released: 0, consumed: 31955 (MB)
+gc 12 @153.312s 9%: 0.056+0+3412 ms clock, 1.7+0.77/23/36+105795 ms cpu, 30591->30591->19931 MB, 30591 MB goal, 40 P (forced)
+gc 13 @177.455s 9%: 0.61+0+3603 ms clock, 18+0.77/23/36+108101 ms cpu, 30045->30045->19714 MB, 30045 MB goal, 40 P (forced)
+	Command being timed: "./go-flows.ring -n 3 -size 100 -mutexprofile mutex.prof -blockprofile block.prof -cpuprofile cpu.prof -memprofile mem.prof -format csv -output /ssd/out.csv -features complex.json /ssd/201702011400.pcap"
+	User time (seconds): 1297.26
+	System time (seconds): 41.02
+	Percent of CPU this job got: 593%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 3:45.61
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 145495280
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 1
+	Minor (reclaiming a frame) page faults: 10367144
+	Voluntary context switches: 1941269
+	Involuntary context switches: 158093
+	Swaps: 0
+	File system inputs: 29320
+	File system outputs: 3683776
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

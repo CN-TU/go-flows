@@ -1,0 +1,14 @@
+gc 1 @0.018s 2%: 0.12+3.4+0.19 ms clock, 0.51+1.4/15/2.9+0.76 ms cpu, 4->4->3 MB, 5 MB goal, 40 P
+gc 2 @0.034s 2%: 0.045+1.8+0.23 ms clock, 0.77+0.17/12/12+4.0 ms cpu, 5->5->5 MB, 6 MB goal, 40 P
+gc 3 @0.056s 2%: 0.087+3.2+0.21 ms clock, 2.2+1.1/26/38+5.6 ms cpu, 9->10->9 MB, 10 MB goal, 40 P
+gc 4 @0.097s 5%: 0.023+0+3.4 ms clock, 0.76+1.1/26/38+111 ms cpu, 17->17->16 MB, 17 MB goal, 40 P (forced)
+gc 5 @0.186s 13%: 0.93+0+30 ms clock, 28+1.1/26/38+957 ms cpu, 704->704->704 MB, 704 MB goal, 40 P (forced)
+gc 6 @34.991s 2%: 0.12+0+1316 ms clock, 3.8+1.1/26/38+40801 ms cpu, 9614->9614->7495 MB, 9614 MB goal, 40 P (forced)
+gc 7 @73.169s 3%: 0.16+0+2439 ms clock, 5.2+1.1/26/38+78051 ms cpu, 16517->16517->14268 MB, 16517 MB goal, 40 P (forced)
+gc 8 @111.077s 5%: 0.051+0+3574 ms clock, 1.6+1.1/26/38+114383 ms cpu, 23029->23029->20893 MB, 23029 MB goal, 40 P (forced)
+scvg0: inuse: 29379, idle: 0, sys: 29379, released: 0, consumed: 29379 (MB)
+gc 9 @158.912s 5%: 0.024+0+3993 ms clock, 0.78+1.1/26/38+127781 ms cpu, 31584->31584->21068 MB, 31584 MB goal, 40 P (forced)
+gc 10 @207.102s 5%: 0.13+0+4138 ms clock, 4.2+1.1/26/38+132418 ms cpu, 31328->31328->20963 MB, 31328 MB goal, 40 P (forced)
+gc 11 @255.051s 6%: 0.16+0+4204 ms clock, 5.1+1.1/26/38+134551 ms cpu, 31066->31066->20765 MB, 31066 MB goal, 40 P (forced)
+scvg1: inuse: 28971, idle: 2728, sys: 31700, released: 0, consumed: 31700 (MB)
+gc 12 @307.791s 6%: 0.12+0+4146 ms clock, 4.0+1.1/26/38+132691 ms cpu, 30547->30547->19901 MB, 30547 MB goal, 40 P (forced)

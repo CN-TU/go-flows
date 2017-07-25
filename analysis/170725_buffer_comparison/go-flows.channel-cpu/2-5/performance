@@ -1,0 +1,43 @@
+gc 1 @0.026s 1%: 0.089+3.3+0.14 ms clock, 0.26+0.98/15/5.5+0.43 ms cpu, 4->4->3 MB, 5 MB goal, 40 P
+gc 2 @0.043s 2%: 0.063+2.3+0.22 ms clock, 1.1+0.45/18/17+3.9 ms cpu, 5->6->5 MB, 6 MB goal, 40 P
+gc 3 @0.068s 2%: 0.057+3.0+0.32 ms clock, 1.6+0.67/23/40+9.4 ms cpu, 10->10->10 MB, 11 MB goal, 40 P
+gc 4 @0.118s 4%: 0.032+0+4.1 ms clock, 1.0+0.67/23/40+133 ms cpu, 17->17->16 MB, 17 MB goal, 40 P (forced)
+gc 5 @0.157s 10%: 0.057+0+16 ms clock, 1.6+0.67/23/40+472 ms cpu, 180->180->179 MB, 180 MB goal, 40 P (forced)
+gc 6 @74.441s 1%: 0.038+0+1137 ms clock, 1.1+0.67/23/40+35254 ms cpu, 9187->9187->6999 MB, 9187 MB goal, 40 P (forced)
+scvg0: inuse: 15796, idle: 0, sys: 15797, released: 0, consumed: 15797 (MB)
+gc 7 @156.091s 1%: 0.10+0+2138 ms clock, 3.0+0.67/23/40+64140 ms cpu, 16485->16485->13931 MB, 16485 MB goal, 40 P (forced)
+gc 8 @235.962s 2%: 0.053+0+3155 ms clock, 1.5+0.67/23/40+94651 ms cpu, 23402->23402->20803 MB, 23402 MB goal, 40 P (forced)
+scvg1: inuse: 27935, idle: 0, sys: 27936, released: 0, consumed: 27936 (MB)
+gc 9 @331.251s 2%: 0.049+0+3445 ms clock, 1.4+0.67/23/40+99909 ms cpu, 31336->31336->20952 MB, 31336 MB goal, 40 P (forced)
+gc 10 @425.348s 2%: 0.025+0+3563 ms clock, 0.78+0.67/23/40+110460 ms cpu, 31226->31226->20856 MB, 31226 MB goal, 40 P (forced)
+scvg2: inuse: 26138, idle: 5314, sys: 31453, released: 0, consumed: 31453 (MB)
+gc 11 @522.641s 2%: 0.19+0+3609 ms clock, 5.9+0.67/23/40+111884 ms cpu, 30964->30964->20661 MB, 30964 MB goal, 40 P (forced)
+scvg3: inuse: 28333, idle: 3119, sys: 31453, released: 0, consumed: 31453 (MB)
+gc 12 @626.463s 2%: 0.055+0+3615 ms clock, 1.6+0.67/23/40+108459 ms cpu, 30461->30461->19797 MB, 30461 MB goal, 40 P (forced)
+gc 13 @725.506s 2%: 0.53+0+3701 ms clock, 16+0.67/23/40+111044 ms cpu, 29940->29940->19596 MB, 29940 MB goal, 40 P (forced)
+scvg4: inuse: 25769, idle: 5683, sys: 31453, released: 0, consumed: 31453 (MB)
+GC forced
+gc 14 @849.209s 2%: 0.16+3005+0.13 ms clock, 4.8+0.15/30048/82094+4.0 ms cpu, 32952->33023->26561 MB, 20988746796 MB goal, 40 P
+	Command being timed: "./go-flows.channel -n 2 -size 100 -mutexprofile mutex.prof -blockprofile block.prof -cpuprofile cpu.prof -memprofile mem.prof -format csv -output /ssd/out.csv -features complex.json /ssd/201702011400.pcap"
+	User time (seconds): 2629.23
+	System time (seconds): 125.33
+	Percent of CPU this job got: 320%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 14:18.16
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 144400944
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 10361795
+	Voluntary context switches: 20606464
+	Involuntary context switches: 444754
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 3684736
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

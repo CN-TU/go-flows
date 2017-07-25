@@ -1,0 +1,41 @@
+gc 1 @0.021s 1%: 0.11+3.1+0.23 ms clock, 0.44+1.3/14/4.7+0.92 ms cpu, 4->4->3 MB, 5 MB goal, 40 P
+gc 2 @0.037s 2%: 0.048+1.9+0.16 ms clock, 0.81+0.42/13/13+2.8 ms cpu, 5->6->5 MB, 6 MB goal, 40 P
+gc 3 @0.061s 2%: 0.076+2.7+0.24 ms clock, 1.8+0.32/21/31+5.9 ms cpu, 10->10->9 MB, 11 MB goal, 40 P
+gc 4 @0.101s 4%: 0.012+0+3.8 ms clock, 0.38+0.32/21/31+119 ms cpu, 17->17->16 MB, 17 MB goal, 40 P (forced)
+gc 5 @0.140s 10%: 0.099+0+14 ms clock, 2.7+0.32/21/31+403 ms cpu, 255->255->254 MB, 255 MB goal, 40 P (forced)
+gc 6 @59.573s 1%: 0.17+0+1162 ms clock, 5.0+0.32/21/31+33700 ms cpu, 9167->9167->7048 MB, 9167 MB goal, 40 P (forced)
+gc 7 @126.669s 1%: 0.16+0+2144 ms clock, 5.1+0.32/21/31+66480 ms cpu, 16631->16631->14181 MB, 16631 MB goal, 40 P (forced)
+scvg0: inuse: 18079, idle: 0, sys: 18080, released: 0, consumed: 18080 (MB)
+gc 8 @190.715s 2%: 0.053+0+3141 ms clock, 1.5+0.32/21/31+94243 ms cpu, 23219->23219->20720 MB, 23219 MB goal, 40 P (forced)
+gc 9 @269.880s 2%: 0.075+0+3452 ms clock, 2.2+0.32/21/31+103563 ms cpu, 31840->31840->21118 MB, 31840 MB goal, 40 P (forced)
+scvg1: inuse: 26981, idle: 4975, sys: 31956, released: 0, consumed: 31956 (MB)
+gc 10 @346.056s 2%: 0.059+0+3635 ms clock, 1.7+0.32/21/31+109062 ms cpu, 31377->31377->21008 MB, 31377 MB goal, 40 P (forced)
+gc 11 @422.949s 3%: 0.11+0+3629 ms clock, 3.2+0.32/21/31+105244 ms cpu, 31104->31104->20803 MB, 31104 MB goal, 40 P (forced)
+scvg2: inuse: 25986, idle: 5969, sys: 31956, released: 0, consumed: 31956 (MB)
+gc 12 @506.192s 3%: 0.17+0+3582 ms clock, 5.5+0.32/21/31+111046 ms cpu, 30592->30592->19930 MB, 30592 MB goal, 40 P (forced)
+gc 13 @584.609s 3%: 0.41+0+3698 ms clock, 12+0.32/21/31+114664 ms cpu, 30064->30064->19721 MB, 30064 MB goal, 40 P (forced)
+scvg3: 192 MB released
+scvg3: inuse: 25841, idle: 6114, sys: 31956, released: 192, consumed: 31763 (MB)
+	Command being timed: "./go-flows.channel -n 3 -size 100 -mutexprofile mutex.prof -blockprofile block.prof -cpuprofile cpu.prof -memprofile mem.prof -format csv -output /ssd/out.csv -features complex.json /ssd/201702011400.pcap"
+	User time (seconds): 2506.91
+	System time (seconds): 123.94
+	Percent of CPU this job got: 383%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 11:25.68
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 145673488
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 10462734
+	Voluntary context switches: 18191986
+	Involuntary context switches: 417993
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 3684656
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
