@@ -47,21 +47,23 @@ func (mpb *multiPacketBuffer) free(num int32) {
 func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer) {
 	var num int32
 	buffer.reset()
-	if atomic.LoadInt32(&mpb.numFree) < batchSize {
-		mpb.cond.L.Lock()
-		for atomic.LoadInt32(&mpb.numFree) < batchSize {
-			mpb.cond.Wait()
-		}
-		mpb.cond.L.Unlock()
-	}
-
-	for _, b := range mpb.buffers {
-		if atomic.LoadInt32(&b.inUse) == 0 {
-			if !buffer.push(b) {
-				break
+	for num == 0 { //return a buffer with at least one element
+		if atomic.LoadInt32(&mpb.numFree) < batchSize {
+			mpb.cond.L.Lock()
+			for atomic.LoadInt32(&mpb.numFree) < batchSize {
+				mpb.cond.Wait()
 			}
-			atomic.StoreInt32(&b.inUse, 1)
-			num++
+			mpb.cond.L.Unlock()
+		}
+
+		for _, b := range mpb.buffers {
+			if atomic.LoadInt32(&b.inUse) == 0 {
+				if !buffer.push(b) {
+					break
+				}
+				atomic.StoreInt32(&b.inUse, 1)
+				num++
+			}
 		}
 	}
 	atomic.AddInt32(&mpb.numFree, -num)
