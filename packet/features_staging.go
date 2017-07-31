@@ -49,7 +49,7 @@ func (f *_characters) Event(new interface{}, when flows.Time, src interface{}) {
 
 func init() {
 	flows.RegisterFeature("_characters", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_characters{} }, nil},
+		{flows.FeatureTypePacket, func() flows.Feature { return &_characters{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }
 
@@ -139,6 +139,6 @@ func (f *_characters2) Event(new interface{}, when flows.Time, src interface{}) 
 
 func init() {
 	flows.RegisterFeature("_characters2", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_characters2{} }, nil},
+		{flows.FeatureTypePacket, func() flows.Feature { return &_characters2{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }

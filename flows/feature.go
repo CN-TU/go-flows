@@ -342,6 +342,10 @@ const (
 	FeatureTypeMatch
 	// FeatureTypeSelection specifies a selection
 	FeatureTypeSelection
+	// RawPacket specifies a packet from the packet source
+	RawPacket
+	// RawFlow specifies a flow from the flow source
+	RawFlow
 	featureTypeMax
 )
 
@@ -400,11 +404,32 @@ func ListFeatures(w io.Writer) {
 	ff := make(map[string]string)
 	args := make(map[string]string)
 	impl := make(map[string]string)
-	var base, functions []string
+	var base, functions, filters []string
 	for ret, features := range featureRegistry {
 		for name, featurelist := range features {
 			for _, feature := range featurelist {
-				if len(feature.creator.Arguments) == 0 {
+				if feature.creator.Ret == RawPacket || feature.creator.Ret == RawFlow {
+					filters = append(filters, name)
+					tmp := make([]string, len(feature.creator.Arguments))
+					for i := range feature.creator.Arguments {
+						switch feature.creator.Arguments[i] {
+						case RawFlow, FeatureTypeFlow:
+							tmp[i] = "F"
+						case RawPacket, FeatureTypePacket:
+							tmp[i] = "P"
+						case FeatureTypeEllipsis:
+							tmp[i] = "..."
+						case FeatureTypeMatch:
+							tmp[i] = "X"
+						case FeatureTypeSelection:
+							tmp[i] = "S"
+						case featureTypeAny:
+							tmp[i] = "C"
+						}
+					}
+					args[name] = strings.Join(tmp, ",")
+				} else if len(feature.creator.Arguments) == 1 &&
+					(feature.creator.Arguments[0] == RawPacket || feature.creator.Arguments[0] == RawFlow) {
 					base = append(base, name)
 				} else {
 					tmp := make([]string, len(feature.creator.Arguments))
@@ -428,9 +453,9 @@ func ListFeatures(w io.Writer) {
 					functions = append(functions, name)
 				}
 				switch FeatureType(ret) {
-				case FeatureTypePacket:
+				case RawPacket, FeatureTypePacket:
 					pf[name] = "X"
-				case FeatureTypeFlow:
+				case RawFlow, FeatureTypeFlow:
 					ff[name] = "X"
 				case FeatureTypeMatch:
 					pf[name] = "X"
@@ -457,6 +482,7 @@ func ListFeatures(w io.Writer) {
 	}
 	sort.Strings(base)
 	sort.Strings(functions)
+	sort.Strings(filters)
 	fmt.Fprintln(w, "P ... Packet Feature")
 	fmt.Fprintln(w, "F ... Flow Feature")
 	fmt.Fprintln(w, "S ... Selection")
@@ -475,6 +501,7 @@ func ListFeatures(w io.Writer) {
 		t.Write(line.Bytes())
 	}
 	t.Flush()
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Functions:")
 	fmt.Fprintln(w, "  P F Name")
 	for _, name := range functions {
@@ -487,6 +514,20 @@ func ListFeatures(w io.Writer) {
 		t.Write(line.Bytes())
 	}
 	t.Flush()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Filters:")
+	fmt.Fprintln(w, "  P F Name")
+	for _, name := range filters {
+		if name == last {
+			continue
+		}
+		last = name
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
+		t.Write(line.Bytes())
+	}
+	t.Flush()
+
 }
 
 // CleanupFeatures deletes _all_ feature definitions for conserving memory. Call this after you've finished creating all feature lists with NewFeatureListCreator.
@@ -651,13 +692,16 @@ MAIN:
 		}
 		switch feature.feature.(type) {
 		case string:
-			if basetype, ok := getFeature(feature.feature.(string), feature.ret, 0); !ok {
+			if basetype, ok := getFeature(feature.feature.(string), feature.ret, 1); !ok {
 				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
-					panic(fmt.Sprintf("Feature %s returning %s with no arguments not found", feature.feature, feature.ret))
+					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", feature.feature, feature.ret))
 				} else {
 					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, "", ""}}, stack...)
 				}
 			} else {
+				if basetype.creator.Arguments[0] != RawPacket { //TODO: implement flow input
+					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", feature.feature, feature.ret))
+				}
 				seen[id] = len(init)
 				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite, feature.function})
 			}
