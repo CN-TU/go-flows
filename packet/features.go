@@ -761,3 +761,27 @@ func init() {
 		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _payload struct {
+	flows.BaseFeature
+}
+
+func (f *_payload) Event(new interface{}, when flows.Time, src interface{}) {
+	packet := new.(PacketBuffer)
+	if packet == nil {
+		return
+	}
+	tl := packet.TransportLayer()
+	if tl == nil {
+		return
+	}
+	f.SetValue(string(tl.LayerPayload()), when, f)
+}
+
+func init() {
+	flows.RegisterFeature("_payload", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_payload{} }, []flows.FeatureType{flows.RawPacket}},
+	})
+}
