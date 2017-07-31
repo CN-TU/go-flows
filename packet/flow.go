@@ -1,6 +1,8 @@
 package packet
 
 import (
+	"bytes"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
@@ -60,6 +62,14 @@ func fivetuple(packet gopacket.Packet) (flows.FlowKey, bool) {
 		srcIP, dstIP = dstIP, srcIP
 		if !layers.LayerClassIPControl.Contains(proto) {
 			srcPortR, dstPortR = dstPortR, srcPortR
+		}
+	} else if bytes.Compare(srcIP.Raw(), dstIP.Raw()) == 0 {
+		if srcPort.LessThan(dstPort) {
+			forward = false
+			srcIP, dstIP = dstIP, srcIP
+			if !layers.LayerClassIPControl.Contains(proto) {
+				srcPortR, dstPortR = dstPortR, srcPortR
+			}
 		}
 	}
 	var protoB byte
