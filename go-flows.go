@@ -1,72 +1,68 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"runtime/pprof"
 	"runtime/trace"
+	"sort"
 	"strings"
-
-	"strconv"
-
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/exporters"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/packet"
+	"text/tabwriter"
 )
 
 var (
-	list          = flag.Bool("list", false, "List available Features")
-	callgraph     = flag.String("callgraph", "", "Write callgraph")
-	format        = flag.String("format", "text", "Output format (text|csv)")
-	featurefile   = flag.String("features", "", "Features specification (json)")
-	selection     = flag.String("select", "flows:0", "flow selection (key:number in specification)")
-	output        = flag.String("output", "-", "Output filename")
-	cpuprofile    = flag.String("cpuprofile", "", "write cpu profile to file")
-	memprofile    = flag.String("memprofile", "", "write mem profile to file")
-	blockprofile  = flag.String("blockprofile", "", "write block profile to file")
-	mutexprofile  = flag.String("mutexprofile", "", "write mutex profile to file")
-	tracefile     = flag.String("trace", "", "set tracing file")
-	numProcessing = flag.Uint("n", 4, "number of parallel processing queues")
-	activeTimeout = flag.Uint("active", 1800, "active timeout in seconds")
-	idleTimeout   = flag.Uint("idle", 300, "idle timeout in seconds")
-	flowExpire    = flag.Uint("expire", 100, "Check for expired Timers after this time. Lower number = lower memory usage, but longer execution time")
-	maxPacket     = flag.Uint("size", 9000, "Maximum packet size")
-	bpfFilter     = flag.String("filter", "", "Process only packets matching specified bpf filter")
-	iface         = flag.String("interface", "", "Capture packets from specified interface")
+	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to file")
+	memprofile   = flag.String("memprofile", "", "write mem profile to file")
+	blockprofile = flag.String("blockprofile", "", "write block profile to file")
+	mutexprofile = flag.String("mutexprofile", "", "write mutex profile to file")
+	tracefile    = flag.String("trace", "", "set tracing file")
 )
 
-func usage() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [args] [file1] [file2] [...] \n", os.Args[0])
+func flags() {
+	fmt.Fprintln(os.Stderr, "\nFlags:")
 	flag.PrintDefaults()
+}
+
+func cmdString(append string) {
+	fmt.Fprintf(os.Stderr, "Usage:\n  %s [flags] %s\n", os.Args[0], append)
+}
+
+func usage() {
+	cmdString("command [args]")
+	fmt.Fprintf(os.Stderr, "\nAvailable Commands:\n")
+	t := tabwriter.NewWriter(os.Stderr, 8, 4, 4, ' ', 0)
+	for _, command := range commands {
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %s\t%s\n", command.cmd, command.desc)
+		t.Write(line.Bytes())
+	}
+	t.Flush()
+	flags()
+
 	os.Exit(-1)
 }
 
+type command struct {
+	cmd  string
+	desc string
+	run  func(string, []string)
+}
+
+var commands []*command
+
+func addCommand(cmd, desc string, run func(string, []string)) {
+	commands = append(commands, &command{cmd, desc, run})
+}
+
 func main() {
+	sort.Slice(commands, func(i, j int) bool {
+		return strings.Compare(commands[i].cmd, commands[j].cmd) < 0
+	})
 	flag.Parse()
-	if *list {
-		flows.ListFeatures(os.Stdout)
-		return
-	}
-	var exporter flows.Exporter
-	switch *format {
-	case "text":
-		exporter = exporters.NewPrintExporter(*output)
-	case "csv":
-		exporter = exporters.NewCSVExporter(*output)
-	case "msgpack":
-		exporter = exporters.NewMsgPack(*output)
-	case "none":
-		exporter = nil
-	default:
-		usage()
-	}
-	if (exporter != nil && (flag.NArg() == 0 && *iface == "")) || (flag.NArg() != 0 && *iface != "") {
-		usage()
-	}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
@@ -100,68 +96,12 @@ func main() {
 		defer trace.Stop()
 	}
 
-	if *featurefile == "" {
-		log.Fatalln("Need a feature input file!")
-	}
-
-	selector := strings.Split(*selection, ":")
-	if len(selector) != 2 {
-		log.Fatalln("select must be of form 'key:id'!")
-	}
-
-	selectorID, err := strconv.Atoi(selector[1])
-	if err != nil {
-		log.Fatalln("select must be of form 'key:id'!")
-	}
-
-	features := decodeJSON(*featurefile, selector[0], selectorID)
-	if features == nil {
-		log.Fatalln("Features ", *selection, " not found in ", *featurefile)
-	}
-
-	featurelist := flows.NewFeatureListCreator(features, exporter, flows.FeatureTypeFlow)
-
-	if *callgraph != "" {
-		featurelist.CallGraph(os.Stdout)
-	}
-
-	if exporter == nil {
-		return
-	}
-
-	flows.CleanupFeatures()
-
-	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
-
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featurelist, packet.NewFlow,
-		flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds,
-		flows.Time(*flowExpire)*flows.Seconds)
-
-	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
-	buffer.SetFilter(*bpfFilter)
-
-	var time flows.Time
-
-	if *iface != "" {
-		time = buffer.ReadInterface(*iface)
-	} else {
-		for _, fname := range flag.Args() {
-			time = buffer.ReadFile(fname)
+	for _, command := range commands {
+		if flag.Arg(0) == command.cmd {
+			command.run(command.cmd, flag.Args()[1:])
+			return
 		}
 	}
 
-	buffer.Finish()
-
-	if *memprofile != "" {
-		f, err := os.Create(*memprofile)
-		if err != nil {
-			log.Fatalln("could not create memory profile: ", err)
-		}
-		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatalln("could not write memory profile: ", err)
-		}
-		f.Close()
-	}
-	flowtable.EOF(time)
-	exporter.Finish()
+	usage()
 }

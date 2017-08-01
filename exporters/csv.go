@@ -1,17 +1,17 @@
 package exporters
 
 import (
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
 	"os"
 
-	"encoding/csv"
-
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 type csvExporter struct {
+	outfile    string
 	exportlist chan []string
 	finished   chan struct{}
 }
@@ -47,26 +47,44 @@ func (pe *csvExporter) Finish() {
 	<-pe.finished
 }
 
-//NewCSVExporter Create a new exporter that just writes the features to filename (- for stdout)
-func NewCSVExporter(filename string) flows.Exporter {
-	ret := &csvExporter{make(chan []string, 100), make(chan struct{})}
+func (pe *csvExporter) ID() string {
+	return "CSV|" + pe.outfile
+}
+
+func (pe *csvExporter) Init() {
+	pe.exportlist = make(chan []string, 100)
+	pe.finished = make(chan struct{})
 	var outfile io.WriteCloser
-	if filename == "-" {
+	if pe.outfile == "-" {
 		outfile = os.Stdout
 	} else {
 		var err error
-		outfile, err = os.Create(filename)
+		outfile, err = os.Create(pe.outfile)
 		if err != nil {
-			log.Fatal("Couldn't open file ", filename, err)
+			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
 	writer := csv.NewWriter(outfile)
 	go func() {
-		defer close(ret.finished)
-		for data := range ret.exportlist {
+		defer close(pe.finished)
+		for data := range pe.exportlist {
 			writer.Write(data)
 		}
 		writer.Flush()
 	}()
-	return ret
+}
+
+func newCSVExporter(args []string) ([]string, flows.Exporter) {
+	if len(args) < 1 {
+		return nil, nil
+	}
+	return args[1:], &csvExporter{outfile: args[0]}
+}
+
+func csvhelp() {
+	log.Fatal("not implemented")
+}
+
+func init() {
+	flows.RegisterExporter("csv", "Exports flows to a csv file.", newCSVExporter, csvhelp)
 }

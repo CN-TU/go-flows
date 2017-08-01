@@ -8,10 +8,12 @@ import (
 	"os"
 
 	"github.com/ugorji/go/codec"
+
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 type msgPack struct {
+	outfile    string
 	exportlist chan []interface{}
 	finished   chan struct{}
 }
@@ -54,29 +56,47 @@ func (pe *msgPack) Finish() {
 	<-pe.finished
 }
 
-//NewMsgPack Create a new exporter that just writes the features to filename (- for stdout)
-func NewMsgPack(filename string) flows.Exporter {
-	ret := &msgPack{make(chan []interface{}, 100), make(chan struct{})}
+func (pe *msgPack) ID() string {
+	return "MSGPACK|" + pe.outfile
+}
+
+func (pe *msgPack) Init() {
+	pe.exportlist = make(chan []interface{}, 100)
+	pe.finished = make(chan struct{})
 	var outfile io.WriteCloser
-	if filename == "-" {
+	if pe.outfile == "-" {
 		outfile = os.Stdout
 	} else {
 		var err error
-		outfile, err = os.Create(filename)
+		outfile, err = os.Create(pe.outfile)
 		if err != nil {
-			log.Fatal("Couldn't open file ", filename, err)
+			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
 	buf := bufio.NewWriter(outfile)
 	var mh codec.MsgpackHandle
 	enc := codec.NewEncoder(buf, &mh)
 	go func() {
-		defer close(ret.finished)
-		for data := range ret.exportlist {
+		defer close(pe.finished)
+		for data := range pe.exportlist {
 			enc.MustEncode(data)
 		}
 		buf.Flush()
 		outfile.Close()
 	}()
-	return ret
+}
+
+func newMsgPack(args []string) ([]string, flows.Exporter) {
+	if len(args) < 1 {
+		return nil, nil
+	}
+	return args[1:], &msgPack{outfile: args[0]}
+}
+
+func msgpackhelp() {
+	log.Fatal("not implemented")
+}
+
+func init() {
+	flows.RegisterExporter("msgpack", "Exports flows to a msgpack file.", newMsgPack, msgpackhelp)
 }

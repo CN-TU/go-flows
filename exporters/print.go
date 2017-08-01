@@ -10,6 +10,7 @@ import (
 )
 
 type printExporter struct {
+	outfile    string
 	exportlist chan []interface{}
 	finished   chan struct{}
 }
@@ -33,27 +34,43 @@ func (pe *printExporter) Finish() {
 	<-pe.finished
 }
 
-//NewPrintExporter Create a new exporter that just writes the features to filename (- for stdout)
-func NewPrintExporter(filename string) flows.Exporter {
-	ret := &printExporter{make(chan []interface{}, 1000), make(chan struct{})}
+func (pe *printExporter) ID() string {
+	return "PRINT|" + pe.outfile
+}
+
+func (pe *printExporter) Init() {
+	pe.exportlist = make(chan []interface{}, 1000)
+	pe.finished = make(chan struct{})
 	var outfile io.WriteCloser
-	if filename == "-" {
+	if pe.outfile == "-" {
 		outfile = os.Stdout
 	} else {
 		var err error
-		outfile, err = os.Create(filename)
+		outfile, err = os.Create(pe.outfile)
 		if err != nil {
-			log.Fatal("Couldn't open file ", filename, err)
+			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
 	go func() {
-		if filename != "-" {
-			defer outfile.Close()
-		}
-		defer close(ret.finished)
-		for data := range ret.exportlist {
+		defer outfile.Close()
+		defer close(pe.finished)
+		for data := range pe.exportlist {
 			fmt.Fprintln(outfile, data...)
 		}
 	}()
-	return ret
+}
+
+func newPrintExporter(args []string) ([]string, flows.Exporter) {
+	if len(args) < 1 {
+		return nil, nil
+	}
+	return args[1:], &msgPack{outfile: args[0]}
+}
+
+func printhelp() {
+	log.Fatal("not implemented")
+}
+
+func init() {
+	flows.RegisterExporter("print", "Exports flows without formating.", newPrintExporter, printhelp)
 }

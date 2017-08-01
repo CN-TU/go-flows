@@ -52,7 +52,7 @@ type BaseFlow struct {
 	table      *FlowTable
 	timers     funcEntries
 	expireNext Time
-	features   *featureList
+	features   []*featureList
 	active     bool
 }
 
@@ -98,8 +98,10 @@ func (flow *BaseFlow) Export(reason FlowEndReason, when Time, now Time) {
 	if !flow.active {
 		return //WTF, this should not happen
 	}
-	flow.features.Stop(reason, when)
-	flow.features.Export(now)
+	for _, features := range flow.features {
+		features.Stop(reason, when)
+		features.Export(now)
+	}
 	flow.Stop()
 }
 
@@ -117,7 +119,9 @@ func (flow *BaseFlow) Event(event Event, when Time) {
 	if !flow.HasTimer(timerActive) {
 		flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.activeTimeout)
 	}
-	flow.features.Event(event, when)
+	for _, features := range flow.features {
+		features.Event(event, when)
+	}
 }
 
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
@@ -127,6 +131,8 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.features = table.features.creator()
-	flow.features.Init(flow)
-	flow.features.Start(time)
+	for _, features := range flow.features {
+		features.Init(flow)
+		features.Start(time)
+	}
 }

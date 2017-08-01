@@ -12,12 +12,12 @@ type FlowTable struct {
 	activeTimeout Time
 	idleTimeout   Time
 	now           Time
-	features      FeatureListCreator
+	features      FeatureListCreatorList
 	eof           bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
-func NewFlowTable(features FeatureListCreator, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
+func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
 	return &FlowTable{
 		flows:         make(map[FlowKey]int, 1000000),
 		flowlist:      make([]Flow, 0, 1000000),

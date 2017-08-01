@@ -55,7 +55,7 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.FeatureListCreator, newflow flows.FlowCreator, activeTimeout, idleTimeout, expire flows.Time) EventTable {
+func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, activeTimeout, idleTimeout, expire flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{
 			table:      flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout),

@@ -278,8 +278,17 @@ type featureToInit struct {
 
 // FeatureListCreator represents a way to instantiate a tree of features.
 type FeatureListCreator struct {
-	init    []featureToInit
-	creator func() *featureList
+	init      []featureToInit
+	basetypes []string
+	exporter  []Exporter
+	creator   func() *featureList
+}
+
+// Fields writes the field definitions to the exporter
+func (fl FeatureListCreator) Fields() {
+	for _, exporter := range fl.exporter {
+		exporter.Fields(fl.basetypes)
+	}
 }
 
 // FeatureCreator represents a single uninstantiated feature.
@@ -540,7 +549,7 @@ type featureList struct {
 	event    []Feature
 	export   []Feature
 	startup  []Feature
-	exporter Exporter
+	exporter []Exporter
 }
 
 func (list *featureList) Init(flow Flow) {
@@ -571,7 +580,9 @@ func (list *featureList) Event(data interface{}, when Time) {
 }
 
 func (list *featureList) Export(when Time) {
-	list.exporter.Export(list.export, when)
+	for _, exporter := range list.exporter {
+		exporter.Export(list.export, when)
+	}
 }
 
 func getFeature(feature string, ret FeatureType, nargs int) (metaFeature, bool) {
@@ -652,7 +663,7 @@ func feature2id(feature interface{}, ret FeatureType) string {
 }
 
 // NewFeatureListCreator creates a new featurelist description for the specified exporter with the given features using base as feature type for exported features.
-func NewFeatureListCreator(features []interface{}, exporter Exporter, base FeatureType) FeatureListCreator {
+func NewFeatureListCreator(features []interface{}, exporter []Exporter, base FeatureType) FeatureListCreator {
 	type featureWithType struct {
 		feature   interface{}
 		ret       FeatureType
@@ -796,12 +807,10 @@ MAIN:
 		}
 	}
 
-	if exporter != nil {
-		exporter.Fields(basetypes)
-	}
-
 	return FeatureListCreator{
 		init,
+		basetypes,
+		exporter,
 		func() *featureList {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
@@ -845,16 +854,41 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 	label="call graph"
 	node [shape=box, gradientangle=90]
 	"event" [style="rounded,filled", fillcolor=red]
-	{{ range .Nodes }}"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{ range $index, $element := .Nodes }}
+	subgraph cluster_{{$index}} {
+	{{ range $element.Nodes }}	"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{end}}}
+	"export{{$index}}" [label="export",style="rounded,filled", fillcolor=red]
+	{{ range $element.Export }} "{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	"export{{$index}}" -> "{{.Name}}"
 	{{end}}
-	"export" [style="rounded,filled", fillcolor=red]
+	{{end}}
 	{{ range .Edges }}"{{.Start}}"{{if .StartNode}}:{{.StartNode}}{{end}} -> "{{.Stop}}"{{if .StopNode}}:{{.StopNode}}{{end}}
 	{{end}}
 }
 `))
 
+type FeatureListCreatorList []FeatureListCreator
+
+func (fl FeatureListCreatorList) creator() (ret []*featureList) {
+	ret = make([]*featureList, len(fl))
+	for i, fl := range fl {
+		ret[i] = fl.creator()
+	}
+	return
+}
+
+func (fl FeatureListCreatorList) Fields() {
+	for _, fl := range fl {
+		fl.Fields()
+	}
+}
+
 // CallGraph generates a call graph in the graphviz language and writes the result to w.
-func (fl FeatureListCreator) CallGraph(w io.Writer) {
+func (fl FeatureListCreatorList) CallGraph(w io.Writer) {
+	toId := func(id, i int) string {
+		return fmt.Sprintf("%d,%d", id, i)
+	}
 	styles := map[FeatureType][][]string{
 		FeatureTypeFlow: {
 			{"shape", "invhouse"},
@@ -879,58 +913,70 @@ func (fl FeatureListCreator) CallGraph(w io.Writer) {
 		Stop      string
 		StopNode  string
 	}
+	type Subgraph struct {
+		Nodes  []Node
+		Export []Node
+	}
 	data := struct {
-		Nodes []Node
+		Nodes []Subgraph
 		Edges []Edge
 	}{}
-	for i, feature := range fl.init {
-		var node Node
-		node.Label = feature.feature.BaseType()
-		if feature.composite == "apply" || feature.composite == "map" {
-			node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
-		} else if feature.composite != "" {
-			node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
+	for listID, fl := range fl {
+		var nodes []Node
+		export := make([]Node, len(fl.exporter))
+		for i, exporter := range fl.exporter {
+			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
 		}
-		node.Name = strconv.Itoa(i)
-		if ret, ok := feature.ret.(FeatureType); ok {
-			if len(feature.arguments) == 0 {
-				node.Style = append(styles[ret], []string{"fillcolor", "green"})
-			} else if len(feature.arguments) == 1 {
-				if feature.composite == "" {
-					node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+		for i, feature := range fl.init {
+			var node Node
+			node.Label = feature.feature.BaseType()
+			if feature.composite == "apply" || feature.composite == "map" {
+				node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
+			} else if feature.composite != "" {
+				node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
+			}
+			node.Name = toId(listID, i)
+			if ret, ok := feature.ret.(FeatureType); ok {
+				if len(feature.arguments) == 0 {
+					node.Style = append(styles[ret], []string{"fillcolor", "green"})
+				} else if len(feature.arguments) == 1 {
+					if feature.composite == "" {
+						node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+					} else {
+						node.Style = append(styles[ret], []string{"fillcolor", "green:orange"})
+					}
 				} else {
-					node.Style = append(styles[ret], []string{"fillcolor", "green:orange"})
+					node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+					args := make([]string, len(feature.arguments))
+					for i := range args {
+						args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
+					}
+					node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), node.Label)
+					node.Label = ""
 				}
 			} else {
-				node.Style = append(styles[ret], []string{"fillcolor", "orange"})
-				args := make([]string, len(feature.arguments))
-				for i := range args {
-					args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
-				}
-				node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), node.Label)
-				node.Label = ""
+				node.Label = fmt.Sprint(feature.ret)
+				node.Style = styles[featureTypeAny]
 			}
-		} else {
-			node.Label = fmt.Sprint(feature.ret)
-			node.Style = styles[featureTypeAny]
-		}
 
-		data.Nodes = append(data.Nodes, node)
-	}
-	for i, feature := range fl.init {
-		if feature.event {
-			data.Edges = append(data.Edges, Edge{"event", "", strconv.Itoa(i), ""})
+			nodes = append(nodes, node)
 		}
-		if feature.export {
-			data.Edges = append(data.Edges, Edge{strconv.Itoa(i), "", "export", ""})
-		}
-		for index, j := range feature.arguments {
-			index := strconv.Itoa(index)
-			if len(feature.arguments) <= 1 {
-				index = ""
+		for i, feature := range fl.init {
+			if feature.event {
+				data.Edges = append(data.Edges, Edge{"event", "", toId(listID, i), ""})
 			}
-			data.Edges = append(data.Edges, Edge{strconv.Itoa(j), "", strconv.Itoa(i), index})
+			if feature.export {
+				data.Edges = append(data.Edges, Edge{toId(listID, i), "", fmt.Sprintf("export%d", listID), ""})
+			}
+			for index, j := range feature.arguments {
+				index := strconv.Itoa(index)
+				if len(feature.arguments) <= 1 {
+					index = ""
+				}
+				data.Edges = append(data.Edges, Edge{toId(listID, j), "", toId(listID, i), index})
+			}
 		}
+		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
 	}
 	graphTemplate.Execute(w, data)
 }
