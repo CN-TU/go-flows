@@ -16,25 +16,52 @@ import (
 )
 
 func tableUsage(cmd string, tableset *flag.FlagSet) {
-	main := "features spec.json [featureargs] [features ...] [export type [exportargs]] [export ...] [...]"
+	main := "features [featureargs] spec.json [features ...] [export type [exportargs]] [export ...] [...]"
 	switch cmd {
 	case "callgraph":
 		cmdString(fmt.Sprintf("%s %s", cmd, main))
-		fmt.Fprint(os.Stderr, "\nWrites the callgraph in dot representation to stdout.\n")
+		fmt.Fprint(os.Stderr, "\nWrites the resulting callgraph in dot representation to stdout.")
 	case "offline":
 		cmdString(fmt.Sprintf("%s [args] %s input inputfile [...]", cmd, main))
-		fmt.Fprint(os.Stderr, "\nParses the packets from the input file(s) and export the specified feature set to the specified exporters.\n")
+		fmt.Fprint(os.Stderr, "\nParse the packets from input file(s) and export the specified feature set to the specified exporters.")
 	case "online":
 		cmdString(fmt.Sprintf("%s [args] %s input interface", cmd, main))
-		fmt.Fprint(os.Stderr, "\nParses the packets from network interface and export the specified feature set to the specified exporters.\n")
+		fmt.Fprint(os.Stderr, "\nParse the packets from a network interface and export the specified feature set to the specified exporters.")
 	}
+	fmt.Fprintf(os.Stderr, `
+
+Featuresets (features), outputs (export), and, optionally, sources need to
+be provided. It is possible to specify multiple feature statements and
+multiple export statements. All the specified exporters always export the
+features specified by the preceeding feature group.
+
+At least one feature specification and one exporter is needed.
+
+Identical exportes can be specified multiple times. Beware, that those will
+share a common exporter instance, resulting in a field set specification
+per specified featureset, and mixed field sets (depending on the feature
+specification).
+
+A list of supported exporters and features can be seen with the list
+command. See also %s %s features -h.
+
+Examples:
+  Export the feature set specified in example.json to example.csv
+    %s %s features example.json export csv example.csv [input ...]
+
+  Export the feature sets a.json and b.json to a.csv and b.csv
+    %s %s features a.json export csv a.csv features b.json export b.csv [input ...]
+
+  Export the feature sets a.json and b.json to a single common.csv (this
+  results in a csv with features from a in the odd lines, and features
+  from b in the even lines)
+    %s %s features a.json features b.json export common.csv [input ...]
+`, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
 	flags()
 	if cmd != "callgraph" {
 		fmt.Fprintln(os.Stderr, "\nArgs:")
 		tableset.PrintDefaults()
 	}
-	fmt.Fprintln(os.Stderr, "\nFeatureArgs:")
-	fmt.Fprintln(os.Stderr, "\nExportArgs:")
 }
 
 func init() {
@@ -43,16 +70,23 @@ func init() {
 	addCommand("online", "Extract flows from a network interface", parseArguments)
 }
 
-// go-flows online -timeout 0 -n 4 features asd.json export csv -file - -- <interface>
-// go-flows online -timeout 0 -n 4 features asd.json export csv -file - -- <interface>
-
-func parseFeatures(args []string) ([]string, []interface{}) {
+func parseFeatures(cmd string, args []string) ([]string, []interface{}) {
 	set := flag.NewFlagSet("features", flag.ExitOnError)
-	set.Usage = func() { tableUsage("", set) }
-	selection := set.String("select", "flows:0", "flow selection (key:number in specification)")
+	set.Usage = func() {
+		fmt.Fprint(os.Stderr, `
+Usage:
+  features [args] spec.json
+
+Reads feature list, as specified in spec.json.
+
+Args:
+`)
+		set.PrintDefaults()
+	}
+	selection := set.String("select", "flows:0", "Flow selection (key:nth flow in specification)")
 	set.Parse(args)
 	if set.NArg() == 0 {
-		tableUsage("", set) //print feature usage
+		log.Fatal("features needs a json file as input.")
 	}
 	selector := strings.Split(*selection, ":")
 	if len(selector) != 2 {
@@ -84,17 +118,24 @@ func parseArguments(cmd string, args []string) {
 
 	set := flag.NewFlagSet("table", flag.ExitOnError)
 	set.Usage = func() { tableUsage(cmd, set) }
-	numProcessing := set.Uint("n", 4, "Number of parallel processing queues")
+	numProcessing := set.Uint("n", 4, "Number of parallel processing tables")
 	activeTimeout := set.Uint("active", 1800, "Active timeout in seconds")
 	idleTimeout := set.Uint("idle", 300, "Idle timeout in seconds")
-	flowExpire := set.Uint("expire", 100, "Check for expired Timers after this time. expire↓ = memory↓, execution time↑")
-	maxPacket := set.Uint("size", 9000, "Maximum packet size")
+	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
+	maxPacket := set.Uint("size", 9000, "Maximum packet size read from source. 0 = automatic")
 	bpfFilter := set.String("filter", "", "Process only packets matching specified bpf filter")
+
 	set.Parse(args)
+	if set.NArg() == 0 {
+		set.Usage()
+		os.Exit(-1)
+	}
+
 	arguments := set.Args()
 	var featureset [][]interface{}
 	var result []exportedFeatures
 	clear := false
+	var firstexporter []string
 	exporters := make(map[string]flows.Exporter)
 	var exportset []flows.Exporter
 MAIN:
@@ -103,21 +144,28 @@ MAIN:
 			if cmd == "callgraph" {
 				break MAIN
 			} else {
-				log.Fatal("Command 'input' missing")
+				log.Fatal("Command 'input' missing.")
 			}
 		}
 		switch arguments[0] {
 		case "features":
 			if clear {
+				if len(featureset) == 0 {
+					log.Fatalf("At least one feature is needed for '%s'", strings.Join(firstexporter, " "))
+				}
+				firstexporter = nil
 				clear = false
 				result = append(result, exportedFeatures{exportset, featureset})
 				featureset = nil
 				exportset = nil
 			}
 			var features []interface{}
-			arguments, features = parseFeatures(arguments[1:])
+			arguments, features = parseFeatures(cmd, arguments[1:])
 			featureset = append(featureset, features)
 		case "export":
+			if firstexporter == nil {
+				firstexporter = arguments
+			}
 			if len(arguments) < 1 {
 				log.Fatal("Need an export type")
 			}
@@ -137,16 +185,18 @@ MAIN:
 			arguments = arguments[1:]
 			break MAIN
 		default:
-			log.Fatal("Command (features, export, input) missing")
+			log.Fatalf("Command (features, export, input) missing, instead found '%s'", strings.Join(arguments, " "))
 		}
 	}
 
 	if clear {
+		if len(featureset) == 0 {
+			log.Fatalf("At least one feature is needed for '%s'", strings.Join(firstexporter, " "))
+		}
 		result = append(result, exportedFeatures{exportset, featureset})
 	}
 	if len(result) == 0 {
-		tableUsage(cmd, set)
-		os.Exit(-1)
+		log.Fatalf("At least one exporter is needed!")
 	}
 
 	var featureLists flows.FeatureListCreatorList
@@ -209,6 +259,7 @@ MAIN:
 		}
 		f.Close()
 	}
+
 	flowtable.EOF(time)
 	for _, exporter := range exporters {
 		exporter.Finish()

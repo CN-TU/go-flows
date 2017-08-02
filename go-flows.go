@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	cpuprofile   = flag.String("cpuprofile", "", "write cpu profile to file")
-	memprofile   = flag.String("memprofile", "", "write mem profile to file")
-	blockprofile = flag.String("blockprofile", "", "write block profile to file")
-	mutexprofile = flag.String("mutexprofile", "", "write mutex profile to file")
-	tracefile    = flag.String("trace", "", "set tracing file")
+	cpuprofile   = flag.String("cpuprofile", "", "Write cpu profile")
+	memprofile   = flag.String("memprofile", "", "Write memory profile")
+	blockprofile = flag.String("blockprofile", "", "Write goroutine blocking profile")
+	mutexprofile = flag.String("mutexprofile", "", "Write mutex blocking profile")
+	tracefile    = flag.String("trace", "", "Turn on tracing")
 )
 
 func flags() {
@@ -33,6 +33,10 @@ func cmdString(append string) {
 
 func usage() {
 	cmdString("command [args]")
+	fmt.Fprint(os.Stderr, `
+A generic and fully customizable flow exporter written in go. Use one of
+the provided subcommands.
+`)
 	fmt.Fprintf(os.Stderr, "\nAvailable Commands:\n")
 	t := tabwriter.NewWriter(os.Stderr, 8, 4, 4, ' ', 0)
 	for _, command := range commands {
@@ -62,6 +66,7 @@ func main() {
 	sort.Slice(commands, func(i, j int) bool {
 		return strings.Compare(commands[i].cmd, commands[j].cmd) < 0
 	})
+	flag.CommandLine.Usage = usage
 	flag.Parse()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -101,6 +106,9 @@ func main() {
 			command.run(command.cmd, flag.Args()[1:])
 			return
 		}
+	}
+	if flag.Arg(0) != "" {
+		log.Fatalf("Unknown command '%s'", flag.Arg(0))
 	}
 
 	usage()
