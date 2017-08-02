@@ -86,7 +86,7 @@ Args:
 	selection := set.String("select", "flows:0", "Flow selection (key:nth flow in specification)")
 	set.Parse(args)
 	if set.NArg() == 0 {
-		log.Fatal("features needs a json file as input.")
+		log.Fatalln("features needs a json file as input.")
 	}
 	selector := strings.Split(*selection, ":")
 	if len(selector) != 2 {
@@ -100,9 +100,8 @@ Args:
 
 	features := decodeJSON(set.Arg(0), selector[0], selectorID)
 	if features == nil {
-		log.Fatalf("Couldn't parse %s (%s)", set.Arg(0), *selection)
+		log.Fatalf("Couldn't parse %s (%s)\n", set.Arg(0), *selection)
 	}
-	_ = selection
 	return set.Args()[1:], features
 }
 
@@ -144,14 +143,14 @@ MAIN:
 			if cmd == "callgraph" {
 				break MAIN
 			} else {
-				log.Fatal("Command 'input' missing.")
+				log.Fatalln("Command 'input' missing.")
 			}
 		}
 		switch arguments[0] {
 		case "features":
 			if clear {
 				if len(featureset) == 0 {
-					log.Fatalf("At least one feature is needed for '%s'", strings.Join(firstexporter, " "))
+					log.Fatalf("At least one feature is needed for '%s'\n", strings.Join(firstexporter, " "))
 				}
 				firstexporter = nil
 				clear = false
@@ -167,12 +166,12 @@ MAIN:
 				firstexporter = arguments
 			}
 			if len(arguments) < 1 {
-				log.Fatal("Need an export type")
+				log.Fatalln("Need an export type")
 			}
 			var e flows.Exporter
 			arguments, e = flows.MakeExporter(arguments[1], arguments[2:])
 			if e == nil {
-				log.Fatalf("Exporter %s not found", arguments[1])
+				log.Fatalf("Exporter %s not found\n", arguments[1])
 			}
 			if existing, ok := exporters[e.ID()]; ok {
 				e = existing
@@ -185,18 +184,18 @@ MAIN:
 			arguments = arguments[1:]
 			break MAIN
 		default:
-			log.Fatalf("Command (features, export, input) missing, instead found '%s'", strings.Join(arguments, " "))
+			log.Fatalf("Command (features, export, input) missing, instead found '%s'\n", strings.Join(arguments, " "))
 		}
 	}
 
 	if clear {
 		if len(featureset) == 0 {
-			log.Fatalf("At least one feature is needed for '%s'", strings.Join(firstexporter, " "))
+			log.Fatalf("At least one feature is needed for '%s'\n", strings.Join(firstexporter, " "))
 		}
 		result = append(result, exportedFeatures{exportset, featureset})
 	}
 	if len(result) == 0 {
-		log.Fatalf("At least one exporter is needed!")
+		log.Fatalf("At least one exporter is needed!\n")
 	}
 
 	var featureLists flows.FeatureListCreatorList
@@ -213,11 +212,11 @@ MAIN:
 		return
 	case "online":
 		if len(arguments) != 1 {
-			log.Fatal("Online mode needs extactly one interface!")
+			log.Fatalln("Online mode needs extactly one interface!")
 		}
 	case "offline":
 		if len(arguments) == 0 {
-			log.Fatal("Offline mode needs one or more pcap files as input!")
+			log.Fatalln("Offline mode needs one or more pcap files as input!")
 		}
 	}
 
