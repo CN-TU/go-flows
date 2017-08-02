@@ -7,7 +7,6 @@ import (
 	"os"
 	"runtime/debug"
 	"runtime/pprof"
-	"strconv"
 	"strings"
 
 	_ "pm.cn.tuwien.ac.at/ipfix/go-flows/exporters"
@@ -83,25 +82,37 @@ Args:
 `)
 		set.PrintDefaults()
 	}
-	selection := set.String("select", "flows:0", "Flow selection (key:nth flow in specification)")
+	selection := set.Uint("select", 0, "Use nth flow selection (key:nth flow in specification)")
+	v1 := set.Bool("v1", false, "Force v1 format")
+	v2 := set.Bool("v2", false, "Force v2 format")
+	simple := set.Bool("simple", false, "Treat file as if it only contains the flow specification")
 	set.Parse(args)
+	if (*v1 && *v2) || (*v1 && *simple) || (*v2 && *simple) {
+		log.Fatalf("Only one of -v1, -v2, or -simple can be chosen\n")
+	}
 	if set.NArg() == 0 {
 		log.Fatalln("features needs a json file as input.")
 	}
-	selector := strings.Split(*selection, ":")
-	if len(selector) != 2 {
-		log.Fatalln("select must be of form 'key:id'!")
+
+	format := jsonAuto
+	switch {
+	case *v1:
+		format = jsonV1
+	case *v2:
+		format = jsonV2
+	case *simple:
+		format = jsonSimple
 	}
 
-	selectorID, err := strconv.Atoi(selector[1])
-	if err != nil {
-		log.Fatalln("select must be of form 'key:id'!")
-	}
-
-	features := decodeJSON(set.Arg(0), selector[0], selectorID)
+	features, key, bidirectional := decodeJSON(set.Arg(0), format, int(*selection))
 	if features == nil {
-		log.Fatalf("Couldn't parse %s (%s)\n", set.Arg(0), *selection)
+		log.Fatalf("Couldn't parse %s (%d) - features missing\n", set.Arg(0), *selection)
 	}
+	if key == nil {
+		log.Fatalf("Couldn't parse %s (%d) - key missing\n", set.Arg(0), *selection)
+	}
+	_ = key           //FIXME
+	_ = bidirectional //FIXME
 	return set.Args()[1:], features
 }
 
