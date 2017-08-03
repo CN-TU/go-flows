@@ -1,0 +1,20 @@
+{
+    "exporters": {
+        "csv": {
+            "type": "csv",
+            "options": "output.csv"
+        }
+    },
+    "features": [
+        {
+            "exporters": [
+                "csv"
+            ],
+            "input": [
+                {
+                    "file": "complex_simple.json"
+                }
+            ]
+        }
+    ]
+}

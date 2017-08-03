@@ -1,0 +1,24 @@
+{
+    "features": [
+        "sourceIPAddress",
+        "destinationIPAddress",
+        "protocolIdentifier",
+        "sourceTransportPort",
+        "destinationTransportPort",
+        {"mean": ["octetTotalCount"]},
+        "flowEndReason",
+        "flowEndNanoSeconds",
+        "ipTotalLength",
+        {"apply": ["ipTotalLength", {"select": [{"less": ["ipTotalLength", 80]}]}]},
+        "minimumIpTotalLength",
+        "maximumIpTotalLength"
+    ],
+    "bidirectional": true,
+    "key_features": [
+        "sourceIPAddress",
+        "destinationIPAddress",
+        "protocolIdentifier",
+        "sourceTransportPort",
+        "destinationTransportPort"
+    ]
+}
