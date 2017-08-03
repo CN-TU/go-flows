@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	addCommand("list", "List available features", listFeatures)
+	addCommand("features", "List available features", listFeatures)
 }
 
 func listFeatures(string, []string) {
