@@ -7,12 +7,12 @@ import (
 	"os"
 )
 
-func decodeOne(feature interface{}) interface{} {
+func decodeOneFeature(feature interface{}) interface{} {
 	switch feature := feature.(type) {
 	case []interface{}:
 		ret := make([]interface{}, len(feature))
 		for i, elem := range feature {
-			ret[i] = decodeOne(elem)
+			ret[i] = decodeOneFeature(elem)
 		}
 		return ret
 	case map[string]interface{}:
@@ -28,7 +28,7 @@ func decodeOne(feature interface{}) interface{} {
 		if args, ok := v.([]interface{}); !ok {
 			log.Fatalf("Call arguments must be an array (unexpected %s)\n", v)
 		} else {
-			return decodeOne(append([]interface{}{k}, args...))
+			return decodeOneFeature(append([]interface{}{k}, args...))
 		}
 	case json.Number:
 		if i, err := feature.Int64(); err == nil {
@@ -46,29 +46,12 @@ func decodeFeatures(features interface{}) (ret []interface{}) {
 	if features, ok := features.([]interface{}); ok {
 		ret = make([]interface{}, len(features))
 		for i, elem := range features {
-			ret[i] = decodeOne(elem)
+			ret[i] = decodeOneFeature(elem)
 		}
 		return
 	}
 	log.Fatal("Feature list must be an array")
 	return
-}
-
-func decodeKey(dec *json.Decoder) []string {
-	var ret []string
-
-	if err := dec.Decode(&ret); err != nil {
-		log.Fatalln("Flow key must be a list of strings")
-	}
-	return ret
-}
-
-func decodeBidirectional(dec *json.Decoder) bool {
-	if t, ok := fetchToken(dec, " bidirectional").(bool); ok {
-		return t
-	}
-	log.Fatalln("bidirectional must be of type bool")
-	return false
 }
 
 type jsonType int
@@ -91,8 +74,48 @@ func fetchToken(dec *json.Decoder, fun string) json.Token {
 	return t
 }
 
-/*
-	v1 format:
+func decodeV1(decoded FeatureJSONv1, id int) (features []interface{}, key []string, bidirectional bool) {
+	flows := decoded.Flows
+	if id < 0 || id >= len(flows) {
+		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
+	}
+	flow := flows[id]
+	features = decodeFeatures(flow.Features)
+	key = flow.Key.Key
+	bidirectional = flow.Key.Bidirectional
+	return
+}
+
+func decodeV2(decoded FeatureJSONv2, id int) (features []interface{}, key []string, bidirectional bool) {
+	flows := decoded.Preprocessing.Flows
+	if id < 0 || id >= len(flows) {
+		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
+	}
+	return decodeSimple(flows[id], id)
+}
+
+func decodeSimple(decoded FeatureJSONsimple, _ int) (features []interface{}, key []string, bidirectional bool) {
+	features = decodeFeatures(decoded.Features)
+	key = decoded.Key
+	bidirectional = decoded.Bidirectional
+	return
+}
+
+/*	simple format:
+	{
+		"features": [...],
+		"key_features": [...],
+		"bidirectional": <bool>
+	}
+*/
+
+type FeatureJSONsimple struct {
+	Features      interface{}
+	Bidirectional bool
+	Key           []string `json:"key_features"`
+}
+
+/*	v1 format:
 	{
 		"flows": [
 			{
@@ -106,131 +129,38 @@ func fetchToken(dec *json.Decoder, fun string) json.Token {
 	}
 */
 
-func decodeV1(decoded map[string]interface{}, id int) (features []interface{}, key []string, bidirectional bool) {
-	if flows, ok := decoded["flows"].([]interface{}); ok {
-		if len(flows) <= id {
-			log.Fatalf("Only %d flows in the file - can't use flow with id %d\n", len(flows), id)
-		}
-		if flow, ok := flows[id].(map[string]interface{}); ok {
-			if featuresJSON, ok := flow["features"]; ok {
-				features = decodeFeatures(featuresJSON)
-			} else {
-				log.Fatalln("features tag missing from features file")
-			}
-			if keyObject, ok := flow["key"].(map[string]interface{}); ok {
-				if keyJSON, ok := keyObject["key_features"]; ok {
-					if keyInterfaces, ok := keyJSON.([]interface{}); ok {
-						key = make([]string, len(keyInterfaces))
-						for i, elem := range keyInterfaces {
-							if elem, ok := elem.(string); ok {
-								key[i] = elem
-							} else {
-								log.Fatalln("Key specification must be array of strings")
-							}
-						}
-					} else {
-						log.Fatalln("Key specification must be array of strings")
-					}
-				} else {
-					log.Fatalln("Key tag missing from features file")
-				}
-				if bidirectionalJSON, ok := keyObject["bidirectional"]; ok {
-					if bidirectionalBool, ok := bidirectionalJSON.(bool); ok {
-						bidirectional = bidirectionalBool
-					} else {
-						log.Fatalln("Bidirectional must be boolean")
-					}
-				} else {
-					log.Fatalln("Bidirectional missing from specification")
-				}
-			} else {
-				log.Fatalln("key must be object")
-			}
-			return
-		}
-		log.Fatalln("Flowspec must be JSON object")
-	}
-	log.Fatalln("flows must be list of objects")
-	return
+type FeatureJSONv1Key struct {
+	Bidirectional bool
+	Key           []string `json:"key_features"`
 }
 
-/*
-	v2 format:
+type FeatureJSONv1Flows struct {
+	Features interface{}
+	Key      FeatureJSONv1Key
+}
+
+type FeatureJSONv1 struct {
+	Flows []FeatureJSONv1Flows
+}
+
+/*	v2 format:
 	{
 		"version": "v2",
 		"preprocessing": {
 			"flows": [
-				{
-					"features": [...],
-					"key_features": [...],
-					"bidirectional": <bool>
-				}
+				<simpleformat>
 			]
 		}
 	}
-
-	A single flowspec is bascially in simple format (look below)
-
 */
 
-func decodeV2(decoded map[string]interface{}, id int) (features []interface{}, key []string, bidirectional bool) {
-	if preprocessing, ok := decoded["preprocessing"].(map[string]interface{}); ok {
-		if flows, ok := preprocessing["flows"].([]interface{}); ok {
-			if len(flows) <= id {
-				log.Fatalf("Only %d flows in the file - can't use flow with id %d\n", len(flows), id)
-			}
-			if flow, ok := flows[id].(map[string]interface{}); ok {
-				return decodeSimple(flow, id)
-			}
-			log.Fatalln("Flowspec must be JSON object")
-		}
-		log.Fatalln("flows must be list of objects")
-	}
-	log.Fatalln("preprocessing must be object")
-	return
+type FeatureJSONv2Preprocessing struct {
+	Flows []FeatureJSONsimple
 }
 
-/*
-	simple format:
-	{
-		"features": [...],
-		"key_features": [...],
-		"bidirectional": <bool>
-	}
-*/
-
-func decodeSimple(decoded map[string]interface{}, _ int) (features []interface{}, key []string, bidirectional bool) {
-	if featuresJSON, ok := decoded["features"]; ok {
-		features = decodeFeatures(featuresJSON)
-	} else {
-		log.Fatalln("features tag missing from features file")
-	}
-	if keyJSON, ok := decoded["key_features"]; ok {
-		if keyInterfaces, ok := keyJSON.([]interface{}); ok {
-			key = make([]string, len(keyInterfaces))
-			for i, elem := range keyInterfaces {
-				if elem, ok := elem.(string); ok {
-					key[i] = elem
-				} else {
-					log.Fatalln("Key specification must be array of strings")
-				}
-			}
-		} else {
-			log.Fatalln("Key specification must be array of strings")
-		}
-	} else {
-		log.Fatalln("Key tag missing from features file")
-	}
-	if bidirectionalJSON, ok := decoded["bidirectional"]; ok {
-		if bidirectionalBool, ok := bidirectionalJSON.(bool); ok {
-			bidirectional = bidirectionalBool
-		} else {
-			log.Fatalln("Bidirectional must be boolean")
-		}
-	} else {
-		log.Fatalln("Bidirectional missing from specification")
-	}
-	return
+type FeatureJSONv2 struct {
+	Version       string
+	Preprocessing FeatureJSONv2Preprocessing
 }
 
 func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, key []string, bidirectional bool) {
@@ -242,7 +172,11 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 	dec := json.NewDecoder(f)
 	dec.UseNumber()
 
-	decoded := make(map[string]interface{})
+	var decoded struct {
+		FeatureJSONv1
+		FeatureJSONv2
+		FeatureJSONsimple
+	}
 
 	if err := dec.Decode(&decoded); err != nil {
 		log.Fatalln("Couldn' parse feature spec:", err)
@@ -250,25 +184,25 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 
 	switch format {
 	case jsonV1:
-		return decodeV1(decoded, id)
+		return decodeV1(decoded.FeatureJSONv1, id)
 	case jsonV2:
-		return decodeV2(decoded, id)
+		return decodeV2(decoded.FeatureJSONv2, id)
 	case jsonSimple:
-		return decodeSimple(decoded, id)
+		return decodeSimple(decoded.FeatureJSONsimple, id)
 	case jsonAuto:
 		//first see if we have a version in the file
-		if version, ok := decoded["version"]; ok {
-			if version == "v2" {
-				return decodeV2(decoded, id)
+		if decoded.Version != "" {
+			if decoded.Version == "v2" {
+				return decodeV2(decoded.FeatureJSONv2, id)
 			}
-			log.Fatalf("Unknown file format version '%s'\n", version)
+			log.Fatalf("Unknown file format version '%s'\n", decoded.Version)
 		}
 		//no :( -> could be v1 or simple
-		if _, ok := decoded["flows"]; ok {
-			return decodeV1(decoded, id)
+		if decoded.Flows != nil {
+			return decodeV1(decoded.FeatureJSONv1, id)
 		}
 		//should be simple - or something we don't know
-		return decodeSimple(decoded, id)
+		return decodeSimple(decoded.FeatureJSONsimple, id)
 	}
 	panic("Unknown format specification")
 }
