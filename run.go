@@ -54,16 +54,20 @@ command. See also %s %s features -h.
 
 Examples:
   Export the feature set specified in example.json to example.csv
-    %s %s features example.json export csv example.csv [input ...]
+    %s %s features example.json export csv example.csv input [input ...]
 
   Export the feature sets a.json and b.json to a.csv and b.csv
-    %s %s features a.json export csv a.csv features b.json export b.csv [input ...]
+    %s %s features a.json export csv a.csv features b.json export b.csv input [input ...]
 
   Export the feature sets a.json and b.json to a single common.csv (this
   results in a csv with features from a in the odd lines, and features
   from b in the even lines)
-    %s %s features a.json features b.json export common.csv [input ...]
-`, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
+    %s %s features a.json features b.json export common.csv input [input ...]
+
+  Execute the commands provided in commands.json
+    %s %s -spec commands.json [...]
+
+`, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
 	flags()
 	fmt.Fprintln(os.Stderr, "\nArgs:")
 	tableset.PrintDefaults()
