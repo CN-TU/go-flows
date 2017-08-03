@@ -129,18 +129,14 @@ type FeatureJSONsimple struct {
 	}
 */
 
-type FeatureJSONv1Key struct {
-	Bidirectional bool
-	Key           []string `json:"key_features"`
-}
-
-type FeatureJSONv1Flows struct {
-	Features interface{}
-	Key      FeatureJSONv1Key
-}
-
 type FeatureJSONv1 struct {
-	Flows []FeatureJSONv1Flows
+	Flows []struct {
+		Features interface{}
+		Key      struct {
+			Bidirectional bool
+			Key           []string `json:"key_features"`
+		}
+	}
 }
 
 /*	v2 format:
@@ -154,13 +150,11 @@ type FeatureJSONv1 struct {
 	}
 */
 
-type FeatureJSONv2Preprocessing struct {
-	Flows []FeatureJSONsimple
-}
-
 type FeatureJSONv2 struct {
 	Version       string
-	Preprocessing FeatureJSONv2Preprocessing
+	Preprocessing struct {
+		Flows []FeatureJSONsimple
+	}
 }
 
 func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, key []string, bidirectional bool) {
