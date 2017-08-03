@@ -2,6 +2,7 @@ package exporters
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -109,8 +110,22 @@ func newMsgPack(name string, opts interface{}, args []string) (arguments []strin
 	return
 }
 
-func msgpackhelp() {
-	log.Fatal("not implemented")
+func msgpackhelp(name string) {
+	fmt.Fprintf(os.Stderr, `
+The %s exporter writes the output to a file with one msgpack per flow
+and a header in msgpack format consisting of the feature description.
+
+As argument, the output file is needed.
+
+Usage command line:
+  export %s file.out
+
+Usage json file:
+  {
+    "type": "%s",
+    "options": "file.out"
+  }
+`, name, name, name)
 }
 
 func init() {

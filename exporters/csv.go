@@ -91,14 +91,28 @@ func newCSVExporter(name string, opts interface{}, args []string) (arguments []s
 		log.Fatalln("CSV exporter needs a filename as argument")
 	}
 	if name == "" {
-		name = "CSV|"+outfile
+		name = "CSV|" + outfile
 	}
 	ret = &csvExporter{id: name, outfile: outfile}
 	return
 }
 
-func csvhelp() {
-	log.Fatal("not implemented")
+func csvhelp(name string) {
+	fmt.Fprintf(os.Stderr, `
+The %s exporter writes the output to a csv file with a flow per line and a
+header consisting of the feature description.
+
+As argument, the output file is needed.
+
+Usage command line:
+  export %s file.csv
+
+Usage json file:
+  {
+    "type": "%s",
+    "options": "file.csv"
+  }
+`, name, name, name)
 }
 
 func init() {
