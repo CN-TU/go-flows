@@ -859,7 +859,7 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 	{{ range $element.Nodes }}	"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
 	{{end}}}
 	"export{{$index}}" [label="export",style="rounded,filled", fillcolor=red]
-	{{ range $element.Export }} "{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
+	{{ range $element.Export }}"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
 	"export{{$index}}" -> "{{.Name}}"
 	{{end}}
 	{{end}}
