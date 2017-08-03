@@ -13,6 +13,7 @@ import (
 )
 
 type msgPack struct {
+	id         string
 	outfile    string
 	exportlist chan []interface{}
 	finished   chan struct{}
@@ -57,7 +58,7 @@ func (pe *msgPack) Finish() {
 }
 
 func (pe *msgPack) ID() string {
-	return "MSGPACK|" + pe.outfile
+	return pe.id
 }
 
 func (pe *msgPack) Init() {
@@ -86,11 +87,26 @@ func (pe *msgPack) Init() {
 	}()
 }
 
-func newMsgPack(args []string) ([]string, flows.Exporter) {
-	if len(args) < 1 {
-		return nil, nil
+func newMsgPack(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+	var outfile string
+	if _, ok := opts.(flows.UseStringOption); ok {
+		if len(args) > 0 {
+			outfile = args[0]
+			arguments = args[1:]
+		}
+	} else {
+		if f, ok := opts.(string); ok {
+			outfile = f
+		}
 	}
-	return args[1:], &msgPack{outfile: args[0]}
+	if outfile == "" {
+		log.Fatalln("msgpack exporter needs a filename as argument")
+	}
+	if name == "" {
+		name = "MSGPACK|" + outfile
+	}
+	ret = &msgPack{id: name, outfile: outfile}
+	return
 }
 
 func msgpackhelp() {

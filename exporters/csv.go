@@ -11,6 +11,7 @@ import (
 )
 
 type csvExporter struct {
+	id         string
 	outfile    string
 	exportlist chan []string
 	finished   chan struct{}
@@ -48,7 +49,7 @@ func (pe *csvExporter) Finish() {
 }
 
 func (pe *csvExporter) ID() string {
-	return "CSV|" + pe.outfile
+	return pe.id
 }
 
 func (pe *csvExporter) Init() {
@@ -74,11 +75,26 @@ func (pe *csvExporter) Init() {
 	}()
 }
 
-func newCSVExporter(args []string) ([]string, flows.Exporter) {
-	if len(args) < 1 {
-		return nil, nil
+func newCSVExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+	var outfile string
+	if _, ok := opts.(flows.UseStringOption); ok {
+		if len(args) > 0 {
+			outfile = args[0]
+			arguments = args[1:]
+		}
+	} else {
+		if f, ok := opts.(string); ok {
+			outfile = f
+		}
 	}
-	return args[1:], &csvExporter{outfile: args[0]}
+	if outfile == "" {
+		log.Fatalln("CSV exporter needs a filename as argument")
+	}
+	if name == "" {
+		name = "CSV|"+outfile
+	}
+	ret = &csvExporter{id: name, outfile: outfile}
+	return
 }
 
 func csvhelp() {

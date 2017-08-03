@@ -10,6 +10,7 @@ import (
 )
 
 type printExporter struct {
+	id         string
 	outfile    string
 	exportlist chan []interface{}
 	finished   chan struct{}
@@ -35,7 +36,7 @@ func (pe *printExporter) Finish() {
 }
 
 func (pe *printExporter) ID() string {
-	return "PRINT|" + pe.outfile
+	return pe.id
 }
 
 func (pe *printExporter) Init() {
@@ -60,11 +61,26 @@ func (pe *printExporter) Init() {
 	}()
 }
 
-func newPrintExporter(args []string) ([]string, flows.Exporter) {
-	if len(args) < 1 {
-		return nil, nil
+func newPrintExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+	var outfile string
+	if _, ok := opts.(flows.UseStringOption); ok {
+		if len(args) > 0 {
+			outfile = args[0]
+			arguments = args[1:]
+		}
+	} else {
+		if f, ok := opts.(string); ok {
+			outfile = f
+		}
 	}
-	return args[1:], &msgPack{outfile: args[0]}
+	if outfile == "" {
+		log.Fatalln("print exporter needs a filename as argument")
+	}
+	if name == "" {
+		name = "PRINT|" + outfile
+	}
+	ret = &printExporter{id: name, outfile: outfile}
+	return
 }
 
 func printhelp() {
