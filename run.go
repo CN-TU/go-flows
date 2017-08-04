@@ -314,6 +314,7 @@ func parseArguments(cmd string, args []string) {
 	numProcessing := set.Uint("n", 4, "Number of parallel processing tables")
 	activeTimeout := set.Uint("active", 1800, "Active timeout in seconds")
 	idleTimeout := set.Uint("idle", 300, "Idle timeout in seconds")
+	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
 	maxPacket := set.Uint("size", 9000, "Maximum packet size read from source. 0 = automatic")
 	bpfFilter := set.String("filter", "", "Process only packets matching specified bpf filter")
@@ -372,7 +373,11 @@ func parseArguments(cmd string, args []string) {
 	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featureLists, packet.NewFlow,
-		flows.Time(*activeTimeout)*flows.Seconds, flows.Time(*idleTimeout)*flows.Seconds,
+		flows.FlowOptions{
+			ActiveTimeout: flows.Time(*activeTimeout) * flows.Seconds,
+			IdleTimeout:   flows.Time(*idleTimeout) * flows.Seconds,
+			PerPacket:     *perPacket,
+		},
 		flows.Time(*flowExpire)*flows.Seconds)
 
 	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)

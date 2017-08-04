@@ -46,6 +46,13 @@ type Flow interface {
 	expire(Time)
 }
 
+//FlowOptions applying to each flow
+type FlowOptions struct {
+	ActiveTimeout Time
+	IdleTimeout   Time
+	PerPacket     bool
+}
+
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
 type BaseFlow struct {
 	key        FlowKey
@@ -115,12 +122,17 @@ func (flow *BaseFlow) EOF(now Time) { flow.Export(FlowEndReasonForcedEnd, now, n
 
 // Event handles the given event and the active and idle timers.
 func (flow *BaseFlow) Event(event Event, when Time) {
-	flow.AddTimer(timerIdle, flow.idleEvent, when+flow.table.idleTimeout)
-	if !flow.HasTimer(timerActive) {
-		flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.activeTimeout)
+	if !flow.table.PerPacket {
+		flow.AddTimer(timerIdle, flow.idleEvent, when+flow.table.IdleTimeout)
+		if !flow.HasTimer(timerActive) {
+			flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.ActiveTimeout)
+		}
 	}
 	for _, features := range flow.features {
 		features.Event(event, when)
+	}
+	if flow.table.PerPacket {
+		flow.Export(FlowEndReasonEnd, when, when)
 	}
 }
 

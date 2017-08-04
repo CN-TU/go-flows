@@ -5,27 +5,25 @@ type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
 
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
-	flows         map[FlowKey]int
-	flowlist      []Flow
-	freelist      []int
-	newflow       FlowCreator
-	activeTimeout Time
-	idleTimeout   Time
-	now           Time
-	features      FeatureListCreatorList
-	eof           bool
+	FlowOptions
+	flows    map[FlowKey]int
+	flowlist []Flow
+	freelist []int
+	newflow  FlowCreator
+	now      Time
+	features FeatureListCreatorList
+	eof      bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
-func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, activeTimeout, idleTimeout Time) *FlowTable {
+func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, options FlowOptions) *FlowTable {
 	return &FlowTable{
-		flows:         make(map[FlowKey]int, 1000000),
-		flowlist:      make([]Flow, 0, 1000000),
-		freelist:      make([]int, 0, 1000000),
-		newflow:       newflow,
-		activeTimeout: activeTimeout,
-		idleTimeout:   idleTimeout,
-		features:      features,
+		flows:       make(map[FlowKey]int, 1000000),
+		flowlist:    make([]Flow, 0, 1000000),
+		freelist:    make([]int, 0, 1000000),
+		newflow:     newflow,
+		FlowOptions: options,
+		features:    features,
 	}
 }
 

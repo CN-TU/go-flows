@@ -55,10 +55,10 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, activeTimeout, idleTimeout, expire flows.Time) EventTable {
+func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.Time) EventTable {
 	if num == 1 {
 		ret := &SingleFlowTable{
-			table:      flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout),
+			table:      flows.NewFlowTable(features, newflow, options),
 			expireTime: expire,
 		}
 		ret.buffer = newShallowMultiPacketBufferRing(fullBuffers, batchSize)
@@ -100,7 +100,7 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflo
 		expire := make(chan struct{}, 1)
 		ret.expire[i] = expire
 		ret.buffers[i] = c
-		t := flows.NewFlowTable(features, newflow, activeTimeout, idleTimeout)
+		t := flows.NewFlowTable(features, newflow, options)
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
