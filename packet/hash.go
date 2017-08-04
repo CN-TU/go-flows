@@ -2,8 +2,8 @@ package packet
 
 func fnvHash(s []byte) (h uint64) {
 	h = fnvBasis
-	for i := 0; i < len(s); i++ {
-		h ^= uint64(s[i])
+	for _, b := range s {
+		h ^= uint64(b)
 		h *= fnvPrime
 	}
 	return
