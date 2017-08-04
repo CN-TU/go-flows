@@ -15,26 +15,23 @@ import (
 // Feature interfaces, which all features need to implement
 type Feature interface {
 	// Event gets called for every event. Data is provided via the first argument and current time via the second.
-	Event(interface{}, Time, interface{})
+	Event(interface{}, EventContext, interface{})
 	// FinishEvent gets called after every Event happened
 	FinishEvent()
 	// Value provides the current stored value.
 	Value() interface{}
 	// SetValue stores a new value with the associated time.
-	SetValue(interface{}, Time, interface{})
+	SetValue(interface{}, EventContext, interface{})
 	// Start gets called when the flow starts.
-	Start(Time)
+	Start(EventContext)
 	// Stop gets called with an end reason and time when a flow stops
-	Stop(FlowEndReason, Time)
-	// Key returns the current flow key.
-	Key() FlowKey
+	Stop(FlowEndReason, EventContext)
 	// Type returns the type associated with the current value, which can be different from BaseType.
 	Type() string
 	// BaseType returns the type of the feature.
 	BaseType() string
 	// Emit sends value new, with time when, and source self to the dependent Features
-	Emit(new interface{}, when Time, self interface{})
-	setFlow(Flow)
+	Emit(new interface{}, when EventContext, self interface{})
 	setBaseType(string)
 	getBaseFeature() *BaseFeature
 	setDependent([]Feature)
@@ -45,18 +42,14 @@ type Feature interface {
 
 type EmptyBaseFeature struct {
 	dependent []Feature
-	flow      Flow
 }
 
 func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
 func (f *EmptyBaseFeature) getDependent() []Feature    { return f.dependent }
 func (f *EmptyBaseFeature) SetArguments([]Feature)     {}
 
-// Key returns the current flow key.
-func (f *EmptyBaseFeature) Key() FlowKey { return f.flow.Key() }
-
 // Event gets called for every event. Data is provided via the first argument and current time via the second.
-func (f *EmptyBaseFeature) Event(interface{}, Time, interface{}) {}
+func (f *EmptyBaseFeature) Event(interface{}, EventContext, interface{}) {}
 
 // FinishEvent gets called after every Event happened
 func (f *EmptyBaseFeature) FinishEvent() {
@@ -69,17 +62,16 @@ func (f *EmptyBaseFeature) FinishEvent() {
 func (f *EmptyBaseFeature) Value() interface{} { return nil }
 
 // Start gets called when the flow starts.
-func (f *EmptyBaseFeature) Start(Time) {}
+func (f *EmptyBaseFeature) Start(EventContext) {}
 
 // Stop gets called with an end reason and time when a flow stops
-func (f *EmptyBaseFeature) Stop(FlowEndReason, Time) {}
+func (f *EmptyBaseFeature) Stop(FlowEndReason, EventContext) {}
 
 // Type returns the type associated with the current value, which can be different from BaseType.
 func (f *EmptyBaseFeature) Type() string { log.Fatal("Not implemented"); return "" }
 
 // BaseType returns the type of the feature.
 func (f *EmptyBaseFeature) BaseType() string             { log.Fatal("Not implemented"); return "" }
-func (f *EmptyBaseFeature) setFlow(flow Flow)            { f.flow = flow }
 func (f *EmptyBaseFeature) setBaseType(basetype string)  {}
 func (f *EmptyBaseFeature) getBaseFeature() *BaseFeature { log.Fatal("Not implemented"); return nil }
 
@@ -87,13 +79,13 @@ func (f *EmptyBaseFeature) getBaseFeature() *BaseFeature { log.Fatal("Not implem
 func (f *EmptyBaseFeature) IsConstant() bool { return false }
 
 // SetValue stores a new value with the associated time.
-func (f *EmptyBaseFeature) SetValue(new interface{}, when Time, self interface{}) {
+func (f *EmptyBaseFeature) SetValue(new interface{}, when EventContext, self interface{}) {
 }
 
 // Emit sends value new, with time when, and source self to the dependent Features
-func (f *EmptyBaseFeature) Emit(new interface{}, when Time, self interface{}) {
+func (f *EmptyBaseFeature) Emit(new interface{}, context EventContext, self interface{}) {
 	for _, v := range f.dependent {
-		v.Event(new, when, self)
+		v.Event(new, context, self)
 	}
 }
 
@@ -117,10 +109,10 @@ func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
 func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
 
 // SetValue stores a new value with the associated time.
-func (f *BaseFeature) SetValue(new interface{}, when Time, self interface{}) {
+func (f *BaseFeature) SetValue(new interface{}, context EventContext, self interface{}) {
 	f.value = new
 	if new != nil {
-		f.Emit(new, when, self)
+		f.Emit(new, context, self)
 	}
 }
 
@@ -553,35 +545,33 @@ type featureList struct {
 }
 
 func (list *featureList) Init(flow Flow) {
+
+}
+
+func (list *featureList) Start(context EventContext) {
 	for _, feature := range list.startup {
-		feature.setFlow(flow)
+		feature.Start(context)
 	}
 }
 
-func (list *featureList) Start(start Time) {
+func (list *featureList) Stop(reason FlowEndReason, context EventContext) {
 	for _, feature := range list.startup {
-		feature.Start(start)
+		feature.Stop(reason, context)
 	}
 }
 
-func (list *featureList) Stop(reason FlowEndReason, time Time) {
-	for _, feature := range list.startup {
-		feature.Stop(reason, time)
-	}
-}
-
-func (list *featureList) Event(data interface{}, when Time) {
+func (list *featureList) Event(data interface{}, context EventContext) {
 	for _, feature := range list.event {
-		feature.Event(data, when, nil)
+		feature.Event(data, context, nil)
 	}
 	for _, feature := range list.event {
 		feature.FinishEvent()
 	}
 }
 
-func (list *featureList) Export(when Time) {
+func (list *featureList) Export(context EventContext) {
 	for _, exporter := range list.exporter {
-		exporter.Export(list.export, when)
+		exporter.Export(list.export, context.When)
 	}
 }
 

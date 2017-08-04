@@ -21,16 +21,16 @@ type _characters struct {
 	src  []byte
 }
 
-func (f *_characters) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_characters) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
-		time = int64(when) - f.time
+		time = int64(context.When) - f.time
 	}
 	if len(f.src) == 0 {
 		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmp_src.Raw()
 	}
-	f.time = int64(when)
+	f.time = int64(context.When)
 	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
@@ -44,7 +44,7 @@ func (f *_characters) Event(new interface{}, when flows.Time, src interface{}) {
 
 	buffer.WriteString(strings.Repeat("_", new_time))
 
-	f.SetValue(buffer.String(), when, f)
+	f.SetValue(buffer.String(), context, f)
 }
 
 func init() {
@@ -61,16 +61,16 @@ type _characters2 struct {
 	src  []byte
 }
 
-func (f *_characters2) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_characters2) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
-		time = int64(when) - f.time
+		time = int64(context.When) - f.time
 	}
 	if len(f.src) == 0 {
 		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmp_src.Raw()
 	}
-	f.time = int64(when)
+	f.time = int64(context.When)
 	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
@@ -134,7 +134,7 @@ func (f *_characters2) Event(new interface{}, when flows.Time, src interface{}) 
 
 	buffer.WriteString(strings.Repeat("-", new_time))
 
-	f.SetValue(buffer.String(), when, f)
+	f.SetValue(buffer.String(), context, f)
 }
 
 func init() {

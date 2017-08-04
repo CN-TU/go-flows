@@ -9,23 +9,21 @@ type constantFeature struct {
 	t     string
 }
 
-func (f *constantFeature) setDependent([]Feature)                  {}
-func (f *constantFeature) getDependent() []Feature                 { return nil }
-func (f *constantFeature) SetArguments([]Feature)                  {}
-func (f *constantFeature) Event(interface{}, Time, interface{})    {}
-func (f *constantFeature) FinishEvent()                            {}
-func (f *constantFeature) Value() interface{}                      { return f.value }
-func (f *constantFeature) SetValue(interface{}, Time, interface{}) {}
-func (f *constantFeature) Start(Time)                              {}
-func (f *constantFeature) Stop(FlowEndReason, Time)                {}
-func (f *constantFeature) Key() FlowKey                            { return nil }
-func (f *constantFeature) Type() string                            { return f.t }
-func (f *constantFeature) BaseType() string                        { return f.t }
-func (f *constantFeature) setFlow(Flow)                            {}
-func (f *constantFeature) setBaseType(string)                      {}
-func (f *constantFeature) getBaseFeature() *BaseFeature            { return nil }
-func (f *constantFeature) IsConstant() bool                        { return true }
-func (f *constantFeature) Emit(interface{}, Time, interface{})     {}
+func (f *constantFeature) setDependent([]Feature)                          {}
+func (f *constantFeature) getDependent() []Feature                         { return nil }
+func (f *constantFeature) SetArguments([]Feature)                          {}
+func (f *constantFeature) Event(interface{}, EventContext, interface{})    {}
+func (f *constantFeature) FinishEvent()                                    {}
+func (f *constantFeature) Value() interface{}                              { return f.value }
+func (f *constantFeature) SetValue(interface{}, EventContext, interface{}) {}
+func (f *constantFeature) Start(EventContext)                              {}
+func (f *constantFeature) Stop(FlowEndReason, EventContext)                {}
+func (f *constantFeature) Type() string                                    { return f.t }
+func (f *constantFeature) BaseType() string                                { return f.t }
+func (f *constantFeature) setBaseType(string)                              {}
+func (f *constantFeature) getBaseFeature() *BaseFeature                    { return nil }
+func (f *constantFeature) IsConstant() bool                                { return true }
+func (f *constantFeature) Emit(interface{}, EventContext, interface{})     {}
 
 func newConstantMetaFeature(value interface{}) metaFeature {
 	var f interface{}
@@ -51,11 +49,11 @@ type selectF struct {
 	sel bool
 }
 
-func (f *selectF) Start(Time)       { f.sel = false }
-func (f *selectF) Type() string     { return "select" }
-func (f *selectF) BaseType() string { return "select" }
+func (f *selectF) Start(EventContext) { f.sel = false }
+func (f *selectF) Type() string       { return "select" }
+func (f *selectF) BaseType() string   { return "select" }
 
-func (f *selectF) Event(new interface{}, when Time, src interface{}) {
+func (f *selectF) Event(new interface{}, context EventContext, src interface{}) {
 	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
 	   otherwise we have an event from the flow -> forward it in case we should and reset sel
 	*/
@@ -64,7 +62,7 @@ func (f *selectF) Event(new interface{}, when Time, src interface{}) {
 	} else {
 		if f.sel {
 			for _, v := range f.dependent {
-				v.Event(new, when, nil) // is it ok to use nil as source? (we are faking flow source here)
+				v.Event(new, context, nil) // is it ok to use nil as source? (we are faking flow source here)
 			}
 			f.sel = false
 		}
@@ -80,14 +78,14 @@ func (f *selectS) SetArguments(arguments []Feature) {
 	f.start = int(arguments[0].Value().(Number).ToInt())
 	f.stop = int(arguments[1].Value().(Number).ToInt())
 }
-func (f *selectS) Start(Time)       { f.current = 0 }
-func (f *selectS) Type() string     { return "select" }
-func (f *selectS) BaseType() string { return "select" }
+func (f *selectS) Start(EventContext) { f.current = 0 }
+func (f *selectS) Type() string       { return "select" }
+func (f *selectS) BaseType() string   { return "select" }
 
-func (f *selectS) Event(new interface{}, when Time, src interface{}) {
+func (f *selectS) Event(new interface{}, context EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
 		for _, v := range f.dependent {
-			v.Event(new, when, nil) // is it ok to use nil as source? (we are faking flow source here)
+			v.Event(new, context, nil) // is it ok to use nil as source? (we are faking flow source here)
 		}
 	}
 	f.current++
@@ -125,12 +123,12 @@ type mean struct {
 	count int
 }
 
-func (f *mean) Start(when Time) {
+func (f *mean) Start(context EventContext) {
 	f.total = nil
 	f.count = 0
 }
 
-func (f *mean) Event(new interface{}, when Time, src interface{}) {
+func (f *mean) Event(new interface{}, context EventContext, src interface{}) {
 	num := new.(Number)
 	if f.total == nil {
 		f.total = num
@@ -140,8 +138,8 @@ func (f *mean) Event(new interface{}, when Time, src interface{}) {
 	f.count++
 }
 
-func (f *mean) Stop(reason FlowEndReason, when Time) {
-	f.SetValue(f.total.ToFloat()/float64(f.count), when, f)
+func (f *mean) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.total.ToFloat()/float64(f.count), context, f)
 }
 
 func init() {
@@ -156,14 +154,14 @@ type min struct {
 	BaseFeature
 }
 
-func (f *min) Event(new interface{}, when Time, src interface{}) {
+func (f *min) Event(new interface{}, context EventContext, src interface{}) {
 	if f.value == nil || new.(Number).Less(f.value.(Number)) {
 		f.value = new
 	}
 }
 
-func (f *min) Stop(reason FlowEndReason, when Time) {
-	f.SetValue(f.value, when, f)
+func (f *min) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.value, context, f)
 }
 
 func init() {
@@ -178,14 +176,14 @@ type max struct {
 	BaseFeature
 }
 
-func (f *max) Event(new interface{}, when Time, src interface{}) {
+func (f *max) Event(new interface{}, context EventContext, src interface{}) {
 	if f.value == nil || new.(Number).Greater(f.value.(Number)) {
 		f.value = new
 	}
 }
 
-func (f *max) Stop(reason FlowEndReason, when Time) {
-	f.SetValue(f.value, when, f)
+func (f *max) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.value, context, f)
 }
 
 func init() {
@@ -200,16 +198,16 @@ type less struct {
 	MultiBaseFeature
 }
 
-func (f *less) Event(new interface{}, when Time, src interface{}) {
+func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
 	}
 	a, b := UpConvert(values[0].(Number), values[1].(Number))
 	if a.Less(b) {
-		f.SetValue(true, when, f)
+		f.SetValue(true, context, f)
 	} else {
-		f.SetValue(false, when, f)
+		f.SetValue(false, context, f)
 	}
 }
 
@@ -226,17 +224,17 @@ type accumulate struct {
 	vector []interface{}
 }
 
-func (f *accumulate) Start(when Time) {
+func (f *accumulate) Start(context EventContext) {
 	f.vector = make([]interface{}, 0)
 }
 
-func (f *accumulate) Stop(reason FlowEndReason, when Time) {
+func (f *accumulate) Stop(reason FlowEndReason, context EventContext) {
 	if len(f.vector) != 0 {
-		f.SetValue(f.vector, when, f)
+		f.SetValue(f.vector, context, f)
 	}
 }
 
-func (f *accumulate) Event(new interface{}, when Time, src interface{}) {
+func (f *accumulate) Event(new interface{}, context EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 }
 
@@ -253,16 +251,16 @@ type concatenate struct {
 	buffer *bytes.Buffer
 }
 
-func (f *concatenate) Start(when Time) {
+func (f *concatenate) Start(context EventContext) {
 	f.buffer = new(bytes.Buffer)
 }
 
-func (f *concatenate) Event(new interface{}, when Time, src interface{}) {
+func (f *concatenate) Event(new interface{}, context EventContext, src interface{}) {
 	fmt.Fprint(f.buffer, new)
 }
 
-func (f *concatenate) Stop(reason FlowEndReason, when Time) {
-	f.SetValue(f.buffer.String(), when, f)
+func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.buffer.String(), context, f)
 }
 
 func init() {

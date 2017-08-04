@@ -28,7 +28,7 @@ const (
 type TimerID int
 
 // TimerCallback is a function the gets called upon a timer event. This event receives the expiry time and the current time.
-type TimerCallback func(Time, Time)
+type TimerCallback func(EventContext, Time)
 
 var timerMaxID TimerID
 
@@ -46,7 +46,7 @@ var (
 
 type funcEntry struct {
 	function TimerCallback
-	when     Time
+	context  EventContext
 }
 
 type funcEntries []funcEntry
@@ -59,26 +59,26 @@ func (fe *funcEntries) expire(when Time) Time {
 	var next Time
 	fep := *fe
 	for i, v := range fep {
-		if v.when != 0 {
-			if v.when <= when {
-				fep[i].function(v.when, when)
-				fep[i].when = 0
-			} else if next == 0 || v.when <= next {
-				next = v.when
+		if v.context.When != 0 {
+			if v.context.When <= when {
+				fep[i].function(v.context, when)
+				fep[i].context.When = 0
+			} else if next == 0 || v.context.When <= next {
+				next = v.context.When
 			}
 		}
 	}
 	return next
 }
 
-func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, when Time) {
+func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, context EventContext) {
 	fep := *fe
 	if int(id) >= len(fep) {
 		fep = append(fep, make(funcEntries, len(fep)-int(id)+1)...)
 		*fe = fep
 	}
 	fep[id].function = f
-	fep[id].when = when
+	fep[id].context = context
 }
 
 func (fe *funcEntries) hasTimer(id TimerID) bool {
@@ -86,7 +86,7 @@ func (fe *funcEntries) hasTimer(id TimerID) bool {
 	if int(id) >= len(fep) {
 		return false
 	}
-	if fep[id].when == 0 {
+	if fep[id].context.When == 0 {
 		return false
 	}
 	return true

@@ -25,7 +25,7 @@ type FlowKey interface {
 // Flow interface which needs to be implemented by every flow.
 type Flow interface {
 	Event(Event, Time)
-	AddTimer(TimerID, TimerCallback, Time)
+	AddTimer(TimerID, TimerCallback, EventContext)
 	HasTimer(TimerID) bool
 	EOF(Time)
 	Active() bool
@@ -41,6 +41,18 @@ type FlowOptions struct {
 	ActiveTimeout Time
 	IdleTimeout   Time
 	PerPacket     bool
+}
+
+type EventContext struct {
+	When    Time
+	Flow    Flow
+	feature *featureList
+}
+
+func (ec EventContext) FutureEventContext(offset Time) (ret EventContext) {
+	ret = ec
+	ret.When += offset
+	return
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
@@ -78,10 +90,10 @@ func (flow *BaseFlow) expire(when Time) {
 }
 
 // AddTimer adds a new timer with the associated id, callback, at the time when. If the timerid already exists, then the old timer will be overwritten.
-func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when Time) {
-	flow.timers.addTimer(id, f, when)
-	if when < flow.expireNext || flow.expireNext == 0 {
-		flow.expireNext = when
+func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, context EventContext) {
+	flow.timers.addTimer(id, f, context)
+	if context.When < flow.expireNext || flow.expireNext == 0 {
+		flow.expireNext = context.When
 	}
 }
 
@@ -90,39 +102,57 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return flow.timers.hasTimer(id)
 }
 
+func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, now Time) {
+	context := EventContext{
+		When: now,
+		Flow: flow,
+	}
+	flow.Export(reason, context, now)
+}
+
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
-func (flow *BaseFlow) Export(reason FlowEndReason, when Time, now Time) {
+func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now Time) {
 	if !flow.active {
 		return //WTF, this should not happen
 	}
 	for _, features := range flow.features {
-		features.Stop(reason, when)
-		features.Export(now)
+		features.Stop(reason, context)
+		features.Export(context)
 	}
 	flow.Stop()
 }
 
-func (flow *BaseFlow) idleEvent(expired Time, now Time) { flow.Export(FlowEndReasonIdle, expired, now) }
-func (flow *BaseFlow) activeEvent(expired Time, now Time) {
-	flow.Export(FlowEndReasonActive, expired, now)
+func (flow *BaseFlow) idleEvent(context EventContext, now Time) {
+	flow.Export(FlowEndReasonIdle, context, now)
+}
+func (flow *BaseFlow) activeEvent(context EventContext, now Time) {
+	flow.Export(FlowEndReasonActive, context, now)
 }
 
 // EOF stops the flow with forced end reason.
-func (flow *BaseFlow) EOF(now Time) { flow.Export(FlowEndReasonForcedEnd, now, now) }
+func (flow *BaseFlow) EOF(now Time) {
+	flow.ExportWithoutContext(FlowEndReasonForcedEnd, now)
+}
 
 // Event handles the given event and the active and idle timers.
 func (flow *BaseFlow) Event(event Event, when Time) {
+	context := EventContext{
+		When: when,
+		Flow: flow,
+	}
 	if !flow.table.PerPacket {
-		flow.AddTimer(timerIdle, flow.idleEvent, when+flow.table.IdleTimeout)
+		flow.AddTimer(timerIdle, flow.idleEvent, context.FutureEventContext(flow.table.IdleTimeout))
 		if !flow.HasTimer(timerActive) {
-			flow.AddTimer(timerActive, flow.activeEvent, when+flow.table.ActiveTimeout)
+			flow.AddTimer(timerActive, flow.activeEvent, context.FutureEventContext(flow.table.ActiveTimeout))
 		}
 	}
 	for _, features := range flow.features {
-		features.Event(event, when)
+		context.feature = features
+		features.Event(event, context)
 	}
 	if flow.table.PerPacket {
-		flow.Export(FlowEndReasonEnd, when, when)
+		context.feature = nil
+		flow.Export(FlowEndReasonEnd, context, when)
 	}
 }
 
@@ -133,8 +163,13 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time Time) {
 	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.features = table.features.creator()
+	context := EventContext{
+		When: time,
+		Flow: flow,
+	}
 	for _, features := range flow.features {
 		features.Init(flow)
-		features.Start(time)
+		context.feature = features
+		features.Start(context)
 	}
 }

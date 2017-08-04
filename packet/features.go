@@ -15,9 +15,9 @@ type sourceIPAddress struct {
 	flows.BaseFeature
 }
 
-func (f *sourceIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *sourceIPAddress) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Src().Raw()), when, f)
+		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Src().Raw()), context, f)
 	}
 }
 
@@ -41,9 +41,9 @@ type sourceTransportPort struct {
 	flows.BaseFeature
 }
 
-func (f *sourceTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *sourceTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw()), when, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw()), context, f)
 	}
 }
 
@@ -59,9 +59,9 @@ type destinationTransportPort struct {
 	flows.BaseFeature
 }
 
-func (f *destinationTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *destinationTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw()), when, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw()), context, f)
 	}
 }
 
@@ -77,9 +77,9 @@ type destinationIPAddress struct {
 	flows.BaseFeature
 }
 
-func (f *destinationIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *destinationIPAddress) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Dst().Raw()), when, f)
+		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Dst().Raw()), context, f)
 	}
 }
 
@@ -103,9 +103,9 @@ type protocolIdentifier struct {
 	flows.BaseFeature
 }
 
-func (f *protocolIdentifier) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *protocolIdentifier) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(new.(PacketBuffer).Proto(), when, f)
+		f.SetValue(new.(PacketBuffer).Proto(), context, f)
 	}
 }
 
@@ -121,8 +121,8 @@ type flowEndReason struct {
 	flows.BaseFeature
 }
 
-func (f *flowEndReason) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(reason, when, f)
+func (f *flowEndReason) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(reason, context, f)
 }
 
 func init() {
@@ -137,8 +137,8 @@ type flowEndNanoSeconds struct {
 	flows.BaseFeature
 }
 
-func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(when, when, f)
+func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(context.When, context, f)
 }
 
 func init() {
@@ -161,8 +161,8 @@ func octetCount(packet PacketBuffer) flows.Unsigned64 {
 	return flows.Unsigned64(length)
 }
 
-func (f *octetTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
-	f.SetValue(octetCount(new.(PacketBuffer)), when, f)
+func (f *octetTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+	f.SetValue(octetCount(new.(PacketBuffer)), context, f)
 }
 
 type octetTotalCountFlow struct {
@@ -170,16 +170,16 @@ type octetTotalCountFlow struct {
 	total flows.Unsigned64
 }
 
-func (f *octetTotalCountFlow) Start(when flows.Time) {
+func (f *octetTotalCountFlow) Start(context flows.EventContext) {
 	f.total = 0
 }
 
-func (f *octetTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *octetTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	f.total = f.total.Add(octetCount(new.(PacketBuffer))).(flows.Unsigned64)
 }
 
-func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.total, when, f)
+func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.total, context, f)
 }
 
 func init() {
@@ -221,8 +221,8 @@ type ipTotalLengthPacket struct {
 	flows.BaseFeature
 }
 
-func (f *ipTotalLengthPacket) Event(new interface{}, when flows.Time, src interface{}) {
-	f.SetValue(ipTotalLength(new.(PacketBuffer)), when, f)
+func (f *ipTotalLengthPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+	f.SetValue(ipTotalLength(new.(PacketBuffer)), context, f)
 }
 
 type ipTotalLengthFlow struct {
@@ -230,16 +230,16 @@ type ipTotalLengthFlow struct {
 	total flows.Unsigned64
 }
 
-func (f *ipTotalLengthFlow) Start(when flows.Time) {
+func (f *ipTotalLengthFlow) Start(context flows.EventContext) {
 	f.total = 0
 }
 
-func (f *ipTotalLengthFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *ipTotalLengthFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	f.total = f.total.Add(ipTotalLength(new.(PacketBuffer))).(flows.Unsigned64)
 }
 
-func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.total, when, f)
+func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.total, context, f)
 }
 
 func init() {
@@ -266,7 +266,7 @@ func getTcp(packet PacketBuffer) *layers.TCP {
 	return packet_tcp
 }
 
-func (f *tcpControlBits) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpControlBits) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var value uint16
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
@@ -299,7 +299,7 @@ func (f *tcpControlBits) Event(new interface{}, when flows.Time, src interface{}
 	if tcp.NS {
 		value += 1 << 8
 	}
-	f.SetValue(value, when, f)
+	f.SetValue(value, context, f)
 }
 
 func init() {
@@ -315,13 +315,13 @@ type _intraPacketTimeNanoseconds struct {
 	time int64
 }
 
-func (f *_intraPacketTimeNanoseconds) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_intraPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
-		time = int64(when) - f.time
+		time = int64(context.When) - f.time
 	}
-	f.time = int64(when)
-	f.SetValue(time, when, f)
+	f.time = int64(context.When)
+	f.SetValue(time, context, f)
 }
 
 func init() {
@@ -337,14 +337,14 @@ type _intraPacketTimeMilliseconds struct {
 	time int64
 }
 
-func (f *_intraPacketTimeMilliseconds) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_intraPacketTimeMilliseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
-		time = int64(when) - f.time
+		time = int64(context.When) - f.time
 	}
-	f.time = int64(when)
+	f.time = int64(context.When)
 	new_time := float64(time) / 1000000.
-	f.SetValue(new_time, when, f)
+	f.SetValue(new_time, context, f)
 }
 
 func init() {
@@ -359,12 +359,12 @@ type join struct {
 	flows.MultiBaseFeature
 }
 
-func (f *join) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *join) Event(new interface{}, context flows.EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
 	}
-	f.SetValue(values, when, f)
+	f.SetValue(values, context, f)
 }
 
 func init() {
@@ -383,12 +383,12 @@ type tcpSynTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpSynTotalCountFlow) Start(when flows.Time) {
+func (f *tcpSynTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpSynTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpSynTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
 func boolInt(b bool) flows.Unsigned64 {
@@ -399,7 +399,7 @@ func boolInt(b bool) flows.Unsigned64 {
 	}
 }
 
-func (f *tcpSynTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpSynTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -411,12 +411,12 @@ type tcpSynTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpSynTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpSynTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.SYN), when, f)
+	f.SetValue(boolInt(tcp.SYN), context, f)
 }
 
 func init() {
@@ -433,15 +433,15 @@ type tcpFinTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpFinTotalCountFlow) Start(when flows.Time) {
+func (f *tcpFinTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpFinTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpFinTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *tcpFinTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpFinTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -453,12 +453,12 @@ type tcpFinTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpFinTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpFinTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.FIN), when, f)
+	f.SetValue(boolInt(tcp.FIN), context, f)
 }
 
 func init() {
@@ -475,15 +475,15 @@ type tcpRstTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpRstTotalCountFlow) Start(when flows.Time) {
+func (f *tcpRstTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpRstTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpRstTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *tcpRstTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpRstTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -495,12 +495,12 @@ type tcpRstTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpRstTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpRstTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.RST), when, f)
+	f.SetValue(boolInt(tcp.RST), context, f)
 }
 
 func init() {
@@ -517,15 +517,15 @@ type tcpPshTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpPshTotalCountFlow) Start(when flows.Time) {
+func (f *tcpPshTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpPshTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpPshTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *tcpPshTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpPshTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -537,12 +537,12 @@ type tcpPshTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpPshTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpPshTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.PSH), when, f)
+	f.SetValue(boolInt(tcp.PSH), context, f)
 }
 
 func init() {
@@ -559,15 +559,15 @@ type tcpAckTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpAckTotalCountFlow) Start(when flows.Time) {
+func (f *tcpAckTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpAckTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpAckTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *tcpAckTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpAckTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -579,12 +579,12 @@ type tcpAckTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpAckTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpAckTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.ACK), when, f)
+	f.SetValue(boolInt(tcp.ACK), context, f)
 }
 
 func init() {
@@ -601,15 +601,15 @@ type tcpUrgTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *tcpUrgTotalCountFlow) Start(when flows.Time) {
+func (f *tcpUrgTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *tcpUrgTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *tcpUrgTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *tcpUrgTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpUrgTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -621,12 +621,12 @@ type tcpUrgTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *tcpUrgTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpUrgTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.URG), when, f)
+	f.SetValue(boolInt(tcp.URG), context, f)
 }
 
 func init() {
@@ -643,15 +643,15 @@ type _tcpEceTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *_tcpEceTotalCountFlow) Start(when flows.Time) {
+func (f *_tcpEceTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *_tcpEceTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *_tcpEceTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *_tcpEceTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpEceTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -663,12 +663,12 @@ type _tcpEceTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *_tcpEceTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpEceTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.ECE), when, f)
+	f.SetValue(boolInt(tcp.ECE), context, f)
 }
 
 func init() {
@@ -685,15 +685,15 @@ type _tcpCwrTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *_tcpCwrTotalCountFlow) Start(when flows.Time) {
+func (f *_tcpCwrTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *_tcpCwrTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *_tcpCwrTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *_tcpCwrTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -705,12 +705,12 @@ type _tcpCwrTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *_tcpCwrTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpCwrTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.CWR), when, f)
+	f.SetValue(boolInt(tcp.CWR), context, f)
 }
 
 func init() {
@@ -727,15 +727,15 @@ type _tcpNsTotalCountFlow struct {
 	count flows.Unsigned64
 }
 
-func (f *_tcpNsTotalCountFlow) Start(when flows.Time) {
+func (f *_tcpNsTotalCountFlow) Start(context flows.EventContext) {
 	f.count = 0
 }
 
-func (f *_tcpNsTotalCountFlow) Stop(reason flows.FlowEndReason, when flows.Time) {
-	f.SetValue(f.count, when, f)
+func (f *_tcpNsTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
 }
 
-func (f *_tcpNsTotalCountFlow) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpNsTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
@@ -747,12 +747,12 @@ type _tcpNsTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func (f *_tcpNsTotalCountPacket) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_tcpNsTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTcp(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
-	f.SetValue(boolInt(tcp.NS), when, f)
+	f.SetValue(boolInt(tcp.NS), context, f)
 }
 
 func init() {
@@ -768,7 +768,7 @@ type _payload struct {
 	flows.BaseFeature
 }
 
-func (f *_payload) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *_payload) Event(new interface{}, context flows.EventContext, src interface{}) {
 	packet := new.(PacketBuffer)
 	if packet == nil {
 		return
@@ -777,7 +777,7 @@ func (f *_payload) Event(new interface{}, when flows.Time, src interface{}) {
 	if tl == nil {
 		return
 	}
-	f.SetValue(string(tl.LayerPayload()), when, f)
+	f.SetValue(string(tl.LayerPayload()), context, f)
 }
 
 func init() {
@@ -853,7 +853,7 @@ type tcpReorder struct {
 
 func (f *tcpReorder) Type() string     { return "tcpReorder" }
 func (f *tcpReorder) BaseType() string { return "tcpReorder" }
-func (f *tcpReorder) Start(flows.Time) {
+func (f *tcpReorder) Start(flows.EventContext) {
 	f.forward = uniTCPStreamFragments{}
 	f.backward = uniTCPStreamFragments{}
 }
@@ -866,7 +866,7 @@ func payloadLength(packet PacketBuffer) int {
 	return length
 }
 
-func (f *tcpReorder) Event(new interface{}, when flows.Time, src interface{}) {
+func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src interface{}) {
 	packet := new.(PacketBuffer)
 	tcp := getTcp(packet)
 	if tcp == nil {
@@ -883,7 +883,7 @@ func (f *tcpReorder) Event(new interface{}, when flows.Time, src interface{}) {
 			fragments.lastSequence = tcp.Seq
 			fragments.firstSequence = tcp.Seq
 			fragments.seen = true
-			f.Emit(new, when, f)
+			f.Emit(new, context, f)
 		}
 		return
 	}
@@ -896,14 +896,14 @@ func (f *tcpReorder) Event(new interface{}, when flows.Time, src interface{}) {
 	position := tcp.Seq - (fragments.firstSequence + 1) // does wraparound work correctly?
 	datalen := packet.Metadata().Length - packet.Hlen()
 	if position == fragments.pos { // in order
-		f.Emit(new, when, f)
+		f.Emit(new, context, f)
 		fragments.pos += uint32(datalen)
 		for {
 			nextpacket := fragments.popFragment(fragments.pos)
 			if nextpacket == nil {
 				return
 			}
-			f.Emit(nextpacket, when, f)
+			f.Emit(nextpacket, context, f)
 			fragments.pos += uint32(nextpacket.Metadata().Length - nextpacket.Hlen())
 		}
 	}
