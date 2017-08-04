@@ -7,8 +7,10 @@ import (
 	"log"
 	"os"
 	"path"
+	"reflect"
 	"runtime/debug"
 	"runtime/pprof"
+	"sort"
 	"strings"
 
 	_ "pm.cn.tuwien.ac.at/ipfix/go-flows/exporters"
@@ -343,11 +345,30 @@ func parseArguments(cmd string, args []string) {
 
 	var featureLists flows.FeatureListCreatorList
 
+	var key []string
+	var bidirectional bool
+	first := true
+
 	for _, featureset := range result {
 		for _, feature := range featureset.featureset {
+			sort.Strings(feature.key)
+			if first {
+				first = false
+				key = feature.key
+				bidirectional = feature.bidirectional
+			} else {
+				if !reflect.DeepEqual(key, feature.key) {
+					log.Fatalln("key_features of every flowspec must match")
+				}
+				if bidirectional != bidirectional {
+					log.Fatalln("bidirectional of every flow must match")
+				}
+			}
 			featureLists = append(featureLists, flows.NewFeatureListCreator(feature.features, featureset.exporter, flows.FeatureTypeFlow))
 		}
 	}
+
+	keyselector := packet.MakeDynamicKeySelector(key, bidirectional)
 
 	switch cmd {
 	case "callgraph":
@@ -380,7 +401,7 @@ func parseArguments(cmd string, args []string) {
 		},
 		flows.Time(*flowExpire)*flows.Seconds)
 
-	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
+	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable, keyselector)
 	buffer.SetFilter(*bpfFilter)
 
 	var time flows.Time

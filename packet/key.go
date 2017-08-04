@@ -2,6 +2,7 @@ package packet
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -93,4 +94,123 @@ func fivetuple(packet gopacket.Packet) (flows.FlowKey, bool) {
 		return ret, forward
 	}
 	return nil, false
+}
+
+/* According to curated data files we have:
+- destinationIPv4Address
+- sourceIPv4Address
+- protocolIdentifier
+- sourceTransportPort
+- destinationTransportPort
+- ipClassOfService
+- ingressPhysicalInterface
+- octetTotalCount
+
+- flowStartSeconds <- this does not make sense
+*/
+
+func MakeDynamicKeySelector(key []string, bidirectional bool) (ret DynamicKeySelector) {
+	for _, key := range key {
+		switch key {
+		case "sourceIPv4Address", "sourceIPv6Address", "sourceIPAddress":
+			ret.srcIP = true
+			ret.network = true
+		case "destinationIPv4Address", "destinationIPv6Address", "destinationIPAddress":
+			ret.dstIP = true
+			ret.network = true
+		case "protocolIdentifier":
+			ret.protocolIdentifier = true
+			ret.network = true
+		case "sourceTransportPort":
+			ret.srcPort = true
+			ret.transport = true
+		case "destinationTransportPort":
+			ret.dstPort = true
+			ret.transport = true
+		default:
+			panic(fmt.Sprintf("Unknown key_feature '%s'", key))
+		}
+	}
+	ret.bidirectional = bidirectional
+	return
+}
+
+type dynamicKey [37]byte
+
+/*	srcIP              [0:16]
+	srcPort            [16:18]
+	dstIP              [18:34]
+	dstPort            [34:36]
+	protocolIdentifier [36]
+*/
+
+func (k dynamicKey) Hash() (h uint64) {
+	return fnvHash(k[:])
+}
+
+type DynamicKeySelector struct {
+	network,
+	transport,
+	srcIP,
+	dstIP,
+	protocolIdentifier,
+	srcPort,
+	dstPort,
+	bidirectional bool
+}
+
+func makeDynamicKey(packet PacketBuffer, selector DynamicKeySelector) (flows.FlowKey, bool) {
+	ret := dynamicKey{}
+	if selector.network {
+		network := packet.NetworkLayer()
+		if network == nil {
+			return nil, false
+		}
+		flow := network.NetworkFlow()
+		if selector.srcIP {
+			copy(ret[0:16], flow.Src().Raw())
+		}
+		if selector.dstIP {
+			copy(ret[18:34], flow.Dst().Raw())
+		}
+		if selector.protocolIdentifier {
+			ret[36] = byte(packet.Proto())
+		}
+	}
+	if selector.transport {
+		transport := packet.TransportLayer()
+		if transport == nil {
+			return nil, false
+		}
+		flow := transport.TransportFlow()
+		if selector.srcPort {
+			copy(ret[16:18], flow.Src().Raw())
+		}
+		if selector.dstPort {
+			copy(ret[34:36], flow.Dst().Raw())
+		}
+	}
+	forward := true
+	if selector.bidirectional {
+		if ret[36] == byte(layers.IPProtocolICMPv4) || ret[36] == byte(layers.IPProtocolICMPv6) {
+			// sort key so that srcIP < dstIP
+			if bytes.Compare(ret[0:16], ret[18:34]) > 0 {
+				var tmp [16]byte
+				copy(tmp[:], ret[0:16])
+				copy(ret[0:16], ret[18:34])
+				copy(ret[18:34], tmp[:])
+				forward = false
+			}
+		} else {
+			// sort key so that srcIPsrcPort < dstIPdstPort
+			if bytes.Compare(ret[0:18], ret[18:36]) > 0 {
+				var tmp [18]byte
+				copy(tmp[:], ret[0:18])
+				copy(ret[0:18], ret[18:36])
+				copy(ret[18:36], tmp[:])
+				forward = false
+			}
+		}
+	}
+	return ret, forward
 }
