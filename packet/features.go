@@ -17,7 +17,7 @@ type sourceIPAddress struct {
 
 func (f *sourceIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(f.Key().SrcIP()), when, f)
+		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Src().Raw()), when, f)
 	}
 }
 
@@ -43,7 +43,7 @@ type sourceTransportPort struct {
 
 func (f *sourceTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(f.Key().SrcPort()), when, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw()), when, f)
 	}
 }
 
@@ -61,7 +61,7 @@ type destinationTransportPort struct {
 
 func (f *destinationTransportPort) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(f.Key().DstPort()), when, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw()), when, f)
 	}
 }
 
@@ -79,7 +79,7 @@ type destinationIPAddress struct {
 
 func (f *destinationIPAddress) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(f.Key().DstIP()), when, f)
+		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Dst().Raw()), when, f)
 	}
 }
 
@@ -105,7 +105,16 @@ type protocolIdentifier struct {
 
 func (f *protocolIdentifier) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(f.Key().Proto(), when, f)
+		switch new.(PacketBuffer).TransportLayer().LayerType() {
+		case layers.LayerTypeTCP:
+			f.SetValue(flows.Unsigned8(layers.IPProtocolTCP), when, f)
+		case layers.LayerTypeUDP:
+			f.SetValue(flows.Unsigned8(layers.IPProtocolUDP), when, f)
+		case layers.LayerTypeICMPv4:
+			f.SetValue(flows.Unsigned8(layers.IPProtocolICMPv4), when, f)
+		case layers.LayerTypeICMPv6:
+			f.SetValue(flows.Unsigned8(layers.IPProtocolICMPv6), when, f)
+		}
 	}
 }
 

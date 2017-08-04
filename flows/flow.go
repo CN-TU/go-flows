@@ -18,16 +18,6 @@ const (
 
 // FlowKey interface. Every flow key needs to implement this interface.
 type FlowKey interface {
-	// SrcIP returns the source ip.
-	SrcIP() []byte
-	// DstIP returns the destination ip.
-	DstIP() []byte
-	// Proto returns the protocol.
-	Proto() byte
-	// SrcPort returns the source port.
-	SrcPort() []byte
-	// DstPort returns the destination port.
-	DstPort() []byte
 	// Hash returns a hash of the flow key.
 	Hash() uint64
 }
