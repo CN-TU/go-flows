@@ -137,18 +137,17 @@ func (smpb *shallowMultiPacketBuffer) recycleEmpty() {
 }
 
 func (smpb *shallowMultiPacketBuffer) recycle() {
-	if smpb.empty() {
-		return
-	}
-	var num int32
-	mpb := smpb.buffers[0].owner
-	for i := 0; i < smpb.windex; i++ {
-		if smpb.buffers[i].canRecycle() {
-			atomic.StoreInt32(&smpb.buffers[i].inUse, 0)
-			num++
+	if !smpb.empty() {
+		var num int32
+		mpb := smpb.buffers[0].owner
+		for i := 0; i < smpb.windex; i++ {
+			if smpb.buffers[i].canRecycle() {
+				atomic.StoreInt32(&smpb.buffers[i].inUse, 0)
+				num++
+			}
 		}
+		mpb.free(num)
 	}
-	mpb.free(num)
 	smpb.reset()
 	if smpb.owner != nil {
 		smpb.owner.empty <- smpb
