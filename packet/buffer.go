@@ -206,6 +206,7 @@ type PacketBuffer interface {
 	Key() flows.FlowKey
 	Copy() PacketBuffer
 	Hlen() int
+	Proto() flows.Unsigned8
 	setInfo(flows.FlowKey, bool)
 	Recycle()
 	decode() bool
@@ -233,12 +234,17 @@ type pcapPacketBuffer struct {
 	ci          gopacket.PacketMetadata
 	hlen        int
 	refcnt      int
+	proto       flows.Unsigned8
 	forward     bool
 	resize      bool
 }
 
 func (pb *pcapPacketBuffer) Hlen() int {
 	return pb.hlen
+}
+
+func (pb *pcapPacketBuffer) Proto() flows.Unsigned8 {
+	return pb.proto
 }
 
 func (pb *pcapPacketBuffer) Copy() PacketBuffer {
@@ -415,9 +421,14 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 			pb.hlen += len(pb.eth.Contents)
 		case layers.LayerTypeIPv4:
 			pb.network = &pb.ip4
+			pb.proto = flows.Unsigned8(pb.ip4.Protocol)
 			pb.hlen += len(pb.ip4.Contents)
 		case layers.LayerTypeIPv6:
 			pb.network = &pb.ip6
+			pb.proto = flows.Unsigned8(pb.ip6.NextHeader)
+			if pb.proto == 0 { //fix hopbyhop
+				pb.proto = flows.Unsigned8(pb.ip6.HopByHop.NextHeader)
+			}
 			pb.hlen += len(pb.ip6.Contents)
 		case layers.LayerTypeUDP:
 			pb.transport = &pb.udp
@@ -437,6 +448,7 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 			return true
 		default:
 			if layers.LayerClassIPv6Extension.Contains(typ) {
+				pb.proto = flows.Unsigned8(ip6skipper.NextHeader)
 				pb.hlen += len(ip6skipper.Contents)
 			}
 		}

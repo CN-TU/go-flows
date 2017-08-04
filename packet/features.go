@@ -105,16 +105,7 @@ type protocolIdentifier struct {
 
 func (f *protocolIdentifier) Event(new interface{}, when flows.Time, src interface{}) {
 	if f.Value() == nil {
-		switch new.(PacketBuffer).TransportLayer().LayerType() {
-		case layers.LayerTypeTCP:
-			f.SetValue(flows.Unsigned8(layers.IPProtocolTCP), when, f)
-		case layers.LayerTypeUDP:
-			f.SetValue(flows.Unsigned8(layers.IPProtocolUDP), when, f)
-		case layers.LayerTypeICMPv4:
-			f.SetValue(flows.Unsigned8(layers.IPProtocolICMPv4), when, f)
-		case layers.LayerTypeICMPv6:
-			f.SetValue(flows.Unsigned8(layers.IPProtocolICMPv6), when, f)
-		}
+		f.SetValue(new.(PacketBuffer).Proto(), when, f)
 	}
 }
 
