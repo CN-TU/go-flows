@@ -127,7 +127,6 @@ func (f *count) Start(context EventContext) {
 }
 
 func (f *count) Event(new interface{}, context EventContext, src interface{}) {
-	num := new.(Number)
 	f.count++
 }
 
