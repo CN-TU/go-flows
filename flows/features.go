@@ -412,7 +412,11 @@ func init() {
 
 type packetTotalCount struct {
 	BaseFeature
-	count int
+	count Unsigned64
+}
+
+func (f *packetTotalCount) Start(context EventContext) {
+	f.count = 0
 }
 
 func (f *packetTotalCount) Event(new interface{}, context EventContext, src interface{}) {
