@@ -339,3 +339,37 @@ func init() {
 		{FeatureTypeFlow, func() Feature { return &logF{} }, []FeatureType{FeatureTypeFlow}},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type divide struct {
+	MultiBaseFeature
+}
+
+func (f *divide) Event(new interface{}, context EventContext, src interface{}) {
+	values := f.EventResult(new, src)
+	if values == nil {
+		return
+	}
+	a, b := UpConvert(values[0].(Number), values[1].(Number))
+    f.value = a.Divide(b)
+}
+
+func (f *divide) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.value, context, f)
+}
+
+func init() {
+	RegisterFeature("divide", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{FeatureTypeFlow, FeatureTypeFlow}},
+	})
+	RegisterFeature("divide", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{FeatureTypeFlow, featureTypeAny}},
+	})
+	RegisterFeature("divide", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, FeatureTypeFlow}},
+	})
+	RegisterFeature("divide", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, featureTypeAny}},
+	})
+}
