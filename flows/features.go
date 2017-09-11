@@ -373,3 +373,37 @@ func init() {
 		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, featureTypeAny}},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type multiply struct {
+	MultiBaseFeature
+}
+
+func (f *multiply) Event(new interface{}, context EventContext, src interface{}) {
+	values := f.EventResult(new, src)
+	if values == nil {
+		return
+	}
+	a, b := UpConvert(values[0].(Number), values[1].(Number))
+    f.value = a.Multiply(b)
+}
+
+func (f *multiply) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.value, context, f)
+}
+
+func init() {
+	RegisterFeature("multiply", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeFlow, FeatureTypeFlow}},
+	})
+	RegisterFeature("multiply", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeFlow, featureTypeAny}},
+	})
+	RegisterFeature("multiply", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, FeatureTypeFlow}},
+	})
+	RegisterFeature("multiply", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, featureTypeAny}},
+	})
+}
