@@ -131,7 +131,7 @@ func (f *count) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func (f *count) Stop(reason FlowEndReason, context EventContext) {
-	f.SetValue(float64(f.count), context, f)
+	f.SetValue(f.count, context, f)
 }
 
 func init() {
@@ -405,5 +405,26 @@ func init() {
 	})
 	RegisterFeature("multiply", []FeatureCreator{
 		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, featureTypeAny}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type packetTotalCount struct {
+	BaseFeature
+	count int
+}
+
+func (f *packetTotalCount) Event(new interface{}, context EventContext, src interface{}) {
+    f.count++
+}
+
+func (f *packetTotalCount) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.count, context, f)
+}
+
+func init() {
+	RegisterFeature("packetTotalCount", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &packetTotalCount{} }, []FeatureType{RawPacket}},
 	})
 }
