@@ -122,7 +122,7 @@ Args:
 		log.Fatalf("Couldn't parse %s (%d) - features missing\n", set.Arg(0), *selection)
 	}
 	if key == nil {
-		log.Fatalf("Couldn't parse %s (%d) - key missing\n", set.Arg(0), *selection)
+		log.Fatalf("Couldn't parse %s (%d) - flow key missing\n", set.Arg(0), *selection)
 	}
 	return
 }
