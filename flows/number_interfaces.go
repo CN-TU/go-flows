@@ -25,6 +25,10 @@ func (a Signed32) ToInt() int64 {
 func (a Signed32) Add(b Number) Number {
 	return a + b.(Signed32);
 }
+// Multiplies numbers and return result
+func (a Signed32) Multiply(b Number) Number {
+	return a * b.(Signed32);
+}
 // Greater returns true if the number is greater than the argument
 func (a Signed32) Greater(b Number) bool {
 	return a > b.(Signed32);
@@ -52,6 +56,10 @@ func (a Unsigned8) ToInt() int64 {
 // Add numbers and return result
 func (a Unsigned8) Add(b Number) Number {
 	return a + b.(Unsigned8);
+}
+// Multiplies numbers and return result
+func (a Unsigned8) Multiply(b Number) Number {
+	return a * b.(Unsigned8);
 }
 // Greater returns true if the number is greater than the argument
 func (a Unsigned8) Greater(b Number) bool {
@@ -81,6 +89,10 @@ func (a Unsigned32) ToInt() int64 {
 func (a Unsigned32) Add(b Number) Number {
 	return a + b.(Unsigned32);
 }
+// Multiplies numbers and return result
+func (a Unsigned32) Multiply(b Number) Number {
+	return a * b.(Unsigned32);
+}
 // Greater returns true if the number is greater than the argument
 func (a Unsigned32) Greater(b Number) bool {
 	return a > b.(Unsigned32);
@@ -108,6 +120,10 @@ func (a Float64) ToInt() int64 {
 // Add numbers and return result
 func (a Float64) Add(b Number) Number {
 	return a + b.(Float64);
+}
+// Multiplies numbers and return result
+func (a Float64) Multiply(b Number) Number {
+	return a * b.(Float64);
 }
 // Greater returns true if the number is greater than the argument
 func (a Float64) Greater(b Number) bool {
@@ -137,6 +153,10 @@ func (a Unsigned16) ToInt() int64 {
 func (a Unsigned16) Add(b Number) Number {
 	return a + b.(Unsigned16);
 }
+// Multiplies numbers and return result
+func (a Unsigned16) Multiply(b Number) Number {
+	return a * b.(Unsigned16);
+}
 // Greater returns true if the number is greater than the argument
 func (a Unsigned16) Greater(b Number) bool {
 	return a > b.(Unsigned16);
@@ -164,6 +184,10 @@ func (a Signed64) ToInt() int64 {
 // Add numbers and return result
 func (a Signed64) Add(b Number) Number {
 	return a + b.(Signed64);
+}
+// Multiplies numbers and return result
+func (a Signed64) Multiply(b Number) Number {
+	return a * b.(Signed64);
 }
 // Greater returns true if the number is greater than the argument
 func (a Signed64) Greater(b Number) bool {
@@ -193,6 +217,10 @@ func (a Signed8) ToInt() int64 {
 func (a Signed8) Add(b Number) Number {
 	return a + b.(Signed8);
 }
+// Multiplies numbers and return result
+func (a Signed8) Multiply(b Number) Number {
+	return a * b.(Signed8);
+}
 // Greater returns true if the number is greater than the argument
 func (a Signed8) Greater(b Number) bool {
 	return a > b.(Signed8);
@@ -220,6 +248,10 @@ func (a Float32) ToInt() int64 {
 // Add numbers and return result
 func (a Float32) Add(b Number) Number {
 	return a + b.(Float32);
+}
+// Multiplies numbers and return result
+func (a Float32) Multiply(b Number) Number {
+	return a * b.(Float32);
 }
 // Greater returns true if the number is greater than the argument
 func (a Float32) Greater(b Number) bool {
@@ -249,6 +281,10 @@ func (a Unsigned64) ToInt() int64 {
 func (a Unsigned64) Add(b Number) Number {
 	return a + b.(Unsigned64);
 }
+// Multiplies numbers and return result
+func (a Unsigned64) Multiply(b Number) Number {
+	return a * b.(Unsigned64);
+}
 // Greater returns true if the number is greater than the argument
 func (a Unsigned64) Greater(b Number) bool {
 	return a > b.(Unsigned64);
@@ -276,6 +312,10 @@ func (a Signed16) ToInt() int64 {
 // Add numbers and return result
 func (a Signed16) Add(b Number) Number {
 	return a + b.(Signed16);
+}
+// Multiplies numbers and return result
+func (a Signed16) Multiply(b Number) Number {
+	return a * b.(Signed16);
 }
 // Greater returns true if the number is greater than the argument
 func (a Signed16) Greater(b Number) bool {

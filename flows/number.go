@@ -34,6 +34,8 @@ type Float64 float64
 type Number interface {
 	// Add numbers and return result
 	Add(Number) Number //oper:a+b
+	// Multiplies numbers and return result
+	Multiply(Number) Number //oper:a*b
 	// Log returns log(number)
 	Log() Number //oper:Float64(math.Log(float64(a)))
 
