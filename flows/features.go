@@ -117,6 +117,32 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type count struct {
+	BaseFeature
+	count int
+}
+
+func (f *count) Start(context EventContext) {
+	f.count = 0
+}
+
+func (f *count) Event(new interface{}, context EventContext, src interface{}) {
+	num := new.(Number)
+	f.count++
+}
+
+func (f *count) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(float64(f.count), context, f)
+}
+
+func init() {
+	RegisterFeature("count", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &count{} }, []FeatureType{FeatureTypePacket}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type mean struct {
 	BaseFeature
 	total Number
