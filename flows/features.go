@@ -3,6 +3,7 @@ package flows
 import "bytes"
 import "fmt"
 import "reflect"
+import "math"
 
 type constantFeature struct {
 	value interface{}
@@ -316,5 +317,26 @@ func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
 func init() {
 	RegisterFeature("concatenate", []FeatureCreator{
 		{FeatureTypeFlow, func() Feature { return &concatenate{} }, []FeatureType{FeatureTypePacket}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type logF struct {
+	BaseFeature
+}
+
+func (f *logF) Event(new interface{}, context EventContext, src interface{}) {
+	num := new.(Number)
+    f.value = math.Log(num.ToFloat())
+}
+
+func (f *logF) Stop(reason FlowEndReason, context EventContext) {
+	f.SetValue(f.value, context, f)
+}
+
+func init() {
+	RegisterFeature("log", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &logF{} }, []FeatureType{FeatureTypeFlow}},
 	})
 }
