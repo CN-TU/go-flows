@@ -310,12 +310,12 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type _intraPacketTimeNanoseconds struct {
+type _interPacketTimeNanoseconds struct {
 	flows.BaseFeature
 	time int64
 }
 
-func (f *_intraPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
 		time = int64(context.When) - f.time
@@ -325,19 +325,19 @@ func (f *_intraPacketTimeNanoseconds) Event(new interface{}, context flows.Event
 }
 
 func init() {
-	flows.RegisterFeature("_intraPacketTimeNanoseconds", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_intraPacketTimeNanoseconds{} }, []flows.FeatureType{flows.RawPacket}},
+	flows.RegisterFeature("_interPacketTimeNanoseconds", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type _intraPacketTimeMilliseconds struct {
+type _interPacketTimeMilliseconds struct {
 	flows.BaseFeature
 	time int64
 }
 
-func (f *_intraPacketTimeMilliseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_interPacketTimeMilliseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time int64
 	if f.time != 0 {
 		time = int64(context.When) - f.time
@@ -348,8 +348,8 @@ func (f *_intraPacketTimeMilliseconds) Event(new interface{}, context flows.Even
 }
 
 func init() {
-	flows.RegisterFeature("_intraPacketTimeMilliseconds", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_intraPacketTimeMilliseconds{} }, []flows.FeatureType{flows.RawPacket}},
+	flows.RegisterFeature("_interPacketTimeMilliseconds", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeMilliseconds{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }
 
