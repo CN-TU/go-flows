@@ -193,6 +193,9 @@ func init() {
 	RegisterFeature("min", []FeatureCreator{
 		{FeatureTypeFlow, func() Feature { return &min{} }, []FeatureType{FeatureTypePacket}},
 	})
+	RegisterFeature("minimum", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &min{} }, []FeatureType{FeatureTypePacket}},
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,6 +216,9 @@ func (f *max) Stop(reason FlowEndReason, context EventContext) {
 
 func init() {
 	RegisterFeature("max", []FeatureCreator{
+		{FeatureTypeFlow, func() Feature { return &max{} }, []FeatureType{FeatureTypePacket}},
+	})
+	RegisterFeature("maximum", []FeatureCreator{
 		{FeatureTypeFlow, func() Feature { return &max{} }, []FeatureType{FeatureTypePacket}},
 	})
 }
