@@ -3,7 +3,6 @@ package flows
 import "bytes"
 import "fmt"
 import "reflect"
-import "math"
 
 type constantFeature struct {
 	value interface{}
@@ -328,7 +327,7 @@ type logF struct {
 
 func (f *logF) Event(new interface{}, context EventContext, src interface{}) {
 	num := new.(Number)
-    f.value = math.Log(num.ToFloat())
+    f.value = num.Log()
 }
 
 func (f *logF) Stop(reason FlowEndReason, context EventContext) {
