@@ -245,6 +245,31 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type geq struct {
+	MultiBaseFeature
+}
+
+func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
+	values := f.EventResult(new, src)
+	if values == nil {
+		return
+	}
+	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	if ! a.Less(b) {
+		f.SetValue(true, context, f)
+	} else {
+		f.SetValue(false, context, f)
+	}
+}
+
+func init() {
+	RegisterFeature("geq", []FeatureCreator{
+		{FeatureTypeMatch, func() Feature { return &geq{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
+	})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type accumulate struct {
 	MultiBaseFeature
 	vector []interface{}
