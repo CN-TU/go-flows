@@ -921,3 +921,30 @@ func init() {
 		{flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, []flows.FeatureType{flows.RawPacket}},
 	})
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type ipTTL struct {
+	flows.BaseFeature
+}
+
+func (f *ipTTL) Event(new interface{}, context flows.EventContext, src interface{}) {
+    network := new.(PacketBuffer).NetworkLayer()
+    var ttl flows.Unsigned8
+    if ip, ok := network.(*layers.IPv4); ok {
+        ttl = flows.Unsigned8(ip.TTL)
+    }
+    if ip, ok := network.(*layers.IPv6); ok {
+        ttl = flows.Unsigned8(ip.HopLimit)
+    }
+
+	f.SetValue(ttl, context, f)
+}
+
+func init() {
+	flows.RegisterFeature("ipTTL", []flows.FeatureCreator{
+		{flows.FeatureTypePacket, func() flows.Feature { return &ipTTL{} }, []flows.FeatureType{flows.RawPacket}},
+	})
+	flows.RegisterCompositeFeature("minimumTTL", []interface{}{"min", "ipTTL"})
+	flows.RegisterCompositeFeature("maximumTTL", []interface{}{"max", "ipTTL"})
+}
