@@ -367,16 +367,16 @@ func (f *divide) Stop(reason FlowEndReason, context EventContext) {
 
 func init() {
 	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{FeatureTypeFlow, FeatureTypeFlow}},
+		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
 	})
 	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{FeatureTypeFlow, featureTypeAny}},
+		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{FeatureTypeMatch, featureTypeAny}},
 	})
 	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, FeatureTypeFlow}},
+		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, FeatureTypeMatch}},
 	})
 	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, featureTypeAny}},
+		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, featureTypeAny}},
 	})
 }
 
@@ -401,16 +401,16 @@ func (f *multiply) Stop(reason FlowEndReason, context EventContext) {
 
 func init() {
 	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeFlow, FeatureTypeFlow}},
+		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
 	})
 	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeFlow, featureTypeAny}},
+		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeMatch, featureTypeAny}},
 	})
 	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, FeatureTypeFlow}},
+		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, FeatureTypeMatch}},
 	})
 	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, featureTypeAny}},
+		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, featureTypeAny}},
 	})
 }
 
