@@ -136,7 +136,7 @@ func (f *count) Stop(reason FlowEndReason, context EventContext) {
 
 func init() {
 	RegisterFeature("count", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &count{} }, []FeatureType{FeatureTypePacket}},
+		{FeatureTypeFlow, func() Feature { return &count{} }, []FeatureType{FeatureTypeSelection}},
 	})
 }
 
