@@ -328,6 +328,7 @@ func init() {
 	flows.RegisterFeature("_interPacketTimeNanoseconds", []flows.FeatureCreator{
 		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, []flows.FeatureType{flows.RawPacket}},
 	})
+	flows.RegisterCompositeFeature("_interPacketTimeMicroseconds", []interface{}{"multiply", "_interPacketTimeNanoseconds", int64(1000)})  // FIXME this should be packet feature
 }
 
 ////////////////////////////////////////////////////////////////////////////////
