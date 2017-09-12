@@ -312,15 +312,15 @@ func init() {
 
 type _interPacketTimeNanoseconds struct {
 	flows.BaseFeature
-	time int64
+	time flows.Unsigned64
 }
 
 func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
+	var time flows.Unsigned64
 	if f.time != 0 {
-		time = int64(context.When) - f.time
+		time = flows.Unsigned64(context.When) - f.time
 	}
-	f.time = int64(context.When)
+	f.time = flows.Unsigned64(context.When)
 	f.SetValue(time, context, f)
 }
 
@@ -335,16 +335,16 @@ func init() {
 
 type _interPacketTimeMilliseconds struct {
 	flows.BaseFeature
-	time int64
+	time flows.Unsigned64
 }
 
 func (f *_interPacketTimeMilliseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
+	var time flows.Unsigned64
 	if f.time != 0 {
-		time = int64(context.When) - f.time
+		time = flows.Unsigned64(context.When) - f.time
 	}
-	f.time = int64(context.When)
-	new_time := float64(time) / 1000000.
+	f.time = flows.Unsigned64(context.When)
+	new_time := time / 1000000
 	f.SetValue(new_time, context, f)
 }
 
