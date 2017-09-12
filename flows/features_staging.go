@@ -8,6 +8,8 @@ Features in here are subject to change. Use them with caution.
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// outputs number of seconds in which there was at least one packet
+// seconds are counted from the first packet
 type _activeForSeconds struct {
 	BaseFeature
 	count Unsigned64
