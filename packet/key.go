@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
@@ -31,7 +30,7 @@ func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
 
 var emptyPort = make([]byte, 2)
 
-func fivetuple(packet gopacket.Packet) (flows.FlowKey, bool) {
+func fivetuple(packet PacketBuffer) (flows.FlowKey, bool) {
 	network := packet.NetworkLayer()
 	if network == nil {
 		return nil, false
@@ -132,6 +131,8 @@ func MakeDynamicKeySelector(key []string, bidirectional bool) (ret DynamicKeySel
 		}
 	}
 	ret.bidirectional = bidirectional
+	ret.fivetuple = ret.srcIP && ret.dstIP && ret.protocolIdentifier && ret.srcPort && ret.dstPort && bidirectional
+	ret.empty = !ret.network && !ret.transport
 	return
 }
 
@@ -156,10 +157,12 @@ type DynamicKeySelector struct {
 	protocolIdentifier,
 	srcPort,
 	dstPort,
-	bidirectional bool
+	bidirectional,
+	fivetuple,
+	empty bool
 }
 
-func makeDynamicKey(packet PacketBuffer, selector DynamicKeySelector) (flows.FlowKey, bool) {
+func (selector *DynamicKeySelector) makeDynamicKey(packet PacketBuffer) (flows.FlowKey, bool) {
 	ret := dynamicKey{}
 	if selector.network {
 		network := packet.NetworkLayer()
@@ -213,4 +216,14 @@ func makeDynamicKey(packet PacketBuffer, selector DynamicKeySelector) (flows.Flo
 		}
 	}
 	return ret, forward
+}
+
+type emptyKey struct{}
+
+func (k emptyKey) Hash() (h uint64) {
+	return 0
+}
+
+func makeEmptyKey(packet PacketBuffer) (flows.FlowKey, bool) {
+	return emptyKey{}, false
 }

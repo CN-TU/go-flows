@@ -28,7 +28,7 @@ type PcapBuffer struct {
 	plen     int
 }
 
-func NewPcapBuffer(plen int, flowtable EventTable, selector DynamicKeySelector) *PcapBuffer {
+func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
@@ -41,6 +41,7 @@ func NewPcapBuffer(plen int, flowtable EventTable, selector DynamicKeySelector) 
 	go func() {
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
+		keyFunc := flowtable.KeyFunc()
 		for {
 			multibuffer, ok := ret.todecode.popFull()
 			if !ok {
@@ -55,7 +56,7 @@ func NewPcapBuffer(plen int, flowtable EventTable, selector DynamicKeySelector) 
 					//count non interesting packets?
 					discard.push(buffer)
 				} else {
-					key, fw := makeDynamicKey(buffer, selector)
+					key, fw := keyFunc(buffer)
 					if key != nil {
 						buffer.setInfo(key, fw)
 						forward.push(buffer)

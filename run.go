@@ -403,9 +403,9 @@ func parseArguments(cmd string, args []string) {
 			IdleTimeout:   flows.Time(*idleTimeout) * flows.Seconds,
 			PerPacket:     *perPacket,
 		},
-		flows.Time(*flowExpire)*flows.Seconds)
+		flows.Time(*flowExpire)*flows.Seconds, keyselector)
 
-	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable, keyselector)
+	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
 	buffer.SetFilter(*bpfFilter)
 
 	var time flows.Time

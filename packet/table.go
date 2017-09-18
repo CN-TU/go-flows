@@ -11,9 +11,19 @@ type EventTable interface {
 	Event(buffer *shallowMultiPacketBuffer)
 	Expire()
 	EOF(flows.Time)
+	KeyFunc() func(PacketBuffer) (flows.FlowKey, bool)
+}
+
+type baseTable struct {
+	key func(PacketBuffer) (flows.FlowKey, bool)
+}
+
+func (bt *baseTable) KeyFunc() func(PacketBuffer) (flows.FlowKey, bool) {
+	return bt.key
 }
 
 type ParallelFlowTable struct {
+	baseTable
 	tables     []*flows.FlowTable
 	expire     []chan struct{}
 	expirewg   sync.WaitGroup
@@ -25,6 +35,7 @@ type ParallelFlowTable struct {
 }
 
 type SingleFlowTable struct {
+	baseTable
 	table      *flows.FlowTable
 	buffer     *shallowMultiPacketBufferRing
 	expire     chan struct{}
@@ -55,9 +66,19 @@ func (sft *SingleFlowTable) EOF(now flows.Time) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.Time) EventTable {
+func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.Time, selector DynamicKeySelector) EventTable {
+	bt := baseTable{}
+	switch {
+	case selector.fivetuple:
+		bt.key = fivetuple
+	case selector.empty:
+		bt.key = makeEmptyKey
+	default:
+		bt.key = selector.makeDynamicKey
+	}
 	if num == 1 {
 		ret := &SingleFlowTable{
+			baseTable:  bt,
 			table:      flows.NewFlowTable(features, newflow, options),
 			expireTime: expire,
 		}
@@ -89,6 +110,7 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflo
 		return ret
 	}
 	ret := &ParallelFlowTable{
+		baseTable:  bt,
 		tables:     make([]*flows.FlowTable, num),
 		buffers:    make([]*shallowMultiPacketBufferRing, num),
 		tmp:        make([]*shallowMultiPacketBuffer, num),
