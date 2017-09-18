@@ -328,30 +328,9 @@ func init() {
 	flows.RegisterFeature("_interPacketTimeNanoseconds", []flows.FeatureCreator{
 		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, []flows.FeatureType{flows.RawPacket}},
 	})
-	flows.RegisterCompositeFeature("_interPacketTimeMicroseconds", []interface{}{"multiply", "_interPacketTimeNanoseconds", int64(1000)})  // FIXME this should be packet feature
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type _interPacketTimeMilliseconds struct {
-	flows.BaseFeature
-	time flows.Unsigned64
-}
-
-func (f *_interPacketTimeMilliseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time flows.Unsigned64
-	if f.time != 0 {
-		time = flows.Unsigned64(context.When) - f.time
-	}
-	f.time = flows.Unsigned64(context.When)
-	new_time := time / 1000000
-	f.SetValue(new_time, context, f)
-}
-
-func init() {
-	flows.RegisterFeature("_interPacketTimeMilliseconds", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeMilliseconds{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterCompositeFeature("_interPacketTimeMicroseconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000)})
+	flows.RegisterCompositeFeature("_interPacketTimeMilliseconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000000)})
+	flows.RegisterCompositeFeature("_interPacketTimeSeconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000000000)})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
