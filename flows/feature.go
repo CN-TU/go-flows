@@ -711,6 +711,10 @@ MAIN:
 			basetype := newConstantMetaFeature(typedFeature)
 			seen[id] = len(init)
 			init = append(init, featureToInit{basetype, typedFeature, nil, nil, false, feature.export, feature.composite, feature.function})
+		case int:
+			basetype := newConstantMetaFeature(int64(typedFeature))
+			seen[id] = len(init)
+			init = append(init, featureToInit{basetype, int64(typedFeature), nil, nil, false, feature.export, feature.composite, feature.function})
 		case []interface{}:
 			fun := typedFeature[0].(string)
 			if basetype, ok := getFeature(fun, feature.ret, len(typedFeature)-1); !ok {
