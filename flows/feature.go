@@ -633,7 +633,7 @@ func feature2id(feature interface{}, ret FeatureType) string {
 	switch feature.(type) {
 	case string:
 		return fmt.Sprintf("<%d>%s", ret, feature)
-	case bool, float64, int64:
+	case bool, float64, int64, int:
 		return fmt.Sprintf("Const{%v}", feature)
 	case []interface{}:
 		feature := feature.([]interface{})
