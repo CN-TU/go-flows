@@ -328,6 +328,10 @@ func parseArguments(cmd string, args []string) {
 		os.Exit(-1)
 	}
 
+	if *numProcessing == 0 {
+		log.Fatalln("Need at least one flow processing table!")
+	}
+
 	var result []exportedFeatures
 	var exporters map[string]flows.Exporter
 	var arguments []string
