@@ -15,11 +15,13 @@ type UniFlow struct {
 }
 
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.Time) flows.Flow {
-	tp := event.(PacketBuffer).TransportLayer()
-	if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
-		ret := new(TCPFlow)
-		ret.Init(table, key, time)
-		return ret
+	if table.FiveTuple() {
+		tp := event.(PacketBuffer).TransportLayer()
+		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
+			ret := new(TCPFlow)
+			ret.Init(table, key, time)
+			return ret
+		}
 	}
 	ret := new(UniFlow)
 	ret.Init(table, key, time)

@@ -6,17 +6,18 @@ type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
 	FlowOptions
-	flows    map[FlowKey]int
-	flowlist []Flow
-	freelist []int
-	newflow  FlowCreator
-	now      Time
-	features FeatureListCreatorList
-	eof      bool
+	flows     map[FlowKey]int
+	flowlist  []Flow
+	freelist  []int
+	newflow   FlowCreator
+	now       Time
+	features  FeatureListCreatorList
+	fivetuple bool
+	eof       bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
-func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, options FlowOptions) *FlowTable {
+func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, options FlowOptions, fivetuple bool) *FlowTable {
 	return &FlowTable{
 		flows:       make(map[FlowKey]int, 1000000),
 		flowlist:    make([]Flow, 0, 1000000),
@@ -24,6 +25,7 @@ func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, options 
 		newflow:     newflow,
 		FlowOptions: options,
 		features:    features,
+		fivetuple:   fivetuple,
 	}
 }
 
@@ -103,4 +105,8 @@ func (tab *FlowTable) EOF(now Time) {
 	tab.flowlist = nil
 	tab.freelist = nil
 	tab.eof = false
+}
+
+func (tab *FlowTable) FiveTuple() bool {
+	return tab.fivetuple
 }

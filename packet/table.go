@@ -79,7 +79,7 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflo
 	if num == 1 {
 		ret := &SingleFlowTable{
 			baseTable:  bt,
-			table:      flows.NewFlowTable(features, newflow, options),
+			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple),
 			expireTime: expire,
 		}
 		ret.buffer = newShallowMultiPacketBufferRing(fullBuffers, batchSize)
@@ -122,7 +122,7 @@ func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflo
 		expire := make(chan struct{}, 1)
 		ret.expire[i] = expire
 		ret.buffers[i] = c
-		t := flows.NewFlowTable(features, newflow, options)
+		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple)
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
