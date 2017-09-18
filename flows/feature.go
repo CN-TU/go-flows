@@ -655,20 +655,21 @@ func feature2id(feature interface{}, ret FeatureType) string {
 // NewFeatureListCreator creates a new featurelist description for the specified exporter with the given features using base as feature type for exported features.
 func NewFeatureListCreator(features []interface{}, exporter []Exporter, base FeatureType) FeatureListCreator {
 	type featureWithType struct {
-		feature   interface{}
-		ret       FeatureType
-		export    bool
-		composite string
-		reset     bool
-		selection string
-		function  string
+		feature     interface{}
+		ret         FeatureType
+		export      bool
+		composite   string
+		reset       bool
+		selection   string
+		function    string
+		compositeID string
 	}
 
 	init := make([]featureToInit, 0, len(features))
 
 	stack := make([]featureWithType, len(features))
 	for i := range features {
-		stack[i] = featureWithType{features[i], base, true, "", false, "", ""}
+		stack[i] = featureWithType{features[i], base, true, "", false, "", "", ""}
 	}
 
 	type selection struct {
@@ -697,7 +698,7 @@ MAIN:
 				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
 					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", feature.feature, feature.ret))
 				} else {
-					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, "", ""}}, stack...)
+					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, "", "", id}}, stack...)
 				}
 			} else {
 				if basetype.creator.Arguments[0] != RawPacket { //TODO: implement flow input
@@ -727,11 +728,11 @@ MAIN:
 						feature.function = strings.Join(compositeToCall(arguments), "")
 					}
 					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function}}, stack...)
+						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
 						currentSelection = s
 					} else {
-						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel, ""},
-							featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function}}, stack...)
+						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel, "", ""},
+							featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
 					}
 					continue MAIN
 				} else {
@@ -741,7 +742,7 @@ MAIN:
 						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
 							newstack := make([]featureWithType, len(arguments)-1)
 							for i, arg := range arguments[1:] {
-								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", ""}
+								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", "", ""}
 							}
 							stack = append(append(newstack, feature), stack...)
 							continue MAIN
@@ -750,6 +751,9 @@ MAIN:
 						}
 					}
 					seen[id] = len(init)
+					if feature.compositeID != "" {
+						seen[feature.compositeID] = len(init)
+					}
 					if feature.selection != "" {
 						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
 						selections[feature.selection] = currentSelection
