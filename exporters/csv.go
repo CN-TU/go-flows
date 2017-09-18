@@ -22,7 +22,7 @@ func (pe *csvExporter) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *csvExporter) Export(features []flows.Feature, when flows.Time) {
+func (pe *csvExporter) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]string, n)
 	for i, elem := range features {
@@ -31,7 +31,7 @@ func (pe *csvExporter) Export(features []flows.Feature, when flows.Time) {
 			list[i] = fmt.Sprint(val.GoValue())
 		case byte:
 			list[i] = fmt.Sprint(int(val))
-		case flows.Time:
+		case flows.DateTimeNanoSeconds:
 			list[i] = fmt.Sprint(int64(val))
 		case flows.FlowEndReason:
 			list[i] = fmt.Sprint(int(val))

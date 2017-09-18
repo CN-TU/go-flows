@@ -234,7 +234,7 @@ func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	a, b := UpConvert(values[0], values[1])
 	if a.Less(b) {
 		f.SetValue(true, context, f)
 	} else {
@@ -259,7 +259,7 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	a, b := UpConvert(values[0], values[1])
 	if ! a.Less(b) {
 		f.SetValue(true, context, f)
 	} else {
@@ -357,7 +357,7 @@ func (f *divide) Event(new interface{}, context EventContext, src interface{}) {
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	a, b := UpConvert(values[0], values[1])
     f.value = a.Divide(b)
 }
 
@@ -391,7 +391,7 @@ func (f *multiply) Event(new interface{}, context EventContext, src interface{})
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0].(Number), values[1].(Number))
+	a, b := UpConvert(values[0], values[1])
     f.value = a.Multiply(b)
 }
 

@@ -312,15 +312,15 @@ func init() {
 
 type _interPacketTimeNanoseconds struct {
 	flows.BaseFeature
-	time flows.Unsigned64
+	time flows.DateTimeNanoSeconds
 }
 
 func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time flows.Unsigned64
+	var time flows.DateTimeNanoSeconds
 	if f.time != 0 {
-		time = flows.Unsigned64(context.When) - f.time
+		time = context.When - f.time
 	}
-	f.time = flows.Unsigned64(context.When)
+	f.time = context.When
 	f.SetValue(time, context, f)
 }
 
@@ -908,14 +908,14 @@ type ipTTL struct {
 }
 
 func (f *ipTTL) Event(new interface{}, context flows.EventContext, src interface{}) {
-    network := new.(PacketBuffer).NetworkLayer()
-    var ttl flows.Unsigned8
-    if ip, ok := network.(*layers.IPv4); ok {
-        ttl = flows.Unsigned8(ip.TTL)
-    }
-    if ip, ok := network.(*layers.IPv6); ok {
-        ttl = flows.Unsigned8(ip.HopLimit)
-    }
+	network := new.(PacketBuffer).NetworkLayer()
+	var ttl flows.Unsigned8
+	if ip, ok := network.(*layers.IPv4); ok {
+		ttl = flows.Unsigned8(ip.TTL)
+	}
+	if ip, ok := network.(*layers.IPv6); ok {
+		ttl = flows.Unsigned8(ip.HopLimit)
+	}
 
 	f.SetValue(ttl, context, f)
 }

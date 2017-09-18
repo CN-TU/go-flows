@@ -154,7 +154,7 @@ func (smpb *shallowMultiPacketBuffer) recycle() {
 	}
 }
 
-func (smpb *shallowMultiPacketBuffer) Timestamp() flows.Time {
+func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoSeconds {
 	if !smpb.empty() {
 		return smpb.buffers[0].Timestamp()
 	}
@@ -202,7 +202,7 @@ func (smpbr *shallowMultiPacketBufferRing) close() {
 type PacketBuffer interface {
 	gopacket.Packet
 	Forward() bool
-	Timestamp() flows.Time
+	Timestamp() flows.DateTimeNanoSeconds
 	Key() flows.FlowKey
 	Copy() PacketBuffer
 	Hlen() int
@@ -216,7 +216,7 @@ type pcapPacketBuffer struct {
 	inUse       int32
 	owner       *multiPacketBuffer
 	key         flows.FlowKey
-	time        flows.Time
+	time        flows.DateTimeNanoSeconds
 	buffer      []byte
 	first       gopacket.LayerType
 	eth         layers.Ethernet
@@ -252,7 +252,7 @@ func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 	return pb
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.Time {
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.DateTimeNanoSeconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -270,7 +270,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 		pb.buffer = pb.buffer[0:cap(pb.buffer)]
 	}
 	clen := copy(pb.buffer, data)
-	pb.time = flows.Time(ci.Timestamp.UnixNano())
+	pb.time = flows.DateTimeNanoSeconds(ci.Timestamp.UnixNano())
 	pb.ci.CaptureInfo = ci
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
@@ -297,7 +297,7 @@ func (pb *pcapPacketBuffer) Key() flows.FlowKey {
 	return pb.key
 }
 
-func (pb *pcapPacketBuffer) Timestamp() flows.Time {
+func (pb *pcapPacketBuffer) Timestamp() flows.DateTimeNanoSeconds {
 	return pb.time
 }
 

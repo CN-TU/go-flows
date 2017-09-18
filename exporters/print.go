@@ -19,7 +19,7 @@ type printExporter struct {
 func (pe *printExporter) Fields([]string) {}
 
 //Export export given features
-func (pe *printExporter) Export(features []flows.Feature, when flows.Time) {
+func (pe *printExporter) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]interface{}, n*2)
 	for i, elem := range features {

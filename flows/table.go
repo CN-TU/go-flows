@@ -1,7 +1,7 @@
 package flows
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
-type FlowCreator func(Event, *FlowTable, FlowKey, Time) Flow
+type FlowCreator func(Event, *FlowTable, FlowKey, DateTimeNanoSeconds) Flow
 
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
@@ -10,7 +10,7 @@ type FlowTable struct {
 	flowlist  []Flow
 	freelist  []int
 	newflow   FlowCreator
-	now       Time
+	now       DateTimeNanoSeconds
 	features  FeatureListCreatorList
 	fivetuple bool
 	eof       bool
@@ -88,7 +88,7 @@ func (tab *FlowTable) remove(entry Flow) {
 }
 
 // EOF needs to be called upon end of file (e.g., program termination). All outstanding timers get expired, and the rest of the flows terminated with an eof event.
-func (tab *FlowTable) EOF(now Time) {
+func (tab *FlowTable) EOF(now DateTimeNanoSeconds) {
 	tab.eof = true
 	for _, v := range tab.flowlist {
 		if v == nil {

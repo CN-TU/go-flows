@@ -30,7 +30,7 @@ func (pe *msgPack) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *msgPack) Export(features []flows.Feature, when flows.Time) {
+func (pe *msgPack) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]interface{}, n)
 	for i, elem := range features {
@@ -41,7 +41,7 @@ func (pe *msgPack) Export(features []flows.Feature, when flows.Time) {
 			list[i] = []byte(val)
 		case byte:
 			list[i] = int(val)
-		case flows.Time:
+		case flows.DateTimeNanoSeconds:
 			list[i] = int64(val)
 		case flows.FlowEndReason:
 			list[i] = int(val)

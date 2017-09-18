@@ -14,7 +14,7 @@ type UniFlow struct {
 	flows.BaseFlow
 }
 
-func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.Time) flows.Flow {
+func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.DateTimeNanoSeconds) flows.Flow {
 	if table.FiveTuple() {
 		tp := event.(PacketBuffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
@@ -28,7 +28,7 @@ func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time 
 	return ret
 }
 
-func (flow *TCPFlow) Event(event flows.Event, when flows.Time) {
+func (flow *TCPFlow) Event(event flows.Event, when flows.DateTimeNanoSeconds) {
 	flow.BaseFlow.Event(event, when)
 	if !flow.Active() {
 		return

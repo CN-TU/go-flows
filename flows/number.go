@@ -30,6 +30,18 @@ type Float32 float32
 // Float64 represents a float64 according to RFC5102
 type Float64 float64
 
+// DateTimeSeconds represents time in units of seconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeSeconds uint64
+
+// DateTimeMilliSeconds represents time in units of milliseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeMilliSeconds uint64
+
+// DateTimeMicroSeconds represents time in units of microseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeMicroSeconds uint64
+
+// DateTimeNanoSeconds represents time in units of nanoseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeNanoSeconds uint64
+
 // Number represents a number according to RFC5102
 type Number interface {
 	// Add numbers and return result
@@ -158,10 +170,50 @@ func (a Float64) GoValue() interface{} {
 	return float64(a)
 }
 
+// To64 returns the number converted to a 64 bit wide Number
+func (a DateTimeSeconds) To64() Number {
+	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a DateTimeSeconds) GoValue() interface{} {
+	return uint64(a)
+}
+
+// To64 returns the number converted to a 64 bit wide Number
+func (a DateTimeMilliSeconds) To64() Number {
+	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a DateTimeMilliSeconds) GoValue() interface{} {
+	return uint64(a)
+}
+
+// To64 returns the number converted to a 64 bit wide Number
+func (a DateTimeMicroSeconds) To64() Number {
+	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a DateTimeMicroSeconds) GoValue() interface{} {
+	return uint64(a)
+}
+
+// To64 returns the number converted to a 64 bit wide Number
+func (a DateTimeNanoSeconds) To64() Number {
+	return Signed64(a)
+}
+
+// GoValue returns the number converted to the underlying go type
+func (a DateTimeNanoSeconds) GoValue() interface{} {
+	return uint64(a)
+}
+
 // UpConvert returns either two Signed64 or two Float64 depending on the numbers
-func UpConvert(a, b Number) (a64, b64 Number) {
-	a64 = a.To64()
-	b64 = b.To64()
+func UpConvert(a, b interface{}) (a64, b64 Number) {
+	a64 = a.(Number).To64()
+	b64 = b.(Number).To64()
 	if _, ok := a64.(Float64); ok {
 		if _, ok := b64.(Float64); !ok {
 			b64 = Float64(b64.(Signed64))
@@ -171,6 +223,5 @@ func UpConvert(a, b Number) (a64, b64 Number) {
 			a64 = Float64(a64.(Signed64))
 		}
 	}
-
 	return
 }

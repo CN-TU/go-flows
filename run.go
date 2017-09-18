@@ -399,16 +399,16 @@ func parseArguments(cmd string, args []string) {
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featureLists, packet.NewFlow,
 		flows.FlowOptions{
-			ActiveTimeout: flows.Time(*activeTimeout) * flows.Seconds,
-			IdleTimeout:   flows.Time(*idleTimeout) * flows.Seconds,
+			ActiveTimeout: flows.DateTimeNanoSeconds(*activeTimeout) * flows.SecondsInNanoSeconds,
+			IdleTimeout:   flows.DateTimeNanoSeconds(*idleTimeout) * flows.SecondsInNanoSeconds,
 			PerPacket:     *perPacket,
 		},
-		flows.Time(*flowExpire)*flows.Seconds, keyselector)
+		flows.DateTimeNanoSeconds(*flowExpire)*flows.SecondsInNanoSeconds, keyselector)
 
 	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
 	buffer.SetFilter(*bpfFilter)
 
-	var time flows.Time
+	var time flows.DateTimeNanoSeconds
 
 	if cmd == "online" {
 		time = buffer.ReadInterface(arguments[0])
