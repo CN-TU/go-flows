@@ -692,13 +692,13 @@ MAIN:
 		if _, ok := seen[id]; ok {
 			continue MAIN
 		}
-		switch feature.feature.(type) {
+		switch typedFeature := feature.feature.(type) {
 		case string:
-			if basetype, ok := getFeature(feature.feature.(string), feature.ret, 1); !ok {
-				if composite, ok := compositeFeatures[feature.feature.(string)]; !ok {
+			if basetype, ok := getFeature(typedFeature, feature.ret, 1); !ok {
+				if composite, ok := compositeFeatures[typedFeature]; !ok {
 					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", feature.feature, feature.ret))
 				} else {
-					stack = append([]featureWithType{{composite, feature.ret, feature.export, feature.feature.(string), false, "", "", id}}, stack...)
+					stack = append([]featureWithType{{composite, feature.ret, feature.export, typedFeature, false, "", "", id}}, stack...)
 				}
 			} else {
 				if basetype.creator.Arguments[0] != RawPacket { //TODO: implement flow input
@@ -708,40 +708,39 @@ MAIN:
 				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite, feature.function})
 			}
 		case bool, float64, int64:
-			basetype := newConstantMetaFeature(feature.feature)
+			basetype := newConstantMetaFeature(typedFeature)
 			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, feature.feature, nil, nil, false, feature.export, feature.composite, feature.function})
+			init = append(init, featureToInit{basetype, typedFeature, nil, nil, false, feature.export, feature.composite, feature.function})
 		case []interface{}:
-			arguments := feature.feature.([]interface{})
-			fun := arguments[0].(string)
-			if basetype, ok := getFeature(fun, feature.ret, len(arguments)-1); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, feature.ret, arguments[1:]))
+			fun := typedFeature[0].(string)
+			if basetype, ok := getFeature(fun, feature.ret, len(typedFeature)-1); !ok {
+				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, feature.ret, typedFeature[1:]))
 			} else {
 				if fun == "apply" || fun == "map" {
-					sel := feature2id(arguments[2], FeatureTypeSelection)
+					sel := feature2id(typedFeature[2], FeatureTypeSelection)
 					if fun == "apply" && feature.ret != FeatureTypeFlow {
 						panic("Unexpected apply - did you mean map?")
 					} else if fun == "map" && feature.ret != FeatureTypePacket {
 						panic("Unexpected map - did you mean apply?")
 					}
 					if feature.export {
-						feature.function = strings.Join(compositeToCall(arguments), "")
+						feature.function = strings.Join(compositeToCall(typedFeature), "")
 					}
 					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
+						stack = append([]featureWithType{featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
 						currentSelection = s
 					} else {
-						stack = append([]featureWithType{featureWithType{arguments[2], FeatureTypeSelection, false, "", false, sel, "", ""},
-							featureWithType{arguments[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
+						stack = append([]featureWithType{featureWithType{typedFeature[2], FeatureTypeSelection, false, "", false, sel, "", ""},
+							featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
 					}
 					continue MAIN
 				} else {
-					argumentTypes := getArgumentTypes(basetype, feature.ret, len(arguments)-1)
-					argumentPos := make([]int, 0, len(arguments)-1)
-					for i, f := range arguments[1:] {
+					argumentTypes := getArgumentTypes(basetype, feature.ret, len(typedFeature)-1)
+					argumentPos := make([]int, 0, len(typedFeature)-1)
+					for i, f := range typedFeature[1:] {
 						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
-							newstack := make([]featureWithType, len(arguments)-1)
-							for i, arg := range arguments[1:] {
+							newstack := make([]featureWithType, len(typedFeature)-1)
+							for i, arg := range typedFeature[1:] {
 								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", "", ""}
 							}
 							stack = append(append(newstack, feature), stack...)
@@ -759,7 +758,7 @@ MAIN:
 						selections[feature.selection] = currentSelection
 					}
 					if feature.export {
-						feature.function = strings.Join(compositeToCall(arguments), "")
+						feature.function = strings.Join(compositeToCall(typedFeature), "")
 					}
 					//select: set event true (event from logic + event from base)
 					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite, feature.function}) //fake BaseType?
