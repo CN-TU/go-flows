@@ -43,7 +43,7 @@ type sourceTransportPort struct {
 
 func (f *sourceTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw()), context, f)
+		f.SetValue(flows.Unsigned16(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw())), context, f)
 	}
 }
 
@@ -61,7 +61,7 @@ type destinationTransportPort struct {
 
 func (f *destinationTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw()), context, f)
+		f.SetValue(flows.Unsigned16(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw())), context, f)
 	}
 }
 
