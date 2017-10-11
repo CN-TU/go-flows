@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"log"
 	"sync"
 	"sync/atomic"
 
@@ -237,6 +238,152 @@ type pcapPacketBuffer struct {
 	proto       flows.Unsigned8
 	forward     bool
 	resize      bool
+}
+
+type SerializableLayerType interface {
+	gopacket.SerializableLayer
+	gopacket.Layer
+}
+
+var layerSerializeLengthBufferScratch []byte
+
+type layerSerializeLengthBuffer struct {
+	len int
+}
+
+func (w *layerSerializeLengthBuffer) Bytes() []byte {
+	return layerSerializeLengthBufferScratch
+}
+
+func (w *layerSerializeLengthBuffer) PrependBytes(num int) ([]byte, error) {
+	w.len += num
+	return layerSerializeLengthBufferScratch, nil
+}
+
+func (w *layerSerializeLengthBuffer) AppendBytes(num int) ([]byte, error) {
+	w.len += num
+	return layerSerializeLengthBufferScratch, nil
+}
+
+func (w *layerSerializeLengthBuffer) Clear() error {
+	w.len = 0
+	return nil
+}
+
+func layerToLength(layer gopacket.SerializableLayer) int {
+	if len(layerSerializeLengthBufferScratch) == 0 {
+		layerSerializeLengthBufferScratch = make([]byte, 4096)
+	}
+	var b layerSerializeLengthBuffer
+	layer.SerializeTo(&b, gopacket.SerializeOptions{})
+	return b.len
+}
+
+func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableLayerType) (pb *pcapPacketBuffer) {
+	pb = &pcapPacketBuffer{}
+	pb.time = when
+	for _, layer := range layerList {
+		switch layer.LayerType() {
+		case layers.LayerTypeEthernet:
+			pb.first = layers.LayerTypeEthernet
+			if pb.link != nil {
+				log.Panic("Can only assign one Link Layer")
+			}
+			pb.link = layer.(gopacket.LinkLayer)
+		case layers.LayerTypeIPv4:
+			if pb.first != layers.LayerTypeEthernet {
+				pb.first = layers.LayerTypeIPv4
+			}
+			if pb.network != nil {
+				log.Panic("Can only assign one Network Layer")
+			}
+			pb.network = layer.(gopacket.NetworkLayer)
+			pb.proto = flows.Unsigned8(pb.ip4.Protocol)
+		case layers.LayerTypeIPv6:
+			if pb.first != layers.LayerTypeEthernet {
+				pb.first = layers.LayerTypeIPv6
+			}
+			if pb.network != nil {
+				log.Panic("Can only assign one Network Layer")
+			}
+			pb.network = layer.(gopacket.NetworkLayer)
+			pb.proto = flows.Unsigned8(pb.ip6.NextHeader)
+		case layers.LayerTypeUDP:
+			layer.(*layers.UDP).SetInternalPortsForTesting()
+			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
+				pb.first = layers.LayerTypeUDP
+			}
+			if pb.transport != nil {
+				log.Panic("Can only assign one Transport Layer")
+			}
+			pb.transport = layer.(gopacket.TransportLayer)
+			if pb.proto == 0 {
+				pb.proto = flows.Unsigned8(layers.IPProtocolUDP)
+			}
+		case layers.LayerTypeTCP:
+			layer.(*layers.TCP).SetInternalPortsForTesting()
+			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
+				pb.first = layers.LayerTypeTCP
+			}
+			if pb.transport != nil {
+				log.Panic("Can only assign one Transport Layer")
+			}
+			pb.transport = layer.(gopacket.TransportLayer)
+			if pb.proto == 0 {
+				pb.proto = flows.Unsigned8(layers.IPProtocolTCP)
+			}
+		case layers.LayerTypeICMPv4:
+			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
+				pb.first = layers.LayerTypeICMPv4
+			}
+			if pb.transport != nil {
+				log.Panic("Can only assign one Transport Layer")
+			}
+			pb.transport = layer.(gopacket.TransportLayer)
+			if pb.proto == 0 {
+				pb.proto = flows.Unsigned8(layers.IPProtocolICMPv4)
+			}
+		case layers.LayerTypeICMPv6:
+			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
+				pb.first = layers.LayerTypeICMPv6
+			}
+			if pb.transport != nil {
+				log.Panic("Can only assign one Transport Layer")
+			}
+			pb.transport = layer.(gopacket.TransportLayer)
+			if pb.proto == 0 {
+				pb.proto = flows.Unsigned8(layers.IPProtocolICMPv6)
+			}
+		default:
+			switch ip6e := layer.(type) {
+			case *layers.IPv6Destination:
+				pb.proto = flows.Unsigned8(ip6e.NextHeader)
+			case *layers.IPv6HopByHop:
+				pb.proto = flows.Unsigned8(ip6e.NextHeader)
+			default:
+				log.Panic("Protocol not supported")
+			}
+		}
+		pb.hlen += layerToLength(layer)
+	}
+	if pb.network == nil {
+		//add empty network layer (IPv4)
+		if pb.first != layers.LayerTypeEthernet {
+			pb.first = layers.LayerTypeIPv4
+		}
+		pb.ip4.SrcIP = []byte{0, 0, 0, 1}
+		pb.ip4.DstIP = []byte{0, 0, 0, 2}
+		pb.network = &pb.ip4
+		pb.hlen += layerToLength(&pb.ip4)
+	}
+	if pb.transport == nil {
+		pb.transport = &pb.udp
+		if pb.proto == 0 {
+			pb.proto = flows.Unsigned8(layers.IPProtocolUDP)
+		}
+		pb.hlen += layerToLength(&pb.ip4)
+	}
+	return
 }
 
 func (pb *pcapPacketBuffer) Hlen() int {
