@@ -65,15 +65,18 @@ type RecordMaker struct {
 	make     func() *record
 }
 
+type graphInfo struct {
+	ret      FeatureType
+	constant interface{}
+}
+
 type featureToInit struct {
 	feature   featureMaker
-	ret       interface{}
+	info      graphInfo
 	arguments []int
 	call      []int
 	event     bool
 	export    bool
-	composite string
-	function  string
 }
 
 func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureType) RecordMaker {
@@ -81,10 +84,8 @@ func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureTyp
 		feature     interface{}
 		ret         FeatureType
 		export      bool
-		composite   string
 		reset       bool
 		selection   string
-		function    string
 		compositeID string
 	}
 
@@ -92,7 +93,11 @@ func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureTyp
 
 	stack := make([]featureWithType, len(features))
 	for i := range features {
-		stack[i] = featureWithType{features[i], base, true, "", false, "", "", ""}
+		stack[i] = featureWithType{
+			feature: features[i],
+			ret:     base,
+			export:  true,
+		}
 	}
 
 	type selection struct {
@@ -106,95 +111,146 @@ func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureTyp
 	selections[feature2id([]interface{}{"select", true}, Selection)] = mainSelection
 	currentSelection := mainSelection
 
-	var feature featureWithType
+	var currentFeature featureWithType
 MAIN:
 	for len(stack) > 0 {
-		feature, stack = stack[0], stack[1:]
-		id := feature2id(feature.feature, feature.ret)
+		currentFeature, stack = stack[0], stack[1:]
+		id := feature2id(currentFeature.feature, currentFeature.ret)
 		seen := currentSelection.seen
 		if _, ok := seen[id]; ok {
 			continue MAIN
 		}
-		switch typedFeature := feature.feature.(type) {
+		switch typedFeature := currentFeature.feature.(type) {
 		case string:
-			if basetype, ok := getFeature(typedFeature, feature.ret, 1); !ok {
+			if feature, ok := getFeature(typedFeature, currentFeature.ret, 1); !ok {
 				if composite, ok := compositeFeatures[typedFeature]; !ok {
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", feature.feature, feature.ret))
+					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
 				} else {
-					stack = append([]featureWithType{{composite, feature.ret, feature.export, typedFeature, false, "", "", id}}, stack...)
+					stack = append([]featureWithType{
+						{
+							feature:     composite, //FIXME
+							ret:         currentFeature.ret,
+							export:      currentFeature.export,
+							compositeID: id,
+						}}, stack...)
 				}
 			} else {
-				if basetype.arguments[0] != RawPacket { //TODO: implement flow input
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", feature.feature, feature.ret))
+				if feature.arguments[0] != RawPacket { //TODO: implement flow input
+					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", currentFeature.feature, currentFeature.ret))
 				}
 				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite, feature.function})
+				init = append(init, featureToInit{
+					feature: feature,
+					info: graphInfo{
+						ret: currentFeature.ret,
+					},
+					arguments: currentSelection.argument,
+					event:     currentSelection.argument == nil,
+					export:    currentFeature.export,
+				})
 			}
-		case bool, float64, int64, uint64:
-			basetype := newConstantMetaFeature(typedFeature)
+		case bool, float64, int64, uint64, int:
+			feature := newConstantMetaFeature(typedFeature)
 			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, typedFeature, nil, nil, false, feature.export, feature.composite, feature.function})
-		case int:
-			basetype := newConstantMetaFeature(int64(typedFeature))
-			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, int64(typedFeature), nil, nil, false, feature.export, feature.composite, feature.function})
+			init = append(init, featureToInit{
+				feature: feature,
+				info: graphInfo{
+					constant: typedFeature,
+				},
+				export: currentFeature.export,
+			})
 		case []interface{}:
 			fun := typedFeature[0].(string)
-			if basetype, ok := getFeature(fun, feature.ret, len(typedFeature)-1); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, feature.ret, typedFeature[1:]))
+			if feature, ok := getFeature(fun, currentFeature.ret, len(typedFeature)-1); !ok {
+				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, currentFeature.ret, typedFeature[1:]))
 			} else {
 				if fun == "apply" || fun == "map" {
 					sel := feature2id(typedFeature[2], Selection)
-					if fun == "apply" && feature.ret != FlowFeature {
+					if fun == "apply" && currentFeature.ret != FlowFeature {
 						panic("Unexpected apply - did you mean map?")
-					} else if fun == "map" && feature.ret != PacketFeature {
+					} else if fun == "map" && currentFeature.ret != PacketFeature {
 						panic("Unexpected map - did you mean apply?")
 					}
-					if feature.export {
-						feature.function = strings.Join(compositeToCall(typedFeature), "")
-					}
+					/*
+						if currentFeature.export {
+							currentFeature.function = strings.Join(compositeToCall(typedFeature), "")
+						}
+						FIXME
+					*/
 					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
+						stack = append([]featureWithType{
+							{
+								feature: typedFeature[1],
+								ret:     currentFeature.ret,
+								export:  currentFeature.export,
+								reset:   true,
+							},
+						}, stack...)
 						currentSelection = s
 					} else {
-						stack = append([]featureWithType{featureWithType{typedFeature[2], Selection, false, "", false, sel, "", ""},
-							featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
+						stack = append([]featureWithType{
+							{
+								feature:   typedFeature[2],
+								ret:       Selection,
+								selection: sel,
+							},
+							{
+								feature: typedFeature[1],
+								ret:     currentFeature.ret,
+								export:  currentFeature.export,
+								reset:   true,
+							},
+						}, stack...)
 					}
 					continue MAIN
 				} else {
-					argumentTypes := basetype.getArguments(feature.ret, len(typedFeature)-1)
+					argumentTypes := feature.getArguments(currentFeature.ret, len(typedFeature)-1)
 					argumentPos := make([]int, 0, len(typedFeature)-1)
 					for i, f := range typedFeature[1:] {
 						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
 							newstack := make([]featureWithType, len(typedFeature)-1)
 							for i, arg := range typedFeature[1:] {
-								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", "", ""}
+								newstack[i] = featureWithType{
+									feature: arg,
+									ret:     argumentTypes[i],
+								}
 							}
-							stack = append(append(newstack, feature), stack...)
+							stack = append(append(newstack, currentFeature), stack...)
 							continue MAIN
 						} else {
 							argumentPos = append(argumentPos, pos)
 						}
 					}
 					seen[id] = len(init)
-					if feature.compositeID != "" {
-						seen[feature.compositeID] = len(init)
+					if currentFeature.compositeID != "" {
+						seen[currentFeature.compositeID] = len(init)
 					}
-					if feature.selection != "" {
+					if currentFeature.selection != "" {
 						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
-						selections[feature.selection] = currentSelection
+						selections[currentFeature.selection] = currentSelection
 					}
-					if feature.export {
-						feature.function = strings.Join(compositeToCall(typedFeature), "")
-					}
+					/*
+						FIXME:
+						if currentFeature.export {
+							currentFeature.function = strings.Join(compositeToCall(typedFeature), "")
+						}
+					*/
 					//select: set event true (event from logic + event from base)
-					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite, feature.function}) //fake BaseType?
+					init = append(init, featureToInit{
+						feature: feature,
+						info: graphInfo{
+							ret: currentFeature.ret,
+						},
+						arguments: argumentPos,
+						event:     fun == "select" || (fun == "select_slice" && len(argumentPos) == 2),
+						export:    currentFeature.export,
+					})
 				}
 			}
 		default:
-			panic(fmt.Sprint("Don't know what to do with ", feature))
+			panic(fmt.Sprint("Don't know what to do with ", currentFeature))
 		}
-		if feature.reset {
+		if currentFeature.reset {
 			currentSelection = mainSelection
 		}
 	}
@@ -299,6 +355,9 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		PacketFeature: {
 			{"style", "filled"},
 		},
+		Const: {
+			{"shape", "oval"},
+		},
 	}
 	type Node struct {
 		Name  string
@@ -329,23 +388,28 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		for i, feature := range fl.init {
 			var node Node
 			node.Label = feature.feature.ie.Name
-			if feature.composite == "apply" || feature.composite == "map" {
-				node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
-			} else if feature.composite != "" {
-				node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
-			}
+			/*
+				FIXME:
+				if feature.composite == "apply" || feature.composite == "map" {
+					node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
+				} else if feature.composite != "" {
+					node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
+				}
+			*/
 			node.Name = toId(listID, i)
-			if ret, ok := feature.ret.(FeatureType); ok {
+			if feature.info.constant == nil {
 				if len(feature.arguments) == 0 {
-					node.Style = append(styles[ret], []string{"fillcolor", "green"})
+					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
 				} else if len(feature.arguments) == 1 {
-					if feature.composite == "" {
-						node.Style = append(styles[ret], []string{"fillcolor", "orange"})
-					} else {
-						node.Style = append(styles[ret], []string{"fillcolor", "green:orange"})
-					}
+					/*
+						FIXME: if feature.composite == "" {
+							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
+						} else {
+					*/
+					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
+					//}
 				} else {
-					node.Style = append(styles[ret], []string{"fillcolor", "orange"})
+					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
 					args := make([]string, len(feature.arguments))
 					for i := range args {
 						args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
@@ -354,8 +418,8 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 					node.Label = ""
 				}
 			} else {
-				node.Label = fmt.Sprint(feature.ret)
-				//node.Style = styles[featureTypeAny] ????
+				node.Label = fmt.Sprint(feature.info.constant)
+				node.Style = styles[Const]
 			}
 
 			nodes = append(nodes, node)
