@@ -3,9 +3,8 @@
 package packet
 
 import (
-	"net"
-
 	"encoding/binary"
+	"net"
 
 	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"

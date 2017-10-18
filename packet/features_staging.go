@@ -1,3 +1,5 @@
+// +build ignore
+
 package packet
 
 import (
@@ -149,31 +151,31 @@ func init() {
 // seconds are counted from the first packet
 type __consecutiveSeconds struct {
 	flows.BaseFeature
-	count flows.Unsigned64
-    last_time int64  // FIXME maybe this should be dateTimeSeconds?
+	count     flows.Unsigned64
+	last_time int64 // FIXME maybe this should be dateTimeSeconds?
 }
 
 func (f *__consecutiveSeconds) Start(context flows.EventContext) {
-    f.last_time = 0
-    f.count = 0
+	f.last_time = 0
+	f.count = 0
 }
 
 func (f *__consecutiveSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-    var time int64
-    if f.last_time == 0 {
-        f.last_time = time
-        f.count++
-    } else {
-        if time - f.last_time > 1000000000 {  // if time difference to f.last_time is more than one second
-            f.last_time = time
-            if time - f.last_time < 2000000000 {  // if there is less than 2s between this and last packet, count
-                f.count++
-            } else {  // otherwise, there was a break in seconds between packets
-                f.SetValue(f.count, context, f)
-                f.count = 1
-            }
-        }
-    }
+	var time int64
+	if f.last_time == 0 {
+		f.last_time = time
+		f.count++
+	} else {
+		if time-f.last_time > 1000000000 { // if time difference to f.last_time is more than one second
+			f.last_time = time
+			if time-f.last_time < 2000000000 { // if there is less than 2s between this and last packet, count
+				f.count++
+			} else { // otherwise, there was a break in seconds between packets
+				f.SetValue(f.count, context, f)
+				f.count = 1
+			}
+		}
+	}
 }
 
 func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
@@ -184,6 +186,6 @@ func init() {
 	flows.RegisterFeature("__consecutiveSeconds", []flows.FeatureCreator{
 		{flows.FeatureTypePacket, func() flows.Feature { return &__consecutiveSeconds{} }, []flows.FeatureType{flows.RawPacket}},
 	})
-    flows.RegisterCompositeFeature("__maximumConsecutiveSeconds", []interface{}{"maximum", "__consecutiveSeconds"})
-    flows.RegisterCompositeFeature("__minimumConsecutiveSeconds", []interface{}{"minimum", "__consecutiveSeconds"})
+	flows.RegisterCompositeFeature("__maximumConsecutiveSeconds", []interface{}{"maximum", "__consecutiveSeconds"})
+	flows.RegisterCompositeFeature("__minimumConsecutiveSeconds", []interface{}{"minimum", "__consecutiveSeconds"})
 }
