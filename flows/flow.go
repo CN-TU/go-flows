@@ -44,9 +44,9 @@ type FlowOptions struct {
 }
 
 type EventContext struct {
-	When    DateTimeNanoSeconds
-	Flow    Flow
-	feature *featureList
+	When   DateTimeNanoSeconds
+	Flow   Flow
+	record *record
 }
 
 func (ec EventContext) FutureEventContext(offset DateTimeNanoSeconds) (ret EventContext) {
@@ -61,7 +61,7 @@ type BaseFlow struct {
 	table      *FlowTable
 	timers     funcEntries
 	expireNext DateTimeNanoSeconds
-	features   []*featureList
+	records    []*record
 	active     bool
 }
 
@@ -115,9 +115,9 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now Dat
 	if !flow.active {
 		return //WTF, this should not happen
 	}
-	for _, features := range flow.features {
-		features.Stop(reason, context)
-		features.Export(context)
+	for _, record := range flow.records {
+		record.Stop(reason, context)
+		record.Export(context)
 	}
 	flow.Stop()
 }
@@ -146,12 +146,12 @@ func (flow *BaseFlow) Event(event Event, when DateTimeNanoSeconds) {
 			flow.AddTimer(timerActive, flow.activeEvent, context.FutureEventContext(flow.table.ActiveTimeout))
 		}
 	}
-	for _, features := range flow.features {
-		context.feature = features
-		features.Event(event, context)
+	for _, record := range flow.records {
+		context.record = record
+		record.Event(event, context)
 	}
 	if flow.table.PerPacket {
-		context.feature = nil
+		context.record = nil
 		flow.Export(FlowEndReasonEnd, context, when)
 	}
 }
@@ -162,14 +162,13 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time DateTimeNanoSecon
 	flow.table = table
 	flow.timers = makeFuncEntries()
 	flow.active = true
-	flow.features = table.features.creator()
+	flow.records = table.records.make()
 	context := EventContext{
 		When: time,
 		Flow: flow,
 	}
-	for _, features := range flow.features {
-		features.Init(flow)
-		context.feature = features
-		features.Start(context)
+	for _, record := range flow.records {
+		context.record = record
+		record.Start(context)
 	}
 }

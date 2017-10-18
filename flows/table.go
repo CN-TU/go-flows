@@ -11,20 +11,20 @@ type FlowTable struct {
 	freelist  []int
 	newflow   FlowCreator
 	now       DateTimeNanoSeconds
-	features  FeatureListCreatorList
+	records   RecordListMaker
 	fivetuple bool
 	eof       bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
-func NewFlowTable(features FeatureListCreatorList, newflow FlowCreator, options FlowOptions, fivetuple bool) *FlowTable {
+func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool) *FlowTable {
 	return &FlowTable{
 		flows:       make(map[FlowKey]int, 1000000),
 		flowlist:    make([]Flow, 0, 1000000),
 		freelist:    make([]int, 0, 1000000),
 		newflow:     newflow,
 		FlowOptions: options,
-		features:    features,
+		records:     records,
 		fivetuple:   fivetuple,
 	}
 }

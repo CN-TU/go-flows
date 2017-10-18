@@ -66,7 +66,7 @@ func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoSeconds) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.FeatureListCreatorList, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoSeconds, selector DynamicKeySelector) EventTable {
+func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoSeconds, selector DynamicKeySelector) EventTable {
 	bt := baseTable{}
 	switch {
 	case selector.fivetuple:

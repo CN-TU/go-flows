@@ -347,7 +347,7 @@ func parseArguments(cmd string, args []string) {
 		log.Fatalf("At least one exporter is needed!\n")
 	}
 
-	var featureLists flows.FeatureListCreatorList
+	var recordList flows.RecordListMaker
 
 	var key []string
 	var bidirectional bool
@@ -368,7 +368,7 @@ func parseArguments(cmd string, args []string) {
 					log.Fatalln("bidirectional of every flow must match")
 				}
 			}
-			featureLists = append(featureLists, flows.NewFeatureListCreator(feature.features, featureset.exporter, flows.FeatureTypeFlow))
+			recordList = append(recordList, flows.NewRecordMaker(feature.features, featureset.exporter, flows.FlowFeature))
 		}
 	}
 
@@ -376,7 +376,7 @@ func parseArguments(cmd string, args []string) {
 
 	switch cmd {
 	case "callgraph":
-		featureLists.CallGraph(os.Stdout)
+		recordList.CallGraph(os.Stdout)
 		return
 	case "online":
 		if len(arguments) != 1 {
@@ -391,13 +391,12 @@ func parseArguments(cmd string, args []string) {
 	for _, exporter := range exporters {
 		exporter.Init()
 	}
-	featureLists.Fields()
 
 	flows.CleanupFeatures()
 
 	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), featureLists, packet.NewFlow,
+	flowtable := packet.NewParallelFlowTable(int(*numProcessing), recordList, packet.NewFlow,
 		flows.FlowOptions{
 			ActiveTimeout: flows.DateTimeNanoSeconds(*activeTimeout) * flows.SecondsInNanoSeconds,
 			IdleTimeout:   flows.DateTimeNanoSeconds(*idleTimeout) * flows.SecondsInNanoSeconds,

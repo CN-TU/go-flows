@@ -20,6 +20,7 @@ type msgPack struct {
 	finished   chan struct{}
 }
 
+//FIXME: remove
 func (pe *msgPack) Fields(fields []string) {
 	n := len(fields)
 	var list = make([]interface{}, n)
@@ -30,7 +31,7 @@ func (pe *msgPack) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *msgPack) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *msgPack) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]interface{}, n)
 	for i, elem := range features {

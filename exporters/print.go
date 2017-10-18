@@ -16,14 +16,12 @@ type printExporter struct {
 	finished   chan struct{}
 }
 
-func (pe *printExporter) Fields([]string) {}
-
 //Export export given features
-func (pe *printExporter) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *printExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]interface{}, n*2)
 	for i, elem := range features {
-		list[i*2] = elem.Type()
+		//list[i*2] = elem.Type() FIXME
 		list[i*2+1] = elem.Value()
 	}
 	pe.exportlist <- list

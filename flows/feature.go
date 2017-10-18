@@ -1,16 +1,35 @@
 package flows
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"log"
-	"sort"
-	"strconv"
 	"strings"
-	"text/tabwriter"
-	"text/template"
+
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 )
+
+// generates a textual representation of a feature usable for comparison loosely based on <type>name
+// or [<type>name,argumentA,...] (with argumentX being an id) for composites
+func feature2id(feature interface{}, ret FeatureType) string {
+	switch feature := feature.(type) {
+	case string:
+		return fmt.Sprintf("<%d>%s", ret, feature)
+	case bool, float64, int64, uint64, int:
+		return fmt.Sprintf("Const{%v}", feature)
+	case []interface{}:
+		features := make([]string, len(feature))
+		f, found := getFeature(feature[0].(string), ret, len(feature)-1)
+		if !found {
+			panic(fmt.Sprintf("Feature %s with return type %s and %d arguments not found!", feature[0].(string), ret, len(feature)-1))
+		}
+		arguments := append([]FeatureType{ret}, f.getArguments(ret, len(feature)-1)...)
+		for i, f := range feature {
+			features[i] = feature2id(f, arguments[i])
+		}
+		return "[" + strings.Join(features, ",") + "]"
+	default:
+		panic(fmt.Sprint("Don't know what to do with ", feature))
+	}
+}
 
 // Feature interfaces, which all features need to implement
 type Feature interface {
@@ -26,89 +45,51 @@ type Feature interface {
 	Start(EventContext)
 	// Stop gets called with an end reason and time when a flow stops
 	Stop(FlowEndReason, EventContext)
-	// Type returns the type associated with the current value, which can be different from BaseType.
-	Type() string
-	// BaseType returns the type of the feature.
-	BaseType() string
+	// Type returns the InformationElement
+	Variant() int
 	// Emit sends value new, with time when, and source self to the dependent Features
 	Emit(new interface{}, when EventContext, self interface{})
-	setBaseType(string)
-	getBaseFeature() *BaseFeature
 	setDependent([]Feature)
-	getDependent() []Feature
 	SetArguments([]Feature)
 	IsConstant() bool
 }
+
+const NoVariant = -1
 
 type EmptyBaseFeature struct {
 	dependent []Feature
 }
 
-func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
-func (f *EmptyBaseFeature) getDependent() []Feature    { return f.dependent }
-func (f *EmptyBaseFeature) SetArguments([]Feature)     {}
-
-// Event gets called for every event. Data is provided via the first argument and current time via the second.
 func (f *EmptyBaseFeature) Event(interface{}, EventContext, interface{}) {}
-
-// FinishEvent gets called after every Event happened
 func (f *EmptyBaseFeature) FinishEvent() {
 	for _, v := range f.dependent {
 		v.FinishEvent()
 	}
 }
-
-// Value provides the current stored value.
-func (f *EmptyBaseFeature) Value() interface{} { return nil }
-
-// Start gets called when the flow starts.
-func (f *EmptyBaseFeature) Start(EventContext) {}
-
-// Stop gets called with an end reason and time when a flow stops
-func (f *EmptyBaseFeature) Stop(FlowEndReason, EventContext) {}
-
-// Type returns the type associated with the current value, which can be different from BaseType.
-func (f *EmptyBaseFeature) Type() string { log.Fatal("Not implemented"); return "" }
-
-// BaseType returns the type of the feature.
-func (f *EmptyBaseFeature) BaseType() string             { log.Fatal("Not implemented"); return "" }
-func (f *EmptyBaseFeature) setBaseType(basetype string)  {}
-func (f *EmptyBaseFeature) getBaseFeature() *BaseFeature { log.Fatal("Not implemented"); return nil }
-
-// IsConstant returns true if the feature is constant
-func (f *EmptyBaseFeature) IsConstant() bool { return false }
-
-// SetValue stores a new value with the associated time.
-func (f *EmptyBaseFeature) SetValue(new interface{}, when EventContext, self interface{}) {
-}
-
-// Emit sends value new, with time when, and source self to the dependent Features
+func (f *EmptyBaseFeature) Value() interface{}                                            { return nil }
+func (f *EmptyBaseFeature) SetValue(new interface{}, when EventContext, self interface{}) {}
+func (f *EmptyBaseFeature) Start(EventContext)                                            {}
+func (f *EmptyBaseFeature) Stop(FlowEndReason, EventContext)                              {}
+func (f *EmptyBaseFeature) Variant() int                                                  { return NoVariant }
 func (f *EmptyBaseFeature) Emit(new interface{}, context EventContext, self interface{}) {
 	for _, v := range f.dependent {
 		v.Event(new, context, self)
 	}
 }
+func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
+func (f *EmptyBaseFeature) SetArguments([]Feature)     {}
+func (f *EmptyBaseFeature) IsConstant() bool           { return false }
+
+var _ Feature = (*EmptyBaseFeature)(nil)
 
 // BaseFeature includes all the basic functionality to fulfill the Feature interface.
 // Embedd this struct for creating new features.
 type BaseFeature struct {
 	EmptyBaseFeature
-	value    interface{}
-	basetype string
+	value interface{}
 }
 
-// Value provides the current stored value.
 func (f *BaseFeature) Value() interface{} { return f.value }
-
-// Type returns the type associated with the current value, which can be different from BaseType.
-func (f *BaseFeature) Type() string { return f.basetype }
-
-// BaseType returns the type of the feature.
-func (f *BaseFeature) BaseType() string             { return f.basetype }
-func (f *BaseFeature) setBaseType(basetype string)  { f.basetype = basetype }
-func (f *BaseFeature) getBaseFeature() *BaseFeature { return f }
-
-// SetValue stores a new value with the associated time.
 func (f *BaseFeature) SetValue(new interface{}, context EventContext, self interface{}) {
 	f.value = new
 	if new != nil {
@@ -257,723 +238,50 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	}
 }
 
-type featureToInit struct {
-	feature   metaFeature
-	ret       interface{}
-	arguments []int
-	call      []int
-	event     bool
-	export    bool
-	composite string
-	function  string
+type featureMaker struct {
+	ret       FeatureType
+	make      func() Feature
+	arguments []FeatureType
+	ie        ipfix.InformationElement
+	variants  []ipfix.InformationElement
+	function  bool
 }
 
-// FeatureListCreator represents a way to instantiate a tree of features.
-type FeatureListCreator struct {
-	init      []featureToInit
-	basetypes []string
-	exporter  []Exporter
-	creator   func() *featureList
+func (f featureMaker) String() string {
+	return fmt.Sprintf("<%s>%s(%s)", f.ret, f.ie, f.arguments)
 }
 
-// Fields writes the field definitions to the exporter
-func (fl FeatureListCreator) Fields() {
-	for _, exporter := range fl.exporter {
-		exporter.Fields(fl.basetypes)
-	}
-}
-
-// FeatureCreator represents a single uninstantiated feature.
-type FeatureCreator struct {
-	// Ret specifies the return type of the feature.
-	Ret FeatureType
-	// Create is a function for creating a new feature of this type.
-	Create func() Feature
-	// Arguments specifies the feature types expected for computing this feature.
-	Arguments []FeatureType
-}
-
-type metaFeature struct {
-	creator  FeatureCreator
-	basetype string
-}
-
-func (m metaFeature) String() string {
-	return fmt.Sprintf("<%s>%s(%s)", m.creator.Ret, m.basetype, m.creator.Arguments)
-}
-
-func (m metaFeature) NewFeature() Feature {
-	ret := m.creator.Create()
-	ret.setBaseType(m.basetype)
-	return ret
-}
-
-func (m metaFeature) BaseType() string { return m.basetype }
-
-// FeatureType represents if the feature is a flow or packet feature.
-type FeatureType int
-
-func (f FeatureType) String() string {
-	switch f {
-	case FeatureTypePacket:
-		return "PacketFeature"
-	case FeatureTypeFlow:
-		return "FlowFeature"
-	case featureTypeAny:
-		return "AnyFeature"
-	case FeatureTypeEllipsis:
-		return "..."
-	case FeatureTypeSelection:
-		return "Selection"
-	case FeatureTypeMatch:
-		return "Match"
-	}
-	return "???"
-}
-
-const (
-	// FeatureTypePacket represents a packet feature.
-	FeatureTypePacket FeatureType = iota
-	// FeatureTypeFlow represents a flow feature.
-	FeatureTypeFlow
-	featureTypeAny //for constants
-	// FeatureTypeEllipsis can be used to mark a function with variadic arguments. It represents a continuation of the previous argument type.
-	FeatureTypeEllipsis
-	// FeatureTypeMatch specifies that the argument type has to match the return type
-	FeatureTypeMatch
-	// FeatureTypeSelection specifies a selection
-	FeatureTypeSelection
-	// RawPacket specifies a packet from the packet source
-	RawPacket
-	// RawFlow specifies a flow from the flow source
-	RawFlow
-	featureTypeMax
-)
-
-var featureRegistry = make([]map[string][]metaFeature, featureTypeMax)
-var compositeFeatures = make(map[string][]interface{})
-
-func init() {
-	for i := range featureRegistry {
-		featureRegistry[i] = make(map[string][]metaFeature)
-	}
-}
-
-// RegisterFeature registers a new feature with the given name. types can be used to create features returning different FeatureType with the same name.
-func RegisterFeature(name string, types []FeatureCreator) {
-	for _, t := range types {
-		/* if _, ok := featureRegistry[t.Ret][name]; ok {
-			panic(fmt.Sprintf("Feature (%v) %s already defined!", t.Ret, name))
-		}*/ //FIXME add some kind of konsistency check!
-		featureRegistry[t.Ret][name] = append(featureRegistry[t.Ret][name], metaFeature{t, name})
-	}
-}
-
-// RegisterCompositeFeature registers a new composite feature with the given name. Composite features are features that depend on other features and need to be
-// represented in the form ["featurea", ["featureb", "featurec"]]
-func RegisterCompositeFeature(name string, definition []interface{}) {
-	if _, ok := compositeFeatures[name]; ok {
-		panic(fmt.Sprintf("Feature %s already registered", name))
-	}
-	compositeFeatures[name] = definition
-}
-
-func compositeToCall(features []interface{}) []string {
-	var ret []string
-	flen := len(features) - 1
-	for i, feature := range features {
-		if list, ok := feature.([]interface{}); ok {
-			ret = append(ret, compositeToCall(list)...)
-		} else {
-			ret = append(ret, fmt.Sprint(feature))
-		}
-		if i == 0 {
-			ret = append(ret, "(")
-		} else if i < flen {
-			ret = append(ret, ",")
-		} else {
-			ret = append(ret, ")")
-		}
-	}
-	return ret
-}
-
-// ListFeatures creates a table of available features and outputs it to w.
-func ListFeatures(w io.Writer) {
-	t := tabwriter.NewWriter(w, 0, 1, 1, ' ', 0)
-	pf := make(map[string]string)
-	ff := make(map[string]string)
-	args := make(map[string]string)
-	impl := make(map[string]string)
-	var base, functions, filters []string
-	for ret, features := range featureRegistry {
-		for name, featurelist := range features {
-			for _, feature := range featurelist {
-				if feature.creator.Ret == RawPacket || feature.creator.Ret == RawFlow {
-					filters = append(filters, name)
-					tmp := make([]string, len(feature.creator.Arguments))
-					for i := range feature.creator.Arguments {
-						switch feature.creator.Arguments[i] {
-						case RawFlow, FeatureTypeFlow:
-							tmp[i] = "F"
-						case RawPacket, FeatureTypePacket:
-							tmp[i] = "P"
-						case FeatureTypeEllipsis:
-							tmp[i] = "..."
-						case FeatureTypeMatch:
-							tmp[i] = "X"
-						case FeatureTypeSelection:
-							tmp[i] = "S"
-						case featureTypeAny:
-							tmp[i] = "C"
-						}
-					}
-					args[name] = strings.Join(tmp, ",")
-				} else if len(feature.creator.Arguments) == 1 &&
-					(feature.creator.Arguments[0] == RawPacket || feature.creator.Arguments[0] == RawFlow) {
-					base = append(base, name)
-				} else {
-					tmp := make([]string, len(feature.creator.Arguments))
-					for i := range feature.creator.Arguments {
-						switch feature.creator.Arguments[i] {
-						case FeatureTypeFlow:
-							tmp[i] = "F"
-						case FeatureTypePacket:
-							tmp[i] = "P"
-						case FeatureTypeEllipsis:
-							tmp[i] = "..."
-						case FeatureTypeMatch:
-							tmp[i] = "X"
-						case FeatureTypeSelection:
-							tmp[i] = "S"
-						case featureTypeAny:
-							tmp[i] = "C"
-						}
-					}
-					args[name] = strings.Join(tmp, ",")
-					functions = append(functions, name)
-				}
-				switch FeatureType(ret) {
-				case RawPacket, FeatureTypePacket:
-					pf[name] = "X"
-				case RawFlow, FeatureTypeFlow:
-					ff[name] = "X"
-				case FeatureTypeMatch:
-					pf[name] = "X"
-					ff[name] = "X"
-				}
-
-			}
-		}
-	}
-	for name, implementation := range compositeFeatures {
-		impl[name] = fmt.Sprint(" = ", strings.Join(compositeToCall(implementation), ""))
-		fun := implementation[0].(string)
-		if _, ok := featureRegistry[FeatureTypeFlow][fun]; ok {
-			ff[name] = "X"
-		}
-		if _, ok := featureRegistry[FeatureTypePacket][fun]; ok {
-			pf[name] = "X"
-		}
-		if _, ok := featureRegistry[FeatureTypeMatch][fun]; ok {
-			ff[name] = "X"
-			pf[name] = "X"
-		}
-		base = append(base, name)
-	}
-	sort.Strings(base)
-	sort.Strings(functions)
-	sort.Strings(filters)
-	fmt.Fprintln(w, "P ... Packet Feature")
-	fmt.Fprintln(w, "F ... Flow Feature")
-	fmt.Fprintln(w, "S ... Selection")
-	fmt.Fprintln(w, "C ... Constant")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Base Features:")
-	fmt.Fprintln(w, "  P F Name")
-	var last string
-	for _, name := range base {
-		if name == last {
-			continue
-		}
-		last = name
-		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\n", pf[name], ff[name], name, impl[name])
-		t.Write(line.Bytes())
-	}
-	t.Flush()
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Functions:")
-	fmt.Fprintln(w, "  P F Name")
-	for _, name := range functions {
-		if name == last {
-			continue
-		}
-		last = name
-		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
-		t.Write(line.Bytes())
-	}
-	t.Flush()
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Filters:")
-	fmt.Fprintln(w, "  P F Name")
-	for _, name := range filters {
-		if name == last {
-			continue
-		}
-		last = name
-		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
-		t.Write(line.Bytes())
-	}
-	t.Flush()
-
-}
-
-// CleanupFeatures deletes _all_ feature definitions for conserving memory. Call this after you've finished creating all feature lists with NewFeatureListCreator.
-func CleanupFeatures() {
-	featureRegistry = nil
-	compositeFeatures = nil
-}
-
-type featureList struct {
-	event    []Feature
-	export   []Feature
-	startup  []Feature
-	exporter []Exporter
-}
-
-func (list *featureList) Init(flow Flow) {
-
-}
-
-func (list *featureList) Start(context EventContext) {
-	for _, feature := range list.startup {
-		feature.Start(context)
-	}
-}
-
-func (list *featureList) Stop(reason FlowEndReason, context EventContext) {
-	for _, feature := range list.startup {
-		feature.Stop(reason, context)
-	}
-}
-
-func (list *featureList) Event(data interface{}, context EventContext) {
-	for _, feature := range list.event {
-		feature.Event(data, context, nil)
-	}
-	for _, feature := range list.event {
-		feature.FinishEvent()
-	}
-}
-
-func (list *featureList) Export(context EventContext) {
-	for _, exporter := range list.exporter {
-		exporter.Export(list.export, context.When)
-	}
-}
-
-func getFeature(feature string, ret FeatureType, nargs int) (metaFeature, bool) {
-	variadicFound := false
-	var variadic metaFeature
-	for _, t := range []FeatureType{ret, FeatureTypeMatch} {
-		for _, f := range featureRegistry[t][feature] {
-			if len(f.creator.Arguments) >= 2 && f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
-				variadicFound = true
-				variadic = f
-			} else if len(f.creator.Arguments) == nargs {
-				return f, true
-			}
-		}
-	}
-	if variadicFound {
-		return variadic, true
-	}
-	return metaFeature{}, false
-}
-
-func getArgumentTypes(f metaFeature, ret FeatureType, nargs int) []FeatureType {
-	if f.creator.Arguments[len(f.creator.Arguments)-1] == FeatureTypeEllipsis {
+func (f featureMaker) getArguments(ret FeatureType, nargs int) []FeatureType {
+	if f.arguments[len(f.arguments)-1] == Ellipsis {
 		r := make([]FeatureType, nargs)
-		last := len(f.creator.Arguments) - 2
-		variadic := f.creator.Arguments[last]
-		if variadic == FeatureTypeMatch {
+		last := len(f.arguments) - 2
+		variadic := f.arguments[last]
+		if variadic == MatchType {
 			variadic = ret
 		}
 		for i := 0; i < nargs; i++ {
 			if i > last {
 				r[i] = variadic
 			} else {
-				if f.creator.Arguments[i] == FeatureTypeMatch {
+				if f.arguments[i] == MatchType {
 					r[i] = ret
 				} else {
-					r[i] = f.creator.Arguments[i]
+					r[i] = f.arguments[i]
 				}
 			}
 		}
 		return r
 	}
-	if f.creator.Ret == FeatureTypeMatch {
+	if f.ret == MatchType {
 		r := make([]FeatureType, nargs)
 		for i := range r {
-			if f.creator.Arguments[i] == FeatureTypeMatch {
+			if f.arguments[i] == MatchType {
 				r[i] = ret
 			} else {
-				r[i] = f.creator.Arguments[i]
+				r[i] = f.arguments[i]
 			}
 		}
 		return r
 	}
-	return f.creator.Arguments
-}
-
-func feature2id(feature interface{}, ret FeatureType) string {
-	switch feature.(type) {
-	case string:
-		return fmt.Sprintf("<%d>%s", ret, feature)
-	case bool, float64, int64, int:
-		return fmt.Sprintf("Const{%v}", feature)
-	case []interface{}:
-		feature := feature.([]interface{})
-		features := make([]string, len(feature))
-		f, found := getFeature(feature[0].(string), ret, len(feature)-1)
-		if !found {
-			panic(fmt.Sprintf("Feature %s with return type %s and %d arguments not found!", feature[0].(string), ret, len(feature)-1))
-		}
-		arguments := append([]FeatureType{ret}, getArgumentTypes(f, ret, len(feature)-1)...)
-		for i, f := range feature {
-			features[i] = feature2id(f, arguments[i])
-		}
-		return "[" + strings.Join(features, ",") + "]"
-	default:
-		panic(fmt.Sprint("Don't know what to do with ", feature))
-	}
-}
-
-// NewFeatureListCreator creates a new featurelist description for the specified exporter with the given features using base as feature type for exported features.
-func NewFeatureListCreator(features []interface{}, exporter []Exporter, base FeatureType) FeatureListCreator {
-	type featureWithType struct {
-		feature     interface{}
-		ret         FeatureType
-		export      bool
-		composite   string
-		reset       bool
-		selection   string
-		function    string
-		compositeID string
-	}
-
-	init := make([]featureToInit, 0, len(features))
-
-	stack := make([]featureWithType, len(features))
-	for i := range features {
-		stack[i] = featureWithType{features[i], base, true, "", false, "", "", ""}
-	}
-
-	type selection struct {
-		argument []int
-		seen     map[string]int
-	}
-
-	selections := make(map[string]*selection)
-
-	mainSelection := &selection{nil, make(map[string]int, len(features))}
-	selections[feature2id([]interface{}{"select", true}, FeatureTypeSelection)] = mainSelection
-	currentSelection := mainSelection
-
-	var feature featureWithType
-MAIN:
-	for len(stack) > 0 {
-		feature, stack = stack[0], stack[1:]
-		id := feature2id(feature.feature, feature.ret)
-		seen := currentSelection.seen
-		if _, ok := seen[id]; ok {
-			continue MAIN
-		}
-		switch typedFeature := feature.feature.(type) {
-		case string:
-			if basetype, ok := getFeature(typedFeature, feature.ret, 1); !ok {
-				if composite, ok := compositeFeatures[typedFeature]; !ok {
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", feature.feature, feature.ret))
-				} else {
-					stack = append([]featureWithType{{composite, feature.ret, feature.export, typedFeature, false, "", "", id}}, stack...)
-				}
-			} else {
-				if basetype.creator.Arguments[0] != RawPacket { //TODO: implement flow input
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", feature.feature, feature.ret))
-				}
-				seen[id] = len(init)
-				init = append(init, featureToInit{basetype, feature.ret, currentSelection.argument, nil, currentSelection.argument == nil, feature.export, feature.composite, feature.function})
-			}
-		case bool, float64, int64:
-			basetype := newConstantMetaFeature(typedFeature)
-			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, typedFeature, nil, nil, false, feature.export, feature.composite, feature.function})
-		case int:
-			basetype := newConstantMetaFeature(int64(typedFeature))
-			seen[id] = len(init)
-			init = append(init, featureToInit{basetype, int64(typedFeature), nil, nil, false, feature.export, feature.composite, feature.function})
-		case []interface{}:
-			fun := typedFeature[0].(string)
-			if basetype, ok := getFeature(fun, feature.ret, len(typedFeature)-1); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, feature.ret, typedFeature[1:]))
-			} else {
-				if fun == "apply" || fun == "map" {
-					sel := feature2id(typedFeature[2], FeatureTypeSelection)
-					if fun == "apply" && feature.ret != FeatureTypeFlow {
-						panic("Unexpected apply - did you mean map?")
-					} else if fun == "map" && feature.ret != FeatureTypePacket {
-						panic("Unexpected map - did you mean apply?")
-					}
-					if feature.export {
-						feature.function = strings.Join(compositeToCall(typedFeature), "")
-					}
-					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
-						currentSelection = s
-					} else {
-						stack = append([]featureWithType{featureWithType{typedFeature[2], FeatureTypeSelection, false, "", false, sel, "", ""},
-							featureWithType{typedFeature[1], feature.ret, feature.export, fun, true, "", feature.function, ""}}, stack...)
-					}
-					continue MAIN
-				} else {
-					argumentTypes := getArgumentTypes(basetype, feature.ret, len(typedFeature)-1)
-					argumentPos := make([]int, 0, len(typedFeature)-1)
-					for i, f := range typedFeature[1:] {
-						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
-							newstack := make([]featureWithType, len(typedFeature)-1)
-							for i, arg := range typedFeature[1:] {
-								newstack[i] = featureWithType{arg, argumentTypes[i], false, "", false, "", "", ""}
-							}
-							stack = append(append(newstack, feature), stack...)
-							continue MAIN
-						} else {
-							argumentPos = append(argumentPos, pos)
-						}
-					}
-					seen[id] = len(init)
-					if feature.compositeID != "" {
-						seen[feature.compositeID] = len(init)
-					}
-					if feature.selection != "" {
-						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
-						selections[feature.selection] = currentSelection
-					}
-					if feature.export {
-						feature.function = strings.Join(compositeToCall(typedFeature), "")
-					}
-					//select: set event true (event from logic + event from base)
-					init = append(init, featureToInit{basetype, feature.ret, argumentPos, nil, fun == "select" || (fun == "select_slice" && len(argumentPos) == 2), feature.export, feature.composite, feature.function}) //fake BaseType?
-				}
-			}
-		default:
-			panic(fmt.Sprint("Don't know what to do with ", feature))
-		}
-		if feature.reset {
-			currentSelection = mainSelection
-		}
-	}
-
-	for i, f := range init {
-		for _, arg := range f.arguments {
-			init[arg].call = append(init[arg].call, i)
-		}
-	}
-
-	basetypes := make([]string, 0, len(features))
-	nevent := 0
-	nexport := 0
-	for _, feature := range init {
-		if feature.export {
-			var basetype string
-			if feature.composite != "" && feature.composite != "apply" && feature.composite != "map" {
-				basetype = feature.composite
-			} else if feature.function != "" {
-				basetype = feature.function
-			} else {
-				basetype = feature.feature.BaseType()
-			}
-			basetypes = append(basetypes, basetype)
-
-			nexport++
-		}
-		if feature.event {
-			nevent++
-		}
-	}
-
-	return FeatureListCreator{
-		init,
-		basetypes,
-		exporter,
-		func() *featureList {
-			f := make([]Feature, len(init))
-			event := make([]Feature, 0, nevent)
-			export := make([]Feature, 0, nexport)
-			for i, feature := range init {
-				f[i] = feature.feature.NewFeature()
-				if feature.event {
-					event = append(event, f[i])
-				}
-				if feature.export {
-					export = append(export, f[i])
-				}
-			}
-			for i, feature := range init {
-				if len(feature.call) > 0 {
-					args := make([]Feature, len(feature.call))
-					for i, call := range feature.call {
-						args[i] = f[call]
-					}
-					f[i].setDependent(args)
-				}
-				if len(feature.arguments) > 0 {
-					args := make([]Feature, len(feature.arguments))
-					for i, arg := range feature.arguments {
-						args[i] = f[arg]
-					}
-					f[i].SetArguments(args)
-				}
-			}
-			return &featureList{
-				startup:  f,
-				event:    event,
-				export:   export,
-				exporter: exporter,
-			}
-		},
-	}
-}
-
-var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
-	label="call graph"
-	node [shape=box, gradientangle=90]
-	"event" [style="rounded,filled", fillcolor=red]
-	{{ range $index, $element := .Nodes }}
-	subgraph cluster_{{$index}} {
-	{{ range $element.Nodes }}	"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
-	{{end}}}
-	"export{{$index}}" [label="export",style="rounded,filled", fillcolor=red]
-	{{ range $element.Export }}"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
-	"export{{$index}}" -> "{{.Name}}"
-	{{end}}
-	{{end}}
-	{{ range .Edges }}"{{.Start}}"{{if .StartNode}}:{{.StartNode}}{{end}} -> "{{.Stop}}"{{if .StopNode}}:{{.StopNode}}{{end}}
-	{{end}}
-}
-`))
-
-type FeatureListCreatorList []FeatureListCreator
-
-func (fl FeatureListCreatorList) creator() (ret []*featureList) {
-	ret = make([]*featureList, len(fl))
-	for i, fl := range fl {
-		ret[i] = fl.creator()
-	}
-	return
-}
-
-func (fl FeatureListCreatorList) Fields() {
-	for _, fl := range fl {
-		fl.Fields()
-	}
-}
-
-// CallGraph generates a call graph in the graphviz language and writes the result to w.
-func (fl FeatureListCreatorList) CallGraph(w io.Writer) {
-	toId := func(id, i int) string {
-		return fmt.Sprintf("%d,%d", id, i)
-	}
-	styles := map[FeatureType][][]string{
-		FeatureTypeFlow: {
-			{"shape", "invhouse"},
-			{"style", "filled"},
-		},
-		FeatureTypePacket: {
-			{"style", "filled"},
-		},
-		featureTypeAny: {
-			{"shape", "oval"},
-		},
-	}
-	type Node struct {
-		Name  string
-		Label string
-		HTML  string
-		Style [][]string
-	}
-	type Edge struct {
-		Start     string
-		StartNode string
-		Stop      string
-		StopNode  string
-	}
-	type Subgraph struct {
-		Nodes  []Node
-		Export []Node
-	}
-	data := struct {
-		Nodes []Subgraph
-		Edges []Edge
-	}{}
-	for listID, fl := range fl {
-		var nodes []Node
-		export := make([]Node, len(fl.exporter))
-		for i, exporter := range fl.exporter {
-			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
-		}
-		for i, feature := range fl.init {
-			var node Node
-			node.Label = feature.feature.BaseType()
-			if feature.composite == "apply" || feature.composite == "map" {
-				node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
-			} else if feature.composite != "" {
-				node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
-			}
-			node.Name = toId(listID, i)
-			if ret, ok := feature.ret.(FeatureType); ok {
-				if len(feature.arguments) == 0 {
-					node.Style = append(styles[ret], []string{"fillcolor", "green"})
-				} else if len(feature.arguments) == 1 {
-					if feature.composite == "" {
-						node.Style = append(styles[ret], []string{"fillcolor", "orange"})
-					} else {
-						node.Style = append(styles[ret], []string{"fillcolor", "green:orange"})
-					}
-				} else {
-					node.Style = append(styles[ret], []string{"fillcolor", "orange"})
-					args := make([]string, len(feature.arguments))
-					for i := range args {
-						args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
-					}
-					node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), node.Label)
-					node.Label = ""
-				}
-			} else {
-				node.Label = fmt.Sprint(feature.ret)
-				node.Style = styles[featureTypeAny]
-			}
-
-			nodes = append(nodes, node)
-		}
-		for i, feature := range fl.init {
-			if feature.event {
-				data.Edges = append(data.Edges, Edge{"event", "", toId(listID, i), ""})
-			}
-			if feature.export {
-				data.Edges = append(data.Edges, Edge{toId(listID, i), "", fmt.Sprintf("export%d", listID), ""})
-			}
-			for index, j := range feature.arguments {
-				index := strconv.Itoa(index)
-				if len(feature.arguments) <= 1 {
-					index = ""
-				}
-				data.Edges = append(data.Edges, Edge{toId(listID, j), "", toId(listID, i), index})
-			}
-		}
-		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
-	}
-	graphTemplate.Execute(w, data)
+	return f.arguments
 }

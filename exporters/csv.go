@@ -17,12 +17,13 @@ type csvExporter struct {
 	finished   chan struct{}
 }
 
+//FIXME: remove
 func (pe *csvExporter) Fields(fields []string) {
 	pe.exportlist <- fields
 }
 
 //Export export given features
-func (pe *csvExporter) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
 	n := len(features)
 	var list = make([]string, n)
 	for i, elem := range features {

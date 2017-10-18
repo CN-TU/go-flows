@@ -1,45 +1,52 @@
 package flows
 
-import "bytes"
-import "fmt"
-import "reflect"
+import (
+	"bytes"
+	"fmt"
+	"reflect"
+
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+)
 
 type constantFeature struct {
 	value interface{}
-	t     string
 }
 
-func (f *constantFeature) setDependent([]Feature)                          {}
-func (f *constantFeature) getDependent() []Feature                         { return nil }
-func (f *constantFeature) SetArguments([]Feature)                          {}
 func (f *constantFeature) Event(interface{}, EventContext, interface{})    {}
 func (f *constantFeature) FinishEvent()                                    {}
 func (f *constantFeature) Value() interface{}                              { return f.value }
 func (f *constantFeature) SetValue(interface{}, EventContext, interface{}) {}
 func (f *constantFeature) Start(EventContext)                              {}
 func (f *constantFeature) Stop(FlowEndReason, EventContext)                {}
-func (f *constantFeature) Type() string                                    { return f.t }
-func (f *constantFeature) BaseType() string                                { return f.t }
-func (f *constantFeature) setBaseType(string)                              {}
-func (f *constantFeature) getBaseFeature() *BaseFeature                    { return nil }
-func (f *constantFeature) IsConstant() bool                                { return true }
+func (f *constantFeature) Variant() int                                    { return NoVariant }
 func (f *constantFeature) Emit(interface{}, EventContext, interface{})     {}
+func (f *constantFeature) setDependent([]Feature)                          {}
+func (f *constantFeature) SetArguments([]Feature)                          {}
+func (f *constantFeature) IsConstant() bool                                { return true }
+func (f *constantFeature) setRecord(*record)                               {}
 
-func newConstantMetaFeature(value interface{}) metaFeature {
-	var f interface{}
+var _ Feature = (*constantFeature)(nil)
+
+func newConstantMetaFeature(value interface{}) featureMaker {
+	var t ipfix.Type
 	switch value.(type) {
 	case bool:
-		f = value
+		t = ipfix.Boolean
 	case float64:
-		f = Float64(value.(float64))
-	case int64:
-		f = Signed64(value.(int64))
+		t = ipfix.Float64
+	case int64, int:
+		t = ipfix.Signed64
+	case uint64:
+		t = ipfix.Unsigned64
 	default:
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
-	t := fmt.Sprintf("___const{%v}", f)
-	feature := &constantFeature{f, t}
-	return metaFeature{FeatureCreator{featureTypeAny, func() Feature { return feature }, nil}, t}
+	feature := &constantFeature{value}
+	return featureMaker{
+		ret:  Const,
+		make: func() Feature { return feature },
+		ie:   ipfix.NewInformationElement(fmt.Sprintf("_const{%v}", value), 0, 0, t, 0),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,8 +57,6 @@ type selectF struct {
 }
 
 func (f *selectF) Start(EventContext) { f.sel = false }
-func (f *selectF) Type() string       { return "select" }
-func (f *selectF) BaseType() string   { return "select" }
 
 func (f *selectF) Event(new interface{}, context EventContext, src interface{}) {
 	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
@@ -79,8 +84,6 @@ func (f *selectS) SetArguments(arguments []Feature) {
 	f.stop = int(arguments[1].Value().(Number).ToInt())
 }
 func (f *selectS) Start(EventContext) { f.current = 0 }
-func (f *selectS) Type() string       { return "select" }
-func (f *selectS) BaseType() string   { return "select" }
 
 func (f *selectS) Event(new interface{}, context EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
@@ -92,27 +95,17 @@ func (f *selectS) Event(new interface{}, context EventContext, src interface{}) 
 }
 
 func init() {
-	RegisterFeature("select", []FeatureCreator{
-		{FeatureTypeSelection, func() Feature { return &selectF{} }, []FeatureType{FeatureTypePacket}},
-	})
-	RegisterFeature("select_slice", []FeatureCreator{
-		{FeatureTypeSelection, func() Feature { return &selectS{} }, []FeatureType{featureTypeAny, featureTypeAny}},
-	})
-	RegisterFeature("select_slice", []FeatureCreator{
-		{FeatureTypeSelection, func() Feature { return &selectS{} }, []FeatureType{featureTypeAny, featureTypeAny, FeatureTypeSelection}},
-	})
+	RegisterFunction("select", Selection, func() Feature { return &selectF{} }, PacketFeature)
+	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const)
+	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const, Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //apply and map pseudofeatures
 func init() {
-	RegisterFeature("apply", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return nil }, []FeatureType{FeatureTypeFlow, FeatureTypeSelection}},
-	})
-	RegisterFeature("map", []FeatureCreator{
-		{FeatureTypePacket, func() Feature { return nil }, []FeatureType{FeatureTypePacket, FeatureTypeSelection}},
-	})
+	RegisterFunction("apply", FlowFeature, nil, FlowFeature, Selection)
+	RegisterFunction("map", PacketFeature, nil, PacketFeature, Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,9 +128,7 @@ func (f *count) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("count", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &count{} }, []FeatureType{FeatureTypeSelection}},
-	})
+	RegisterTemporaryFeature("count", ipfix.Unsigned64, 0, FlowFeature, func() Feature { return &count{} }, Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,9 +159,7 @@ func (f *mean) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("mean", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &mean{} }, []FeatureType{FeatureTypePacket}},
-	})
+	RegisterFunction("mean", FlowFeature, func() Feature { return &mean{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,12 +179,8 @@ func (f *min) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("min", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &min{} }, []FeatureType{FeatureTypePacket}},
-	})
-	RegisterFeature("minimum", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &min{} }, []FeatureType{FeatureTypePacket}},
-	})
+	RegisterFunction("min", FlowFeature, func() Feature { return &min{} }, PacketFeature)
+	RegisterFunction("minimum", FlowFeature, func() Feature { return &min{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,12 +200,8 @@ func (f *max) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("max", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &max{} }, []FeatureType{FeatureTypePacket}},
-	})
-	RegisterFeature("maximum", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &max{} }, []FeatureType{FeatureTypePacket}},
-	})
+	RegisterFunction("max", FlowFeature, func() Feature { return &max{} }, PacketFeature)
+	RegisterFunction("maximum", FlowFeature, func() Feature { return &max{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,9 +224,7 @@ func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterFeature("less", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &less{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
-	})
+	RegisterTemporaryFeature("less", ipfix.Boolean, 0, MatchType, func() Feature { return &less{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +239,7 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 		return
 	}
 	a, b := UpConvert(values[0], values[1])
-	if ! a.Less(b) {
+	if !a.Less(b) {
 		f.SetValue(true, context, f)
 	} else {
 		f.SetValue(false, context, f)
@@ -268,9 +247,7 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterFeature("geq", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &geq{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
-	})
+	RegisterTemporaryFeature("geq", ipfix.Boolean, 0, MatchType, func() Feature { return &geq{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -294,10 +271,9 @@ func (f *accumulate) Event(new interface{}, context EventContext, src interface{
 	f.vector = append(f.vector, new)
 }
 
+//FIXME: this has a bad name
 func init() {
-	RegisterFeature("accumulate", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &accumulate{} }, []FeatureType{FeatureTypePacket}},
-	})
+	RegisterFunction("accumulate", MatchType, func() Feature { return &accumulate{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,9 +296,7 @@ func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("concatenate", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &concatenate{} }, []FeatureType{FeatureTypePacket}},
-	})
+	RegisterTemporaryFeature("concatenate", ipfix.OctetArray, 0, FlowFeature, func() Feature { return &concatenate{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,7 +307,7 @@ type logF struct {
 
 func (f *logF) Event(new interface{}, context EventContext, src interface{}) {
 	num := new.(Number)
-    f.value = num.Log()
+	f.value = num.Log()
 }
 
 func (f *logF) Stop(reason FlowEndReason, context EventContext) {
@@ -341,9 +315,7 @@ func (f *logF) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("log", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &logF{} }, []FeatureType{FeatureTypeFlow}},
-	})
+	RegisterFunction("log", MatchType, func() Feature { return &logF{} }, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,7 +330,7 @@ func (f *divide) Event(new interface{}, context EventContext, src interface{}) {
 		return
 	}
 	a, b := UpConvert(values[0], values[1])
-    f.value = a.Divide(b)
+	f.value = a.Divide(b)
 }
 
 func (f *divide) Stop(reason FlowEndReason, context EventContext) {
@@ -366,18 +338,7 @@ func (f *divide) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
-	})
-	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{FeatureTypeMatch, featureTypeAny}},
-	})
-	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, FeatureTypeMatch}},
-	})
-	RegisterFeature("divide", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &divide{} }, []FeatureType{featureTypeAny, featureTypeAny}},
-	})
+	RegisterFunction("divide", MatchType, func() Feature { return &divide{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,7 +353,7 @@ func (f *multiply) Event(new interface{}, context EventContext, src interface{})
 		return
 	}
 	a, b := UpConvert(values[0], values[1])
-    f.value = a.Multiply(b)
+	f.value = a.Multiply(b)
 }
 
 func (f *multiply) Stop(reason FlowEndReason, context EventContext) {
@@ -400,18 +361,7 @@ func (f *multiply) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeMatch, FeatureTypeMatch}},
-	})
-	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{FeatureTypeMatch, featureTypeAny}},
-	})
-	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, FeatureTypeMatch}},
-	})
-	RegisterFeature("multiply", []FeatureCreator{
-		{FeatureTypeMatch, func() Feature { return &multiply{} }, []FeatureType{featureTypeAny, featureTypeAny}},
-	})
+	RegisterFunction("multiply", MatchType, func() Feature { return &multiply{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,7 +376,7 @@ func (f *packetTotalCount) Start(context EventContext) {
 }
 
 func (f *packetTotalCount) Event(new interface{}, context EventContext, src interface{}) {
-    f.count++
+	f.count++
 }
 
 func (f *packetTotalCount) Stop(reason FlowEndReason, context EventContext) {
@@ -434,7 +384,5 @@ func (f *packetTotalCount) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFeature("packetTotalCount", []FeatureCreator{
-		{FeatureTypeFlow, func() Feature { return &packetTotalCount{} }, []FeatureType{RawPacket}},
-	})
+	RegisterStandardFeature("packetTotalCount", FlowFeature, func() Feature { return &packetTotalCount{} }, RawPacket)
 }
