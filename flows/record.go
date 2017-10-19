@@ -2,10 +2,12 @@ package flows
 
 import (
 	"fmt"
-	"html/template"
 	"io"
 	"strconv"
 	"strings"
+	"text/template"
+
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 )
 
 type record struct {
@@ -66,13 +68,16 @@ type RecordMaker struct {
 }
 
 type graphInfo struct {
-	ret      FeatureType
-	constant interface{}
+	ret          FeatureType
+	data         interface{}
+	nonComposite bool
+	apply        string
 }
 
 type featureToInit struct {
 	feature   featureMaker
 	info      graphInfo
+	ie        ipfix.InformationElement
 	arguments []int
 	call      []int
 	event     bool
@@ -83,10 +88,12 @@ func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureTyp
 	type featureWithType struct {
 		feature     interface{}
 		ret         FeatureType
+		ie          ipfix.InformationElement
 		export      bool
 		reset       bool
 		selection   string
 		compositeID string
+		apply       string
 	}
 
 	init := make([]featureToInit, 0, len(features))
@@ -128,7 +135,8 @@ MAIN:
 				} else {
 					stack = append([]featureWithType{
 						{
-							feature:     composite, //FIXME
+							feature:     composite.definition,
+							ie:          composite.ie,
 							ret:         currentFeature.ret,
 							export:      currentFeature.export,
 							compositeID: id,
@@ -142,8 +150,10 @@ MAIN:
 				init = append(init, featureToInit{
 					feature: feature,
 					info: graphInfo{
-						ret: currentFeature.ret,
+						ret:   currentFeature.ret,
+						apply: currentFeature.apply,
 					},
+					ie:        feature.ie, //this depends on function!
 					arguments: currentSelection.argument,
 					event:     currentSelection.argument == nil,
 					export:    currentFeature.export,
@@ -155,8 +165,9 @@ MAIN:
 			init = append(init, featureToInit{
 				feature: feature,
 				info: graphInfo{
-					constant: typedFeature,
+					data: typedFeature,
 				},
+				ie:     feature.ie,
 				export: currentFeature.export,
 			})
 		case []interface{}:
@@ -183,6 +194,7 @@ MAIN:
 								feature: typedFeature[1],
 								ret:     currentFeature.ret,
 								export:  currentFeature.export,
+								apply:   fun,
 								reset:   true,
 							},
 						}, stack...)
@@ -198,54 +210,61 @@ MAIN:
 								feature: typedFeature[1],
 								ret:     currentFeature.ret,
 								export:  currentFeature.export,
+								apply:   fun,
 								reset:   true,
 							},
 						}, stack...)
 					}
 					continue MAIN
-				} else {
-					argumentTypes := feature.getArguments(currentFeature.ret, len(typedFeature)-1)
-					argumentPos := make([]int, 0, len(typedFeature)-1)
-					for i, f := range typedFeature[1:] {
-						if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
-							newstack := make([]featureWithType, len(typedFeature)-1)
-							for i, arg := range typedFeature[1:] {
-								newstack[i] = featureWithType{
-									feature: arg,
-									ret:     argumentTypes[i],
-								}
-							}
-							stack = append(append(newstack, currentFeature), stack...)
-							continue MAIN
-						} else {
-							argumentPos = append(argumentPos, pos)
-						}
-					}
-					seen[id] = len(init)
-					if currentFeature.compositeID != "" {
-						seen[currentFeature.compositeID] = len(init)
-					}
-					if currentFeature.selection != "" {
-						currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
-						selections[currentFeature.selection] = currentSelection
-					}
-					/*
-						FIXME:
-						if currentFeature.export {
-							currentFeature.function = strings.Join(compositeToCall(typedFeature), "")
-						}
-					*/
-					//select: set event true (event from logic + event from base)
-					init = append(init, featureToInit{
-						feature: feature,
-						info: graphInfo{
-							ret: currentFeature.ret,
-						},
-						arguments: argumentPos,
-						event:     fun == "select" || (fun == "select_slice" && len(argumentPos) == 2),
-						export:    currentFeature.export,
-					})
 				}
+				argumentTypes := feature.getArguments(currentFeature.ret, len(typedFeature)-1)
+				argumentPos := make([]int, 0, len(typedFeature)-1)
+				for i, f := range typedFeature[1:] {
+					if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
+						newstack := make([]featureWithType, len(typedFeature)-1)
+						for i, arg := range typedFeature[1:] {
+							newstack[i] = featureWithType{
+								feature: arg,
+								ret:     argumentTypes[i],
+							}
+						}
+						stack = append(append(newstack, currentFeature), stack...)
+						continue MAIN
+					} else {
+						argumentPos = append(argumentPos, pos)
+					}
+				}
+				seen[id] = len(init)
+				ie := feature.ie
+				if currentFeature.compositeID != "" {
+					seen[currentFeature.compositeID] = len(init)
+					ie = currentFeature.ie
+				} else {
+					if currentFeature.export {
+						ie.Name = strings.Join(compositeToCall(typedFeature), "")
+					}
+					if feature.function {
+						//FIXME: calculate new ie type from arguments
+						//init[argumentPos[i]].ie.Type
+					}
+				}
+				if currentFeature.selection != "" {
+					currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
+					selections[currentFeature.selection] = currentSelection
+				}
+				//select: set event true (event from logic + event from base)
+				init = append(init, featureToInit{
+					feature: feature,
+					info: graphInfo{
+						ret:          currentFeature.ret,
+						nonComposite: currentFeature.compositeID == "",
+						apply:        currentFeature.apply,
+					},
+					arguments: argumentPos,
+					ie:        ie,
+					event:     fun == "select" || (fun == "select_slice" && len(argumentPos) == 2),
+					export:    currentFeature.export,
+				})
 			}
 		default:
 			panic(fmt.Sprint("Don't know what to do with ", currentFeature))
@@ -265,16 +284,6 @@ MAIN:
 	nexport := 0
 	for _, feature := range init {
 		if feature.export {
-			/*			var basetype string
-						if feature.composite != "" && feature.composite != "apply" && feature.composite != "map" {
-							basetype = feature.composite
-						} else if feature.function != "" {
-							basetype = feature.function
-						} else {
-							basetype = feature.feature.BaseType()
-						}
-						basetypes = append(basetypes, basetype)*/
-
 			nexport++
 		}
 		if feature.event {
@@ -387,27 +396,23 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		}
 		for i, feature := range fl.init {
 			var node Node
-			node.Label = feature.feature.ie.Name
-			/*
-				FIXME:
-				if feature.composite == "apply" || feature.composite == "map" {
-					node.Label = fmt.Sprintf("%s\\n%s", feature.composite, node.Label)
-				} else if feature.composite != "" {
-					node.Label = fmt.Sprintf("%s\\n%s", node.Label, feature.composite)
-				}
-			*/
+			node.Label = feature.ie.Name
+			if node.Label != feature.feature.ie.Name {
+				node.Label = fmt.Sprintf("%s\\n%s", feature.feature.ie.Name, node.Label)
+			}
+			if feature.info.apply != "" {
+				node.Label = fmt.Sprintf("%s\\n%s", feature.info.apply, node.Label)
+			}
 			node.Name = toId(listID, i)
-			if feature.info.constant == nil {
+			if feature.info.data == nil {
 				if len(feature.arguments) == 0 {
 					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
 				} else if len(feature.arguments) == 1 {
-					/*
-						FIXME: if feature.composite == "" {
-							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
-						} else {
-					*/
-					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
-					//}
+					if feature.info.nonComposite {
+						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
+					} else {
+						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
+					}
 				} else {
 					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
 					args := make([]string, len(feature.arguments))
@@ -418,7 +423,7 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 					node.Label = ""
 				}
 			} else {
-				node.Label = fmt.Sprint(feature.info.constant)
+				node.Label = fmt.Sprint(feature.info.data)
 				node.Style = styles[Const]
 			}
 

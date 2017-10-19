@@ -7,7 +7,7 @@
         "destinationTransportPort",
         {"mean": ["octetTotalCount"]},
         "flowEndReason",
-        "flowEndNanoSeconds",
+        "flowEndNanoseconds",
         "ipTotalLength",
         {"apply": ["ipTotalLength", {"select": [{"less": ["ipTotalLength", 80]}]}]},
         "minimumIpTotalLength",

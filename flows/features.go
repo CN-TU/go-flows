@@ -29,19 +29,27 @@ var _ Feature = (*constantFeature)(nil)
 
 func newConstantMetaFeature(value interface{}) featureMaker {
 	var t ipfix.Type
-	switch value.(type) {
+	var f interface{}
+	switch cf := value.(type) {
 	case bool:
 		t = ipfix.Boolean
+		f = cf
 	case float64:
 		t = ipfix.Float64
-	case int64, int:
+		f = Float64(cf)
+	case int64:
 		t = ipfix.Signed64
+		f = Signed64(cf)
+	case int:
+		t = ipfix.Signed64
+		f = Signed64(cf)
 	case uint64:
 		t = ipfix.Unsigned64
+		f = Unsigned64(cf)
 	default:
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
-	feature := &constantFeature{value}
+	feature := &constantFeature{f}
 	return featureMaker{
 		ret:  Const,
 		make: func() Feature { return feature },
