@@ -1,10 +1,10 @@
-// +build ignore
-
 package packet
 
 import (
 	"encoding/binary"
 	"net"
+
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
 	"github.com/google/gopacket/layers"
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
@@ -22,18 +22,19 @@ func (f *sourceIPAddress) Event(new interface{}, context flows.EventContext, src
 	}
 }
 
-func (f *sourceIPAddress) Type() string {
+func (f *sourceIPAddress) Variant() int {
 	val := f.Value()
 	if val == nil || len(val.(net.IP)) == 4 {
-		return "sourceIPv4Address"
+		return 0 // "sourceIPv4Address"
 	}
-	return "sourceIPv6Address"
+	return 1 // "sourceIPv6Address"
 }
 
 func init() {
-	flows.RegisterFeature("sourceIPAddress", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &sourceIPAddress{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterVariantFeature("sourceIPAddress", []ipfix.InformationElement{
+		ipfix.GetInformationElement("sourceIPv4Address"),
+		ipfix.GetInformationElement("sourceIPv6Address"),
+	}, flows.FlowFeature, func() flows.Feature { return &sourceIPAddress{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,9 +50,7 @@ func (f *sourceTransportPort) Event(new interface{}, context flows.EventContext,
 }
 
 func init() {
-	flows.RegisterFeature("sourceTransportPort", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &sourceTransportPort{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("sourceTransportPort", flows.FlowFeature, func() flows.Feature { return &sourceTransportPort{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,9 +66,7 @@ func (f *destinationTransportPort) Event(new interface{}, context flows.EventCon
 }
 
 func init() {
-	flows.RegisterFeature("destinationTransportPort", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &destinationTransportPort{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("destinationTransportPort", flows.FlowFeature, func() flows.Feature { return &destinationTransportPort{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,18 +81,19 @@ func (f *destinationIPAddress) Event(new interface{}, context flows.EventContext
 	}
 }
 
-func (f *destinationIPAddress) Type() string {
+func (f *destinationIPAddress) Variant() int {
 	val := f.Value()
 	if val == nil || len(val.(net.IP)) == 4 {
-		return "destinationIPv4Address"
+		return 0 // "destinationIPv4Address"
 	}
-	return "destinationIPv6Address"
+	return 1 // "destinationIPv6Address"
 }
 
 func init() {
-	flows.RegisterFeature("destinationIPAddress", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &destinationIPAddress{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterVariantFeature("destinationIPAddress", []ipfix.InformationElement{
+		ipfix.GetInformationElement("destinationIPv4Address"),
+		ipfix.GetInformationElement("destinationIPv6Address"),
+	}, flows.FlowFeature, func() flows.Feature { return &destinationIPAddress{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,9 +109,7 @@ func (f *protocolIdentifier) Event(new interface{}, context flows.EventContext, 
 }
 
 func init() {
-	flows.RegisterFeature("protocolIdentifier", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &protocolIdentifier{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("protocolIdentifier", flows.FlowFeature, func() flows.Feature { return &protocolIdentifier{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,25 +123,21 @@ func (f *flowEndReason) Stop(reason flows.FlowEndReason, context flows.EventCont
 }
 
 func init() {
-	flows.RegisterFeature("flowEndReason", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &flowEndReason{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("flowEndReason", flows.FlowFeature, func() flows.Feature { return &flowEndReason{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type flowEndNanoSeconds struct {
+type flowEndNanoseconds struct {
 	flows.BaseFeature
 }
 
-func (f *flowEndNanoSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+func (f *flowEndNanoseconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
 	f.SetValue(context.When, context, f)
 }
 
 func init() {
-	flows.RegisterFeature("flowEndNanoSeconds", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &flowEndNanoSeconds{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("flowEndNanoseconds", flows.FlowFeature, func() flows.Feature { return &flowEndNanoseconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +158,12 @@ func (f *octetTotalCountPacket) Event(new interface{}, context flows.EventContex
 	f.SetValue(octetCount(new.(PacketBuffer)), context, f)
 }
 
+func init() {
+	flows.RegisterStandardFeature("octetTotalCount", flows.PacketFeature, func() flows.Feature { return &octetTotalCountPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type octetTotalCountFlow struct {
 	flows.BaseFeature
 	total flows.Unsigned64
@@ -184,10 +182,7 @@ func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Eve
 }
 
 func init() {
-	flows.RegisterFeature("octetTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &octetTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypePacket, func() flows.Feature { return &octetTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("octetTotalCount", flows.FlowFeature, func() flows.Feature { return &octetTotalCountFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,6 +221,10 @@ func (f *ipTotalLengthPacket) Event(new interface{}, context flows.EventContext,
 	f.SetValue(ipTotalLength(new.(PacketBuffer)), context, f)
 }
 
+func init() {
+	flows.RegisterStandardFeature("ipTotalLength", flows.PacketFeature, func() flows.Feature { return &ipTotalLengthPacket{} }, flows.RawPacket)
+}
+
 type ipTotalLengthFlow struct {
 	flows.BaseFeature
 	total flows.Unsigned64
@@ -244,12 +243,9 @@ func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context flows.Event
 }
 
 func init() {
-	flows.RegisterFeature("ipTotalLength", []flows.FeatureCreator{
-		{flows.FeatureTypeFlow, func() flows.Feature { return &ipTotalLengthFlow{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypePacket, func() flows.Feature { return &ipTotalLengthPacket{} }, []flows.FeatureType{flows.RawPacket}},
-	})
-	flows.RegisterCompositeFeature("minimumIpTotalLength", []interface{}{"min", "ipTotalLength"})
-	flows.RegisterCompositeFeature("maximumIpTotalLength", []interface{}{"max", "ipTotalLength"})
+	flows.RegisterStandardFeature("ipTotalLength", flows.FlowFeature, func() flows.Feature { return &ipTotalLengthFlow{} }, flows.RawPacket)
+	flows.RegisterStandardCompositeFeature("minimumIpTotalLength", "min", "ipTotalLength")
+	flows.RegisterStandardCompositeFeature("maximumIpTotalLength", "max", "ipTotalLength")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,9 +300,7 @@ func (f *tcpControlBits) Event(new interface{}, context flows.EventContext, src 
 }
 
 func init() {
-	flows.RegisterFeature("tcpControlBits", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpControlBits{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpControlBits", flows.PacketFeature, func() flows.Feature { return &tcpControlBits{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,12 +320,10 @@ func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.Event
 }
 
 func init() {
-	flows.RegisterFeature("_interPacketTimeNanoseconds", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, []flows.FeatureType{flows.RawPacket}},
-	})
-	flows.RegisterCompositeFeature("_interPacketTimeMicroseconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000)})
-	flows.RegisterCompositeFeature("_interPacketTimeMilliseconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000000)})
-	flows.RegisterCompositeFeature("_interPacketTimeSeconds", []interface{}{"divide", "_interPacketTimeNanoseconds", int64(1000000000)})
+	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.DateTimeNanoseconds, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMicroseconds", ipfix.DateTimeMicroseconds, 0, "divide", "_interPacketTimeNanoseconds", 1000)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMilliseconds", ipfix.DateTimeMilliseconds, 0, "divide", "_interPacketTimeNanoseconds", 1000000)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeSeconds", ipfix.DateTimeSeconds, 0, "divide", "_interPacketTimeNanoseconds", 1000000000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,12 +341,7 @@ func (f *join) Event(new interface{}, context flows.EventContext, src interface{
 }
 
 func init() {
-	flows.RegisterFeature("join", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypePacket}},
-		{flows.FeatureTypePacket, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypePacket, flows.FeatureTypeEllipsis}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &join{} }, []flows.FeatureType{flows.FeatureTypeFlow, flows.FeatureTypeEllipsis}},
-	})
+	flows.RegisterFunction("join", flows.MatchType, func() flows.Feature { return &join{} }, flows.MatchType, flows.Ellipsis)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,6 +375,12 @@ func (f *tcpSynTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.SYN)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpSynTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpSynTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type tcpSynTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -401,10 +394,7 @@ func (f *tcpSynTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpSynTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpSynTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpSynTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpSynTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpSynTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,6 +420,12 @@ func (f *tcpFinTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.FIN)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpFinTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpFinTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type tcpFinTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -443,10 +439,7 @@ func (f *tcpFinTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpFinTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpFinTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpFinTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpFinTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpFinTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,6 +465,12 @@ func (f *tcpRstTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.RST)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpRstTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpRstTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type tcpRstTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -485,10 +484,7 @@ func (f *tcpRstTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpRstTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpRstTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpRstTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpRstTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpRstTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -514,6 +510,12 @@ func (f *tcpPshTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.PSH)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpPshTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpPshTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type tcpPshTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -527,10 +529,7 @@ func (f *tcpPshTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpPshTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpPshTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpPshTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpPshTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpPshTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,6 +555,11 @@ func (f *tcpAckTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.ACK)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpAckTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpAckTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 type tcpAckTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -569,10 +573,7 @@ func (f *tcpAckTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpAckTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpAckTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpAckTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpAckTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpAckTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -598,6 +599,12 @@ func (f *tcpUrgTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.URG)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterStandardFeature("tcpUrgTotalCount", flows.FlowFeature, func() flows.Feature { return &tcpUrgTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type tcpUrgTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -611,10 +618,7 @@ func (f *tcpUrgTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("tcpUrgTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &tcpUrgTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &tcpUrgTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterStandardFeature("tcpUrgTotalCount", flows.PacketFeature, func() flows.Feature { return &tcpUrgTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -640,6 +644,12 @@ func (f *_tcpEceTotalCountFlow) Event(new interface{}, context flows.EventContex
 	f.count = f.count.Add(boolInt(tcp.ECE)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterTemporaryFeature("_tcpEceTotalCount", ipfix.Unsigned64, 0, flows.FlowFeature, func() flows.Feature { return &_tcpEceTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type _tcpEceTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -653,10 +663,7 @@ func (f *_tcpEceTotalCountPacket) Event(new interface{}, context flows.EventCont
 }
 
 func init() {
-	flows.RegisterFeature("_tcpEceTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpEceTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpEceTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_tcpEceTotalCount", ipfix.Unsigned64, 1, flows.PacketFeature, func() flows.Feature { return &_tcpEceTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -682,6 +689,12 @@ func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context flows.EventContex
 	f.count = f.count.Add(boolInt(tcp.CWR)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", ipfix.Unsigned64, 0, flows.FlowFeature, func() flows.Feature { return &_tcpCwrTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type _tcpCwrTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -695,10 +708,7 @@ func (f *_tcpCwrTotalCountPacket) Event(new interface{}, context flows.EventCont
 }
 
 func init() {
-	flows.RegisterFeature("_tcpCwrTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpCwrTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpCwrTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", ipfix.Unsigned64, 1, flows.PacketFeature, func() flows.Feature { return &_tcpCwrTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -724,6 +734,12 @@ func (f *_tcpNsTotalCountFlow) Event(new interface{}, context flows.EventContext
 	f.count = f.count.Add(boolInt(tcp.NS)).(flows.Unsigned64)
 }
 
+func init() {
+	flows.RegisterTemporaryFeature("_tcpNsTotalCount", ipfix.Unsigned64, 0, flows.FlowFeature, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type _tcpNsTotalCountPacket struct {
 	flows.BaseFeature
 }
@@ -737,10 +753,7 @@ func (f *_tcpNsTotalCountPacket) Event(new interface{}, context flows.EventConte
 }
 
 func init() {
-	flows.RegisterFeature("_tcpNsTotalCount", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_tcpNsTotalCountPacket{} }, []flows.FeatureType{flows.RawPacket}},
-		{flows.FeatureTypeFlow, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_tcpNsTotalCount", ipfix.Unsigned64, 1, flows.PacketFeature, func() flows.Feature { return &_tcpNsTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -762,9 +775,7 @@ func (f *_payload) Event(new interface{}, context flows.EventContext, src interf
 }
 
 func init() {
-	flows.RegisterFeature("_payload", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_payload{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_payload", ipfix.OctetArray, 0, flows.PacketFeature, func() flows.Feature { return &_payload{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -897,9 +908,7 @@ func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src inte
 }
 
 func init() {
-	flows.RegisterFeature("tcpReorder", []flows.FeatureCreator{
-		{flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterFunction("tcpReorder", flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -922,9 +931,7 @@ func (f *ipTTL) Event(new interface{}, context flows.EventContext, src interface
 }
 
 func init() {
-	flows.RegisterFeature("ipTTL", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &ipTTL{} }, []flows.FeatureType{flows.RawPacket}},
-	})
-	flows.RegisterCompositeFeature("minimumTTL", []interface{}{"min", "ipTTL"})
-	flows.RegisterCompositeFeature("maximumTTL", []interface{}{"max", "ipTTL"})
+	flows.RegisterStandardFeature("ipTTL", flows.PacketFeature, func() flows.Feature { return &ipTTL{} }, flows.RawPacket)
+	flows.RegisterStandardCompositeFeature("minimumTTL", "min", "ipTTL")
+	flows.RegisterStandardCompositeFeature("maximumTTL", "max", "ipTTL")
 }

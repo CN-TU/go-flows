@@ -1,10 +1,10 @@
-// +build ignore
-
 package packet
 
 import (
 	"bytes"
 	"strings"
+
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
@@ -50,9 +50,7 @@ func (f *_characters) Event(new interface{}, context flows.EventContext, src int
 }
 
 func init() {
-	flows.RegisterFeature("_characters", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_characters{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_characters", ipfix.String, 0, flows.PacketFeature, func() flows.Feature { return &_characters{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,9 +138,7 @@ func (f *_characters2) Event(new interface{}, context flows.EventContext, src in
 }
 
 func init() {
-	flows.RegisterFeature("_characters2", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &_characters2{} }, []flows.FeatureType{flows.RawPacket}},
-	})
+	flows.RegisterTemporaryFeature("_characters2", ipfix.String, 0, flows.PacketFeature, func() flows.Feature { return &_characters2{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,9 +179,43 @@ func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func init() {
-	flows.RegisterFeature("__consecutiveSeconds", []flows.FeatureCreator{
-		{flows.FeatureTypePacket, func() flows.Feature { return &__consecutiveSeconds{} }, []flows.FeatureType{flows.RawPacket}},
-	})
-	flows.RegisterCompositeFeature("__maximumConsecutiveSeconds", []interface{}{"maximum", "__consecutiveSeconds"})
-	flows.RegisterCompositeFeature("__minimumConsecutiveSeconds", []interface{}{"minimum", "__consecutiveSeconds"})
+	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.DateTimeSeconds, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.DateTimeSeconds, 0, "maximum", "__consecutiveSeconds")
+	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.DateTimeSeconds, 0, "minimum", "__consecutiveSeconds")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs number of seconds in which there was at least one packet
+// seconds are counted from the first packet
+type _activeForSeconds struct {
+	flows.BaseFeature
+	count     flows.Unsigned64
+	last_time int64 // FIXME maybe this should be dateTimeSeconds?
+}
+
+func (f *_activeForSeconds) Start(context flows.EventContext) {
+	f.last_time = 0
+	f.count = 0
+}
+
+func (f *_activeForSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+	var time int64
+	if f.last_time == 0 {
+		f.last_time = time
+		f.count++
+	} else {
+		if time-f.last_time > 1000000000 { // if time difference to f.last_time is more than one second
+			f.last_time = time
+			f.count++
+		}
+	}
+}
+
+func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	f.SetValue(f.count, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.DateTimeSeconds, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
 }

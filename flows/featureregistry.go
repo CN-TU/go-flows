@@ -80,14 +80,14 @@ func RegisterCompositeFeature(ie ipfix.InformationElement, definition ...interfa
 	}
 }
 
-func RegisterStandardCompositeFeature(name string, definition interface{}) {
+func RegisterStandardCompositeFeature(name string, definition ...interface{}) {
 	ie := ipfix.GetInformationElement(name)
-	RegisterCompositeFeature(ie, definition)
+	RegisterCompositeFeature(ie, definition...)
 }
 
-func RegisterTemporaryCompositeFeature(name string, t ipfix.Type, tl uint16, definition interface{}) {
+func RegisterTemporaryCompositeFeature(name string, t ipfix.Type, tl uint16, definition ...interface{}) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
-	RegisterCompositeFeature(ie, definition)
+	RegisterCompositeFeature(ie, definition...)
 }
 
 func getFeature(feature string, ret FeatureType, nargs int) (featureMaker, bool) {
