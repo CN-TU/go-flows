@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"bufio"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -64,7 +65,7 @@ func (pe *csvExporter) Init() {
 			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
-	writer := csv.NewWriter(outfile)
+	writer := csv.NewWriter(bufio.NewWriter(outfile))
 	go func() {
 		defer close(pe.finished)
 		for data := range pe.exportlist {
