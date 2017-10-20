@@ -3,6 +3,7 @@ package flows
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"reflect"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
@@ -29,27 +30,19 @@ var _ Feature = (*constantFeature)(nil)
 
 func newConstantMetaFeature(value interface{}) featureMaker {
 	var t ipfix.Type
-	var f interface{}
-	switch cf := value.(type) {
+	switch value.(type) {
 	case bool:
 		t = ipfix.Boolean
-		f = cf
 	case float64:
 		t = ipfix.Float64
-		f = Float64(cf)
-	case int64:
+	case int64, int:
 		t = ipfix.Signed64
-		f = Signed64(cf)
-	case int:
-		t = ipfix.Signed64
-		f = Signed64(cf)
 	case uint64:
 		t = ipfix.Unsigned64
-		f = Unsigned64(cf)
 	default:
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
-	feature := &constantFeature{f}
+	feature := &constantFeature{value}
 	return featureMaker{
 		ret:  Const,
 		make: func() Feature { return feature },
@@ -84,12 +77,12 @@ func (f *selectF) Event(new interface{}, context EventContext, src interface{}) 
 
 type selectS struct {
 	EmptyBaseFeature
-	start, stop, current int
+	start, stop, current int64
 }
 
 func (f *selectS) SetArguments(arguments []Feature) {
-	f.start = int(arguments[0].Value().(Number).ToInt())
-	f.stop = int(arguments[1].Value().(Number).ToInt())
+	f.start = ToInt(arguments[0].Value())
+	f.stop = ToInt(arguments[1].Value())
 }
 func (f *selectS) Start(EventContext) { f.current = 0 }
 
@@ -143,27 +136,22 @@ func init() {
 
 type mean struct {
 	BaseFeature
-	total Number
-	count int
+	total float64
+	count int64
 }
 
 func (f *mean) Start(context EventContext) {
-	f.total = nil
+	f.total = 0
 	f.count = 0
 }
 
 func (f *mean) Event(new interface{}, context EventContext, src interface{}) {
-	num := new.(Number)
-	if f.total == nil {
-		f.total = num
-	} else {
-		f.total = f.total.Add(num)
-	}
+	f.total += ToFloat(new)
 	f.count++
 }
 
 func (f *mean) Stop(reason FlowEndReason, context EventContext) {
-	f.SetValue(f.total.ToFloat()/float64(f.count), context, f)
+	f.SetValue(f.total/float64(f.count), context, f)
 }
 
 func init() {
@@ -177,8 +165,19 @@ type min struct {
 }
 
 func (f *min) Event(new interface{}, context EventContext, src interface{}) {
-	if f.value == nil || new.(Number).Less(f.value.(Number)) {
+	if f.value == nil {
 		f.value = new
+	} else {
+		_, fl, a, b := UpConvert(new, f.value)
+		if fl {
+			if a.(float64) < b.(float64) {
+				f.value = new
+			}
+		} else {
+			if a.(int64) < b.(int64) {
+				f.value = new
+			}
+		}
 	}
 }
 
@@ -198,8 +197,19 @@ type max struct {
 }
 
 func (f *max) Event(new interface{}, context EventContext, src interface{}) {
-	if f.value == nil || new.(Number).Greater(f.value.(Number)) {
+	if f.value == nil {
 		f.value = new
+	} else {
+		_, fl, a, b := UpConvert(new, f.value)
+		if fl {
+			if a.(float64) > b.(float64) {
+				f.value = new
+			}
+		} else {
+			if a.(int64) > b.(int64) {
+				f.value = new
+			}
+		}
 	}
 }
 
@@ -223,11 +233,20 @@ func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0], values[1])
-	if a.Less(b) {
-		f.SetValue(true, context, f)
+
+	_, fl, a, b := UpConvert(values[0], values[1])
+	if fl {
+		if a.(float64) < b.(float64) {
+			f.SetValue(true, context, f)
+		} else {
+			f.SetValue(false, context, f)
+		}
 	} else {
-		f.SetValue(false, context, f)
+		if a.(int64) < b.(int64) {
+			f.SetValue(true, context, f)
+		} else {
+			f.SetValue(false, context, f)
+		}
 	}
 }
 
@@ -246,11 +265,19 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0], values[1])
-	if !a.Less(b) {
-		f.SetValue(true, context, f)
+	_, fl, a, b := UpConvert(values[0], values[1])
+	if fl {
+		if a.(float64) >= b.(float64) {
+			f.SetValue(true, context, f)
+		} else {
+			f.SetValue(false, context, f)
+		}
 	} else {
-		f.SetValue(false, context, f)
+		if a.(int64) >= b.(int64) {
+			f.SetValue(true, context, f)
+		} else {
+			f.SetValue(false, context, f)
+		}
 	}
 }
 
@@ -309,74 +336,85 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type logF struct {
+type logFlow struct {
 	BaseFeature
 }
 
-func (f *logF) Event(new interface{}, context EventContext, src interface{}) {
-	num := new.(Number)
-	f.value = num.Log()
+func (f *logFlow) Event(new interface{}, context EventContext, src interface{}) {
+	f.value = math.Log(ToFloat(new))
 }
 
-func (f *logF) Stop(reason FlowEndReason, context EventContext) {
+func (f *logFlow) Stop(reason FlowEndReason, context EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
 func init() {
-	RegisterFunction("log", MatchType, func() Feature { return &logF{} }, MatchType)
+	RegisterFunction("log", FlowFeature, func() Feature { return &logFlow{} }, FlowFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type divide struct {
+type divideFlow struct {
 	MultiBaseFeature
 }
 
-func (f *divide) Event(new interface{}, context EventContext, src interface{}) {
+func (f *divideFlow) Event(new interface{}, context EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0], values[1])
-	f.value = a.Divide(b)
+	dst, fl, a, b := UpConvert(values[0], values[1])
+	var result interface{}
+	if fl {
+		result = a.(float64) / b.(float64)
+	} else {
+		result = a.(int64) / b.(int64)
+	}
+	f.value = FixType(result, dst)
 }
 
-func (f *divide) Stop(reason FlowEndReason, context EventContext) {
+func (f *divideFlow) Stop(reason FlowEndReason, context EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
 func init() {
-	RegisterFunction("divide", MatchType, func() Feature { return &divide{} }, MatchType, MatchType)
+	RegisterFunction("divide", FlowFeature, func() Feature { return &divideFlow{} }, FlowFeature, FlowFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type multiply struct {
+type multiplyFlow struct {
 	MultiBaseFeature
 }
 
-func (f *multiply) Event(new interface{}, context EventContext, src interface{}) {
+func (f *multiplyFlow) Event(new interface{}, context EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
 	}
-	a, b := UpConvert(values[0], values[1])
-	f.value = a.Multiply(b)
+	dst, fl, a, b := UpConvert(values[0], values[1])
+	var result interface{}
+	if fl {
+		result = a.(float64) * b.(float64)
+	} else {
+		result = a.(int64) * b.(int64)
+	}
+	f.value = FixType(result, dst)
 }
 
-func (f *multiply) Stop(reason FlowEndReason, context EventContext) {
+func (f *multiplyFlow) Stop(reason FlowEndReason, context EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
 func init() {
-	RegisterFunction("multiply", MatchType, func() Feature { return &multiply{} }, MatchType, MatchType)
+	RegisterFunction("multiply", FlowFeature, func() Feature { return &multiplyFlow{} }, FlowFeature, FlowFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type packetTotalCount struct {
 	BaseFeature
-	count Unsigned64
+	count uint64
 }
 
 func (f *packetTotalCount) Start(context EventContext) {

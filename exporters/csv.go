@@ -23,16 +23,14 @@ func (pe *csvExporter) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	n := len(features)
 	var list = make([]string, n)
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
-		case flows.Number:
-			list[i] = fmt.Sprint(val.GoValue())
 		case byte:
 			list[i] = fmt.Sprint(int(val))
-		case flows.DateTimeNanoSeconds:
+		case flows.DateTimeNanoseconds:
 			list[i] = fmt.Sprint(int64(val))
 		case flows.FlowEndReason:
 			list[i] = fmt.Sprint(int(val))

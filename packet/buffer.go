@@ -155,7 +155,7 @@ func (smpb *shallowMultiPacketBuffer) recycle() {
 	}
 }
 
-func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoSeconds {
+func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
 	if !smpb.empty() {
 		return smpb.buffers[0].Timestamp()
 	}
@@ -203,11 +203,11 @@ func (smpbr *shallowMultiPacketBufferRing) close() {
 type PacketBuffer interface {
 	gopacket.Packet
 	Forward() bool
-	Timestamp() flows.DateTimeNanoSeconds
+	Timestamp() flows.DateTimeNanoseconds
 	Key() flows.FlowKey
 	Copy() PacketBuffer
 	Hlen() int
-	Proto() flows.Unsigned8
+	Proto() uint8
 	setInfo(flows.FlowKey, bool)
 	Recycle()
 	decode() bool
@@ -217,7 +217,7 @@ type pcapPacketBuffer struct {
 	inUse       int32
 	owner       *multiPacketBuffer
 	key         flows.FlowKey
-	time        flows.DateTimeNanoSeconds
+	time        flows.DateTimeNanoseconds
 	buffer      []byte
 	first       gopacket.LayerType
 	eth         layers.Ethernet
@@ -235,7 +235,7 @@ type pcapPacketBuffer struct {
 	ci          gopacket.PacketMetadata
 	hlen        int
 	refcnt      int
-	proto       flows.Unsigned8
+	proto       uint8
 	forward     bool
 	resize      bool
 }
@@ -279,7 +279,7 @@ func layerToLength(layer gopacket.SerializableLayer) int {
 	return b.len
 }
 
-func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableLayerType) (pb *pcapPacketBuffer) {
+func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) (pb *pcapPacketBuffer) {
 	pb = &pcapPacketBuffer{}
 	pb.time = when
 	for _, layer := range layerList {
@@ -298,7 +298,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 				log.Panic("Can only assign one Network Layer")
 			}
 			pb.network = layer.(gopacket.NetworkLayer)
-			pb.proto = flows.Unsigned8(pb.ip4.Protocol)
+			pb.proto = uint8(pb.ip4.Protocol)
 		case layers.LayerTypeIPv6:
 			if pb.first != layers.LayerTypeEthernet {
 				pb.first = layers.LayerTypeIPv6
@@ -307,7 +307,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 				log.Panic("Can only assign one Network Layer")
 			}
 			pb.network = layer.(gopacket.NetworkLayer)
-			pb.proto = flows.Unsigned8(pb.ip6.NextHeader)
+			pb.proto = uint8(pb.ip6.NextHeader)
 		case layers.LayerTypeUDP:
 			layer.(*layers.UDP).SetInternalPortsForTesting()
 			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
@@ -318,7 +318,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 			}
 			pb.transport = layer.(gopacket.TransportLayer)
 			if pb.proto == 0 {
-				pb.proto = flows.Unsigned8(layers.IPProtocolUDP)
+				pb.proto = uint8(layers.IPProtocolUDP)
 			}
 		case layers.LayerTypeTCP:
 			layer.(*layers.TCP).SetInternalPortsForTesting()
@@ -330,7 +330,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 			}
 			pb.transport = layer.(gopacket.TransportLayer)
 			if pb.proto == 0 {
-				pb.proto = flows.Unsigned8(layers.IPProtocolTCP)
+				pb.proto = uint8(layers.IPProtocolTCP)
 			}
 		case layers.LayerTypeICMPv4:
 			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
@@ -341,7 +341,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 			}
 			pb.transport = layer.(gopacket.TransportLayer)
 			if pb.proto == 0 {
-				pb.proto = flows.Unsigned8(layers.IPProtocolICMPv4)
+				pb.proto = uint8(layers.IPProtocolICMPv4)
 			}
 		case layers.LayerTypeICMPv6:
 			if pb.first != layers.LayerTypeEthernet && pb.first != layers.LayerTypeIPv4 && pb.first != layers.LayerTypeIPv6 {
@@ -352,14 +352,14 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 			}
 			pb.transport = layer.(gopacket.TransportLayer)
 			if pb.proto == 0 {
-				pb.proto = flows.Unsigned8(layers.IPProtocolICMPv6)
+				pb.proto = uint8(layers.IPProtocolICMPv6)
 			}
 		default:
 			switch ip6e := layer.(type) {
 			case *layers.IPv6Destination:
-				pb.proto = flows.Unsigned8(ip6e.NextHeader)
+				pb.proto = uint8(ip6e.NextHeader)
 			case *layers.IPv6HopByHop:
-				pb.proto = flows.Unsigned8(ip6e.NextHeader)
+				pb.proto = uint8(ip6e.NextHeader)
 			default:
 				log.Panic("Protocol not supported")
 			}
@@ -379,7 +379,7 @@ func bufferFromLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableL
 	if pb.transport == nil {
 		pb.transport = &pb.udp
 		if pb.proto == 0 {
-			pb.proto = flows.Unsigned8(layers.IPProtocolUDP)
+			pb.proto = uint8(layers.IPProtocolUDP)
 		}
 		pb.hlen += layerToLength(&pb.ip4)
 	}
@@ -390,7 +390,7 @@ func (pb *pcapPacketBuffer) Hlen() int {
 	return pb.hlen
 }
 
-func (pb *pcapPacketBuffer) Proto() flows.Unsigned8 {
+func (pb *pcapPacketBuffer) Proto() uint8 {
 	return pb.proto
 }
 
@@ -399,7 +399,7 @@ func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 	return pb
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.DateTimeNanoSeconds {
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.DateTimeNanoseconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -417,7 +417,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 		pb.buffer = pb.buffer[0:cap(pb.buffer)]
 	}
 	clen := copy(pb.buffer, data)
-	pb.time = flows.DateTimeNanoSeconds(ci.Timestamp.UnixNano())
+	pb.time = flows.DateTimeNanoseconds(ci.Timestamp.UnixNano())
 	pb.ci.CaptureInfo = ci
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
@@ -444,7 +444,7 @@ func (pb *pcapPacketBuffer) Key() flows.FlowKey {
 	return pb.key
 }
 
-func (pb *pcapPacketBuffer) Timestamp() flows.DateTimeNanoSeconds {
+func (pb *pcapPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
 	return pb.time
 }
 
@@ -568,13 +568,13 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 			pb.hlen += len(pb.eth.Contents)
 		case layers.LayerTypeIPv4:
 			pb.network = &pb.ip4
-			pb.proto = flows.Unsigned8(pb.ip4.Protocol)
+			pb.proto = uint8(pb.ip4.Protocol)
 			pb.hlen += len(pb.ip4.Contents)
 		case layers.LayerTypeIPv6:
 			pb.network = &pb.ip6
-			pb.proto = flows.Unsigned8(pb.ip6.NextHeader)
+			pb.proto = uint8(pb.ip6.NextHeader)
 			if pb.proto == 0 { //fix hopbyhop
-				pb.proto = flows.Unsigned8(pb.ip6.HopByHop.NextHeader)
+				pb.proto = uint8(pb.ip6.HopByHop.NextHeader)
 			}
 			pb.hlen += len(pb.ip6.Contents)
 		case layers.LayerTypeUDP:
@@ -595,7 +595,7 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 			return true
 		default:
 			if layers.LayerClassIPv6Extension.Contains(typ) {
-				pb.proto = flows.Unsigned8(ip6skipper.NextHeader)
+				pb.proto = uint8(ip6skipper.NextHeader)
 				pb.hlen += len(ip6skipper.Contents)
 			}
 		}

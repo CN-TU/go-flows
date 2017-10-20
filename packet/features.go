@@ -45,7 +45,7 @@ type sourceTransportPort struct {
 
 func (f *sourceTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(flows.Unsigned16(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw())), context, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Src().Raw()), context, f)
 	}
 }
 
@@ -61,7 +61,7 @@ type destinationTransportPort struct {
 
 func (f *destinationTransportPort) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(flows.Unsigned16(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw())), context, f)
+		f.SetValue(binary.BigEndian.Uint16(new.(PacketBuffer).TransportLayer().TransportFlow().Dst().Raw()), context, f)
 	}
 }
 
@@ -146,12 +146,12 @@ type octetTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func octetCount(packet PacketBuffer) flows.Unsigned64 {
+func octetCount(packet PacketBuffer) uint64 {
 	length := packet.Metadata().Length
 	if net := packet.LinkLayer(); net != nil {
 		length -= len(net.LayerContents())
 	}
-	return flows.Unsigned64(length)
+	return uint64(length)
 }
 
 func (f *octetTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
@@ -166,7 +166,7 @@ func init() {
 
 type octetTotalCountFlow struct {
 	flows.BaseFeature
-	total flows.Unsigned64
+	total uint64
 }
 
 func (f *octetTotalCountFlow) Start(context flows.EventContext) {
@@ -174,7 +174,7 @@ func (f *octetTotalCountFlow) Start(context flows.EventContext) {
 }
 
 func (f *octetTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	f.total = f.total.Add(octetCount(new.(PacketBuffer))).(flows.Unsigned64)
+	f.total += octetCount(new.(PacketBuffer))
 }
 
 func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
@@ -187,10 +187,10 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func ipTotalLength(packet PacketBuffer) flows.Unsigned64 {
+func ipTotalLength(packet PacketBuffer) uint64 {
 	network := packet.NetworkLayer()
 	if ip, ok := network.(*layers.IPv4); ok {
-		return flows.Unsigned64(ip.Length)
+		return uint64(ip.Length)
 	}
 	if ip, ok := network.(*layers.IPv6); ok {
 		if ip.HopByHop != nil {
@@ -204,11 +204,11 @@ func ipTotalLength(packet PacketBuffer) flows.Unsigned64 {
 			if tlv != nil && len(tlv.OptionData) == 4 {
 				l := binary.BigEndian.Uint32(tlv.OptionData)
 				if l > 65535 {
-					return flows.Unsigned64(l)
+					return uint64(l)
 				}
 			}
 		}
-		return flows.Unsigned64(ip.Length)
+		return uint64(ip.Length)
 	}
 	return 0
 }
@@ -227,7 +227,7 @@ func init() {
 
 type ipTotalLengthFlow struct {
 	flows.BaseFeature
-	total flows.Unsigned64
+	total uint64
 }
 
 func (f *ipTotalLengthFlow) Start(context flows.EventContext) {
@@ -235,7 +235,7 @@ func (f *ipTotalLengthFlow) Start(context flows.EventContext) {
 }
 
 func (f *ipTotalLengthFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	f.total = f.total.Add(ipTotalLength(new.(PacketBuffer))).(flows.Unsigned64)
+	f.total += ipTotalLength(new.(PacketBuffer))
 }
 
 func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context flows.EventContext) {
@@ -307,11 +307,11 @@ func init() {
 
 type _interPacketTimeNanoseconds struct {
 	flows.BaseFeature
-	time flows.DateTimeNanoSeconds
+	time flows.DateTimeNanoseconds
 }
 
 func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time flows.DateTimeNanoSeconds
+	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
 		time = context.When - f.time
 	}
@@ -348,7 +348,7 @@ func init() {
 
 type tcpSynTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpSynTotalCountFlow) Start(context flows.EventContext) {
@@ -359,12 +359,11 @@ func (f *tcpSynTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 	f.SetValue(f.count, context, f)
 }
 
-func boolInt(b bool) flows.Unsigned64 {
+func boolInt(b bool) uint64 {
 	if b {
 		return 1
-	} else {
-		return 0
 	}
+	return 0
 }
 
 func (f *tcpSynTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
@@ -372,7 +371,7 @@ func (f *tcpSynTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.SYN)).(flows.Unsigned64)
+	f.count += boolInt(tcp.SYN)
 }
 
 func init() {
@@ -401,7 +400,7 @@ func init() {
 
 type tcpFinTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpFinTotalCountFlow) Start(context flows.EventContext) {
@@ -417,7 +416,7 @@ func (f *tcpFinTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.FIN)).(flows.Unsigned64)
+	f.count += boolInt(tcp.FIN)
 }
 
 func init() {
@@ -446,7 +445,7 @@ func init() {
 
 type tcpRstTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpRstTotalCountFlow) Start(context flows.EventContext) {
@@ -462,7 +461,7 @@ func (f *tcpRstTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.RST)).(flows.Unsigned64)
+	f.count += boolInt(tcp.RST)
 }
 
 func init() {
@@ -491,7 +490,7 @@ func init() {
 
 type tcpPshTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpPshTotalCountFlow) Start(context flows.EventContext) {
@@ -507,7 +506,7 @@ func (f *tcpPshTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.PSH)).(flows.Unsigned64)
+	f.count += boolInt(tcp.PSH)
 }
 
 func init() {
@@ -536,7 +535,7 @@ func init() {
 
 type tcpAckTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpAckTotalCountFlow) Start(context flows.EventContext) {
@@ -552,7 +551,7 @@ func (f *tcpAckTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.ACK)).(flows.Unsigned64)
+	f.count += boolInt(tcp.ACK)
 }
 
 func init() {
@@ -580,7 +579,7 @@ func init() {
 
 type tcpUrgTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *tcpUrgTotalCountFlow) Start(context flows.EventContext) {
@@ -596,7 +595,7 @@ func (f *tcpUrgTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.URG)).(flows.Unsigned64)
+	f.count += boolInt(tcp.URG)
 }
 
 func init() {
@@ -625,7 +624,7 @@ func init() {
 
 type _tcpEceTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *_tcpEceTotalCountFlow) Start(context flows.EventContext) {
@@ -641,7 +640,7 @@ func (f *_tcpEceTotalCountFlow) Event(new interface{}, context flows.EventContex
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.ECE)).(flows.Unsigned64)
+	f.count += boolInt(tcp.ECE)
 }
 
 func init() {
@@ -670,7 +669,7 @@ func init() {
 
 type _tcpCwrTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *_tcpCwrTotalCountFlow) Start(context flows.EventContext) {
@@ -686,7 +685,7 @@ func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context flows.EventContex
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.CWR)).(flows.Unsigned64)
+	f.count += boolInt(tcp.CWR)
 }
 
 func init() {
@@ -715,7 +714,7 @@ func init() {
 
 type _tcpNsTotalCountFlow struct {
 	flows.BaseFeature
-	count flows.Unsigned64
+	count uint64
 }
 
 func (f *_tcpNsTotalCountFlow) Start(context flows.EventContext) {
@@ -731,7 +730,7 @@ func (f *_tcpNsTotalCountFlow) Event(new interface{}, context flows.EventContext
 	if tcp == nil {
 		return
 	}
-	f.count = f.count.Add(boolInt(tcp.NS)).(flows.Unsigned64)
+	f.count += boolInt(tcp.NS)
 }
 
 func init() {
@@ -919,15 +918,12 @@ type ipTTL struct {
 
 func (f *ipTTL) Event(new interface{}, context flows.EventContext, src interface{}) {
 	network := new.(PacketBuffer).NetworkLayer()
-	var ttl flows.Unsigned8
 	if ip, ok := network.(*layers.IPv4); ok {
-		ttl = flows.Unsigned8(ip.TTL)
+		f.SetValue(uint64(ip.TTL), context, f)
 	}
 	if ip, ok := network.(*layers.IPv6); ok {
-		ttl = flows.Unsigned8(ip.HopLimit)
+		f.SetValue(uint64(ip.HopLimit), context, f)
 	}
-
-	f.SetValue(ttl, context, f)
 }
 
 func init() {

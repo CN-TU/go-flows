@@ -24,32 +24,32 @@ type FlowKey interface {
 
 // Flow interface which needs to be implemented by every flow.
 type Flow interface {
-	Event(Event, DateTimeNanoSeconds)
+	Event(Event, DateTimeNanoseconds)
 	AddTimer(TimerID, TimerCallback, EventContext)
 	HasTimer(TimerID) bool
-	EOF(DateTimeNanoSeconds)
+	EOF(DateTimeNanoseconds)
 	Active() bool
 	Key() FlowKey
-	Init(*FlowTable, FlowKey, DateTimeNanoSeconds)
+	Init(*FlowTable, FlowKey, DateTimeNanoseconds)
 	Table() *FlowTable
-	nextEvent() DateTimeNanoSeconds
-	expire(DateTimeNanoSeconds)
+	nextEvent() DateTimeNanoseconds
+	expire(DateTimeNanoseconds)
 }
 
 //FlowOptions applying to each flow
 type FlowOptions struct {
-	ActiveTimeout DateTimeNanoSeconds
-	IdleTimeout   DateTimeNanoSeconds
+	ActiveTimeout DateTimeNanoseconds
+	IdleTimeout   DateTimeNanoseconds
 	PerPacket     bool
 }
 
 type EventContext struct {
-	When   DateTimeNanoSeconds
+	When   DateTimeNanoseconds
 	Flow   Flow
 	record *record
 }
 
-func (ec EventContext) FutureEventContext(offset DateTimeNanoSeconds) (ret EventContext) {
+func (ec EventContext) FutureEventContext(offset DateTimeNanoseconds) (ret EventContext) {
 	ret = ec
 	ret.When += offset
 	return
@@ -60,7 +60,7 @@ type BaseFlow struct {
 	key        FlowKey
 	table      *FlowTable
 	timers     funcEntries
-	expireNext DateTimeNanoSeconds
+	expireNext DateTimeNanoseconds
 	records    []*record
 	active     bool
 }
@@ -71,7 +71,7 @@ func (flow *BaseFlow) Stop() {
 	flow.active = false
 }
 
-func (flow *BaseFlow) nextEvent() DateTimeNanoSeconds { return flow.expireNext }
+func (flow *BaseFlow) nextEvent() DateTimeNanoseconds { return flow.expireNext }
 
 // Active returns if the flow is still active.
 func (flow *BaseFlow) Active() bool { return flow.active }
@@ -82,7 +82,7 @@ func (flow *BaseFlow) Key() FlowKey { return flow.key }
 // Table returns the flow table belonging to this flow.
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
-func (flow *BaseFlow) expire(when DateTimeNanoSeconds) {
+func (flow *BaseFlow) expire(when DateTimeNanoseconds) {
 	if flow.expireNext == 0 {
 		return
 	}
@@ -102,7 +102,7 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return flow.timers.hasTimer(id)
 }
 
-func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, now DateTimeNanoSeconds) {
+func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, now DateTimeNanoseconds) {
 	context := EventContext{
 		When: now,
 		Flow: flow,
@@ -111,7 +111,7 @@ func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, now DateTimeNan
 }
 
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
-func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now DateTimeNanoSeconds) {
+func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now DateTimeNanoseconds) {
 	if !flow.active {
 		return //WTF, this should not happen
 	}
@@ -122,20 +122,20 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now Dat
 	flow.Stop()
 }
 
-func (flow *BaseFlow) idleEvent(context EventContext, now DateTimeNanoSeconds) {
+func (flow *BaseFlow) idleEvent(context EventContext, now DateTimeNanoseconds) {
 	flow.Export(FlowEndReasonIdle, context, now)
 }
-func (flow *BaseFlow) activeEvent(context EventContext, now DateTimeNanoSeconds) {
+func (flow *BaseFlow) activeEvent(context EventContext, now DateTimeNanoseconds) {
 	flow.Export(FlowEndReasonActive, context, now)
 }
 
 // EOF stops the flow with forced end reason.
-func (flow *BaseFlow) EOF(now DateTimeNanoSeconds) {
+func (flow *BaseFlow) EOF(now DateTimeNanoseconds) {
 	flow.ExportWithoutContext(FlowEndReasonForcedEnd, now)
 }
 
 // Event handles the given event and the active and idle timers.
-func (flow *BaseFlow) Event(event Event, when DateTimeNanoSeconds) {
+func (flow *BaseFlow) Event(event Event, when DateTimeNanoseconds) {
 	context := EventContext{
 		When: when,
 		Flow: flow,
@@ -157,7 +157,7 @@ func (flow *BaseFlow) Event(event Event, when DateTimeNanoSeconds) {
 }
 
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
-func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time DateTimeNanoSeconds) {
+func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time DateTimeNanoseconds) {
 	flow.key = key
 	flow.table = table
 	flow.timers = makeFuncEntries()

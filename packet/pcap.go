@@ -95,7 +95,7 @@ func (input *PcapBuffer) Finish() {
 	input.empty.close()
 }
 
-func (input *PcapBuffer) ReadFile(fname string) flows.DateTimeNanoSeconds {
+func (input *PcapBuffer) ReadFile(fname string) flows.DateTimeNanoseconds {
 	fhandle, err := pcap.OpenOffline(fname)
 	defer fhandle.Close()
 	if err != nil {
@@ -112,7 +112,7 @@ func (input *PcapBuffer) ReadFile(fname string) flows.DateTimeNanoSeconds {
 	return t
 }
 
-func (input *PcapBuffer) ReadInterface(dname string) (t flows.DateTimeNanoSeconds) {
+func (input *PcapBuffer) ReadInterface(dname string) (t flows.DateTimeNanoseconds) {
 	inactive, err := pcap.NewInactiveHandle(dname)
 	if err != nil {
 		log.Fatal(err)
@@ -142,7 +142,7 @@ func (input *PcapBuffer) ReadInterface(dname string) (t flows.DateTimeNanoSecond
 	return
 }
 
-func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.DateTimeNanoSeconds, stop bool) {
+func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.DateTimeNanoseconds, stop bool) {
 	cancel := make(chan os.Signal, 1)
 	finished := make(chan interface{}, 1)
 	signal.Notify(cancel, os.Interrupt)
@@ -159,7 +159,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 	default:
 		log.Fatalf("File format not implemented")
 	}
-	go func(time *flows.DateTimeNanoSeconds, stop *bool) {
+	go func(time *flows.DateTimeNanoseconds, stop *bool) {
 		for {
 			data, ci, err := fhandle.ZeroCopyReadPacketData()
 			if err == io.EOF {

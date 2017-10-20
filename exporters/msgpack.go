@@ -31,18 +31,16 @@ func (pe *msgPack) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *msgPack) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *msgPack) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	n := len(features)
 	var list = make([]interface{}, n)
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
-		case flows.Number:
-			list[i] = val.GoValue()
 		case net.IP:
 			list[i] = []byte(val)
 		case byte:
 			list[i] = int(val)
-		case flows.DateTimeNanoSeconds:
+		case flows.DateTimeNanoseconds:
 			list[i] = int64(val)
 		case flows.FlowEndReason:
 			list[i] = int(val)

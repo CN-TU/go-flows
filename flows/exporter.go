@@ -14,7 +14,7 @@ type UseStringOption struct{}
 // Exporter represents a genric exporter
 type Exporter interface {
 	// Export gets called upon flow export with a list of features and the export time.
-	Export(Template, []Feature, DateTimeNanoSeconds)
+	Export(Template, []Feature, DateTimeNanoseconds)
 	// Finish gets called before program exit. Eventual flushing needs to be implemented here.
 	Finish()
 	ID() string

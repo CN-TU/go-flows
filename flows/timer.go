@@ -4,7 +4,7 @@ package flows
 type TimerID int
 
 // TimerCallback is a function the gets called upon a timer event. This event receives the expiry time and the current time.
-type TimerCallback func(EventContext, DateTimeNanoSeconds)
+type TimerCallback func(EventContext, DateTimeNanoseconds)
 
 var timerMaxID TimerID
 
@@ -31,8 +31,8 @@ func makeFuncEntries() funcEntries {
 	return make(funcEntries, 2)
 }
 
-func (fe *funcEntries) expire(when DateTimeNanoSeconds) DateTimeNanoSeconds {
-	var next DateTimeNanoSeconds
+func (fe *funcEntries) expire(when DateTimeNanoseconds) DateTimeNanoseconds {
+	var next DateTimeNanoseconds
 	fep := *fe
 	for i, v := range fep {
 		if v.context.When != 0 {

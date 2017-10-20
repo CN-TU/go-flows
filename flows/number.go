@@ -1,227 +1,296 @@
 package flows
 
-// Unsigned8 represents a uint8 according to RFC5102
-type Unsigned8 uint8
-
-// Unsigned16 represents a uint16 according to RFC5102
-type Unsigned16 uint16
-
-// Unsigned32 represents a uint32 according to RFC5102
-type Unsigned32 uint32
-
-// Unsigned64 represents a uint64 according to RFC5102
-type Unsigned64 uint64
-
-// Signed8 represents a int8 according to RFC5102
-type Signed8 int8
-
-// Signed16 represents a int16 according to RFC5102
-type Signed16 int16
-
-// Signed32 represents a int32 according to RFC5102
-type Signed32 int32
-
-// Signed64 represents a int64 according to RFC5102
-type Signed64 int64
-
-// Float32 represents a float32 according to RFC5102
-type Float32 float32
-
-// Float64 represents a float64 according to RFC5102
-type Float64 float64
+import (
+	"fmt"
+)
 
 // DateTimeSeconds represents time in units of seconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
 type DateTimeSeconds uint64
 
-// DateTimeMilliSeconds represents time in units of milliseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeMilliSeconds uint64
+// DateTimeMilliseconds represents time in units of milliseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeMilliseconds uint64
 
-// DateTimeMicroSeconds represents time in units of microseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeMicroSeconds uint64
+// DateTimeMicroseconds represents time in units of microseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeMicroseconds uint64
 
-// DateTimeNanoSeconds represents time in units of nanoseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeNanoSeconds uint64
+// DateTimeNanoseconds represents time in units of nanoseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
+type DateTimeNanoseconds uint64
 
-// Number represents a number according to RFC5102
-type Number interface {
-	// Add numbers and return result
-	Add(Number) Number //oper:a+b
-	// Multiplies numbers and return result
-	Multiply(Number) Number //oper:a*b
-	// Divides numbers and return result (integer division returns integer)
-	Divide(Number) Number //oper:a/b
-	// Log returns log(number)
-	Log() Number //oper:Float64(math.Log(float64(a)))
-
-	// Less returns true if the number is smaller than the argument
-	Less(Number) bool //oper:a<b
-	// Greater returns true if the number is greater than the argument
-	Greater(Number) bool //oper:a>b
-
-	// ToFloat returns the number converted to float64
-	ToFloat() float64 //oper:float64(a)
-	// ToInt returns the number converted to int64
-	ToInt() int64 //oper:int64(a)
-	// ToUint returns the number converted to uint64
-	ToUint() uint64 //oper:uint64(a)
-	To64() Number
-	GoValue() interface{}
+func ToFloat(a interface{}) float64 {
+	switch i := a.(type) {
+	case float64:
+		return i
+	case float32:
+		return float64(i)
+	case int64:
+		return float64(i)
+	case int32:
+		return float64(i)
+	case int16:
+		return float64(i)
+	case int8:
+		return float64(i)
+	case int:
+		return float64(i)
+	case uint64:
+		return float64(i)
+	case uint32:
+		return float64(i)
+	case uint16:
+		return float64(i)
+	case uint8:
+		return float64(i)
+	case uint:
+		return float64(i)
+	case DateTimeSeconds:
+		return float64(i)
+	case DateTimeMilliseconds:
+		return float64(i)
+	case DateTimeMicroseconds:
+		return float64(i)
+	case DateTimeNanoseconds:
+		return float64(i)
+	case nil:
+		return 0
+	case bool:
+		if i {
+			return 1
+		}
+		return 0
+	}
+	panic(fmt.Sprintf("Can't convert %v to float", a))
 }
 
-//go:generate go run tool/number_generate.go
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Unsigned8) To64() Number {
-	return Signed64(a)
+func ToInt(a interface{}) int64 {
+	switch i := a.(type) {
+	case float64:
+		return int64(i)
+	case float32:
+		return int64(i)
+	case int64:
+		return i
+	case int32:
+		return int64(i)
+	case int16:
+		return int64(i)
+	case int8:
+		return int64(i)
+	case int:
+		return int64(i)
+	case uint64:
+		return int64(i)
+	case uint32:
+		return int64(i)
+	case uint16:
+		return int64(i)
+	case uint8:
+		return int64(i)
+	case uint:
+		return int64(i)
+	case DateTimeSeconds:
+		return int64(i)
+	case DateTimeMilliseconds:
+		return int64(i)
+	case DateTimeMicroseconds:
+		return int64(i)
+	case DateTimeNanoseconds:
+		return int64(i)
+	case nil:
+		return 0
+	case bool:
+		if i {
+			return 1
+		}
+		return 0
+	}
+	panic(fmt.Sprintf("Can't convert %v to int", a))
 }
 
-// GoValue returns the number converted to the underlying go type
-func (a Unsigned8) GoValue() interface{} {
-	return uint8(a)
+func ToUInt(a interface{}) uint64 {
+	switch i := a.(type) {
+	case float64:
+		return uint64(i)
+	case float32:
+		return uint64(i)
+	case int64:
+		return uint64(i)
+	case int32:
+		return uint64(i)
+	case int16:
+		return uint64(i)
+	case int8:
+		return uint64(i)
+	case int:
+		return uint64(i)
+	case uint64:
+		return i
+	case uint32:
+		return uint64(i)
+	case uint16:
+		return uint64(i)
+	case uint8:
+		return uint64(i)
+	case uint:
+		return uint64(i)
+	case DateTimeSeconds:
+		return uint64(i)
+	case DateTimeMilliseconds:
+		return uint64(i)
+	case DateTimeMicroseconds:
+		return uint64(i)
+	case DateTimeNanoseconds:
+		return uint64(i)
+	case nil:
+		return 0
+	case bool:
+		if i {
+			return 1
+		}
+		return 0
+	}
+	panic(fmt.Sprintf("Can't convert %v to int", a))
 }
 
-// To64 returns the number converted to a 64 bit wide Number
-func (a Unsigned16) To64() Number {
-	return Signed64(a)
+type NumberType int
+
+const (
+	IntType NumberType = iota
+	FloatType
+	SecondsType
+	MillisecondsType
+	MicrosecondsType
+	NanosecondsType
+)
+
+func cleanUp(a interface{}) (ct NumberType, ret interface{}) {
+	switch i := a.(type) {
+	case float64:
+		return FloatType, i
+	case float32:
+		return FloatType, float64(i)
+	case int64:
+		return IntType, i
+	case int32:
+		return IntType, int64(i)
+	case int16:
+		return IntType, int64(i)
+	case int8:
+		return IntType, int64(i)
+	case int:
+		return IntType, int64(i)
+	case uint64:
+		return IntType, int64(i)
+	case uint32:
+		return IntType, int64(i)
+	case uint16:
+		return IntType, int64(i)
+	case uint8:
+		return IntType, int64(i)
+	case uint:
+		return IntType, int64(i)
+	case DateTimeSeconds:
+		return SecondsType, i
+	case DateTimeMilliseconds:
+		return MillisecondsType, i
+	case DateTimeMicroseconds:
+		return MicrosecondsType, i
+	case DateTimeNanoseconds:
+		return NanosecondsType, i
+	case bool:
+		if i {
+			return IntType, int64(1)
+		}
+		return IntType, int64(0)
+	}
+	panic(fmt.Sprintf("Can't upconvert %v", a))
 }
 
-// GoValue returns the number converted to the underlying go type
-func (a Unsigned16) GoValue() interface{} {
-	return uint16(a)
+func intToFloat(val interface{}) float64 {
+	return float64(val.(int64))
 }
 
-// To64 returns the number converted to a 64 bit wide Number
-func (a Unsigned32) To64() Number {
-	return Signed64(a)
+func floatToInt(val interface{}) int64 {
+	return int64(val.(float64))
 }
 
-// GoValue returns the number converted to the underlying go type
-func (a Unsigned32) GoValue() interface{} {
-	return uint32(a)
+func intToTime(val interface{}, kind NumberType) interface{} {
+	switch kind {
+	case SecondsType:
+		return DateTimeSeconds(val.(int64))
+	case MillisecondsType:
+		return DateTimeMilliseconds(val.(int64))
+	case MicrosecondsType:
+		return DateTimeMicroseconds(val.(int64))
+	case NanosecondsType:
+		return DateTimeNanoseconds(val.(int64))
+	}
+	panic("This should never happen")
 }
 
-// To64 returns the number converted to a 64 bit wide Number
-func (a Unsigned64) To64() Number {
-	return Signed64(a)
+func floatToTime(val interface{}, kind NumberType) interface{} {
+	switch kind {
+	case SecondsType:
+		return DateTimeSeconds(val.(float64))
+	case MillisecondsType:
+		return DateTimeMilliseconds(val.(float64))
+	case MicrosecondsType:
+		return DateTimeMicroseconds(val.(float64))
+	case NanosecondsType:
+		return DateTimeNanoseconds(val.(float64))
+	}
+	panic("This should never happen")
 }
 
-// GoValue returns the number converted to the underlying go type
-func (a Unsigned64) GoValue() interface{} {
-	return uint64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Signed8) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Signed8) GoValue() interface{} {
-	return int8(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Signed16) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Signed16) GoValue() interface{} {
-	return int16(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Signed32) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Signed32) GoValue() interface{} {
-	return int32(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Signed64) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Signed64) GoValue() interface{} {
-	return int64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Float32) To64() Number {
-	return Float64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Float32) GoValue() interface{} {
-	return float32(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a Float64) To64() Number {
-	return Float64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a Float64) GoValue() interface{} {
-	return float64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a DateTimeSeconds) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a DateTimeSeconds) GoValue() interface{} {
-	return uint64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a DateTimeMilliSeconds) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a DateTimeMilliSeconds) GoValue() interface{} {
-	return uint64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a DateTimeMicroSeconds) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a DateTimeMicroSeconds) GoValue() interface{} {
-	return uint64(a)
-}
-
-// To64 returns the number converted to a 64 bit wide Number
-func (a DateTimeNanoSeconds) To64() Number {
-	return Signed64(a)
-}
-
-// GoValue returns the number converted to the underlying go type
-func (a DateTimeNanoSeconds) GoValue() interface{} {
-	return uint64(a)
+func scaleTimetoNano(from NumberType, val interface{}) interface{} {
+	switch from {
+	case SecondsType:
+		return DateTimeSeconds(val.(int64) * 1e9)
+	case MillisecondsType:
+		return DateTimeMilliseconds(val.(int64) * 1e6)
+	case MicrosecondsType:
+		return DateTimeMicroseconds(val.(int64) * 1e3)
+	case NanosecondsType:
+		return val
+	}
+	panic("This should never happen")
 }
 
 // UpConvert returns either two Signed64 or two Float64 depending on the numbers
-func UpConvert(a, b interface{}) (a64, b64 Number) {
-	a64 = a.(Number).To64()
-	b64 = b.(Number).To64()
-	if _, ok := a64.(Float64); ok {
-		if _, ok := b64.(Float64); !ok {
-			b64 = Float64(b64.(Signed64))
-		}
-	} else {
-		if _, ok := b64.(Float64); ok {
-			a64 = Float64(a64.(Signed64))
-		}
+func UpConvert(a, b interface{}) (dst NumberType, fl bool, ai, bi interface{}) {
+	var tA, tB NumberType
+	tA, ai = cleanUp(a)
+	tB, bi = cleanUp(b)
+	if tA == tB {
+		dst = tA
+		fl = tA == FloatType
+		return
 	}
-	return
+	if tA == IntType {
+		if tB == FloatType {
+			return FloatType, true, intToFloat(ai), bi
+		}
+		return tB, false, intToTime(ai, tB), tB
+	}
+	if tA == FloatType {
+		if tB == IntType {
+			return FloatType, true, ai, intToFloat(bi)
+		}
+		return tB, false, floatToTime(ai, tB), tB
+	}
+	// both types are time - but differen timebases
+	return NanosecondsType, false, scaleTimetoNano(tA, a), scaleTimetoNano(tB, b)
+}
+
+func FixType(val interface{}, t NumberType) interface{} {
+	switch t {
+	case SecondsType:
+		return DateTimeSeconds(val.(int64))
+	case MillisecondsType:
+		return DateTimeMilliseconds(val.(int64))
+	case MicrosecondsType:
+		return DateTimeMicroseconds(val.(int64))
+	case NanosecondsType:
+		return DateTimeNanoseconds(val.(int64))
+	}
+	return val
 }

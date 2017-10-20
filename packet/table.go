@@ -10,7 +10,7 @@ import (
 type EventTable interface {
 	Event(buffer *shallowMultiPacketBuffer)
 	Expire()
-	EOF(flows.DateTimeNanoSeconds)
+	EOF(flows.DateTimeNanoseconds)
 	KeyFunc() func(PacketBuffer) (flows.FlowKey, bool)
 }
 
@@ -30,8 +30,8 @@ type ParallelFlowTable struct {
 	buffers    []*shallowMultiPacketBufferRing
 	tmp        []*shallowMultiPacketBuffer
 	wg         sync.WaitGroup
-	expireTime flows.DateTimeNanoSeconds
-	nextExpire flows.DateTimeNanoSeconds
+	expireTime flows.DateTimeNanoseconds
+	nextExpire flows.DateTimeNanoseconds
 }
 
 type SingleFlowTable struct {
@@ -40,8 +40,8 @@ type SingleFlowTable struct {
 	buffer     *shallowMultiPacketBufferRing
 	expire     chan struct{}
 	done       chan struct{}
-	expireTime flows.DateTimeNanoSeconds
-	nextExpire flows.DateTimeNanoSeconds
+	expireTime flows.DateTimeNanoseconds
+	nextExpire flows.DateTimeNanoseconds
 }
 
 func (sft *SingleFlowTable) Expire() {
@@ -60,13 +60,13 @@ func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	b.finalize()
 }
 
-func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoSeconds) {
+func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	close(sft.buffer.full)
 	<-sft.done
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoSeconds, selector DynamicKeySelector) EventTable {
+func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector) EventTable {
 	bt := baseTable{}
 	switch {
 	case selector.fivetuple:
@@ -184,7 +184,7 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	}
 }
 
-func (pft *ParallelFlowTable) EOF(now flows.DateTimeNanoSeconds) {
+func (pft *ParallelFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	for _, c := range pft.buffers {
 		close(c.full)
 	}

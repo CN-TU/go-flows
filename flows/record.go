@@ -3,6 +3,7 @@ package flows
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"text/template"
@@ -278,6 +279,10 @@ MAIN:
 		for _, arg := range f.arguments {
 			init[arg].call = append(init[arg].call, i)
 		}
+	}
+
+	for _, feature := range init {
+		fmt.Fprintf(os.Stderr, "%#v\n", feature)
 	}
 
 	nevent := 0

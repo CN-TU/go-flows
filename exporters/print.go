@@ -17,7 +17,7 @@ type printExporter struct {
 }
 
 //Export export given features
-func (pe *printExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (pe *printExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	n := len(features)
 	var list = make([]interface{}, n*2)
 	for i, elem := range features {
