@@ -16,6 +16,8 @@ type printExporter struct {
 	finished   chan struct{}
 }
 
+func (pe *printExporter) Fields([]string) {}
+
 //Export export given features
 func (pe *printExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	n := len(features)

@@ -16,6 +16,7 @@ type Exporter interface {
 	// Export gets called upon flow export with a list of features and the export time.
 	Export(Template, []Feature, DateTimeNanoseconds)
 	// Finish gets called before program exit. Eventual flushing needs to be implemented here.
+	Fields([]string)
 	Finish()
 	ID() string
 	Init()

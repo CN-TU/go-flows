@@ -368,7 +368,7 @@ func parseArguments(cmd string, args []string) {
 					log.Fatalln("bidirectional of every flow must match")
 				}
 			}
-			recordList = append(recordList, flows.NewRecordMaker(feature.features, featureset.exporter, flows.FlowFeature))
+			recordList.AppendRecord(feature.features, featureset.exporter, flows.FlowFeature)
 		}
 	}
 
@@ -391,6 +391,8 @@ func parseArguments(cmd string, args []string) {
 	for _, exporter := range exporters {
 		exporter.Init()
 	}
+
+	recordList.Init()
 
 	flows.CleanupFeatures()
 

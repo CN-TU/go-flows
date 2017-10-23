@@ -2,6 +2,8 @@ package flows
 
 import (
 	"fmt"
+
+	ipfix "pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 )
 
 // DateTimeSeconds represents time in units of seconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
@@ -331,4 +333,87 @@ func FixType(val interface{}, t NumberType) interface{} {
 		return DateTimeNanoseconds(val.(uint64))
 	}
 	return val
+}
+
+func cleanUpType(a ipfix.Type) ipfix.Type {
+	switch a {
+	case ipfix.OctetArray:
+		return ipfix.IllegalType
+	case ipfix.Unsigned8:
+		return ipfix.Unsigned64
+	case ipfix.Unsigned16:
+		return ipfix.Unsigned64
+	case ipfix.Unsigned32:
+		return ipfix.Unsigned64
+	case ipfix.Unsigned64:
+		return ipfix.Unsigned64
+	case ipfix.Signed8:
+		return ipfix.Signed64
+	case ipfix.Signed16:
+		return ipfix.Signed64
+	case ipfix.Signed32:
+		return ipfix.Signed64
+	case ipfix.Signed64:
+		return ipfix.Signed64
+	case ipfix.Float32:
+		return ipfix.Float64
+	case ipfix.Float64:
+		return ipfix.Float64
+	case ipfix.Boolean:
+		return ipfix.Unsigned64
+	case ipfix.MacAddress:
+		return ipfix.IllegalType
+	case ipfix.String:
+		return ipfix.IllegalType
+	case ipfix.DateTimeSeconds:
+		return a
+	case ipfix.DateTimeMilliseconds:
+		return a
+	case ipfix.DateTimeMicroseconds:
+		return a
+	case ipfix.DateTimeNanoseconds:
+		return a
+	case ipfix.Ipv4Address:
+		return ipfix.IllegalType
+	case ipfix.Ipv6Address:
+		return ipfix.IllegalType
+	}
+	panic(fmt.Sprintf("Can't upconvert %s", a))
+}
+
+func UpConvertTypes(a, b ipfix.Type) ipfix.Type {
+	tA := cleanUpType(a)
+	tB := cleanUpType(b)
+	if tA == tB {
+		return tA
+	}
+	if tA == ipfix.Signed64 {
+		if tB == ipfix.Unsigned64 {
+			return tA
+		}
+		if tB == ipfix.Float64 {
+			return tB
+		}
+		return tB
+	}
+	if tA == ipfix.Unsigned64 {
+		if tB == ipfix.Signed64 {
+			return tB
+		}
+		if tB == ipfix.Float64 {
+			return tB
+		}
+		return tB
+	}
+	if tA == ipfix.Float64 {
+		if tB == ipfix.Unsigned64 {
+			return tA
+		}
+		if tB == ipfix.Signed64 {
+			return tA
+		}
+		return tB
+	}
+	// both types are time - but differen timebases
+	return ipfix.DateTimeNanoseconds
 }

@@ -161,7 +161,7 @@ func (f *mean) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFunction("mean", FlowFeature, func() Feature { return &mean{} }, PacketFeature)
+	RegisterTypedFunction("mean", ipfix.Float64, 0, FlowFeature, func() Feature { return &mean{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,7 +355,7 @@ func (f *logFlow) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterFunction("log", FlowFeature, func() Feature { return &logFlow{} }, FlowFeature)
+	RegisterTypedFunction("log", ipfix.Float64, 0, FlowFeature, func() Feature { return &logFlow{} }, FlowFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

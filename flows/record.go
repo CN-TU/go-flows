@@ -17,7 +17,7 @@ type record struct {
 	startup  []Feature
 	exporter []Exporter
 	variant  []Feature
-	template *multiTemplate
+	template Template
 }
 
 func (r *record) Start(context EventContext) {
@@ -43,7 +43,7 @@ func (r *record) Event(data interface{}, context EventContext) {
 }
 
 func (r *record) Export(context EventContext) {
-	var template Template = r.template
+	template := r.template
 	for _, variant := range r.variant {
 		template = template.subTemplate(variant.Variant())
 	}
@@ -52,20 +52,36 @@ func (r *record) Export(context EventContext) {
 	}
 }
 
-type RecordListMaker []RecordMaker
+type RecordListMaker struct {
+	list      []RecordMaker
+	templates int
+}
 
 func (rl RecordListMaker) make() (ret []*record) {
-	ret = make([]*record, len(rl))
-	for i, record := range rl {
+	ret = make([]*record, len(rl.list))
+	for i, record := range rl.list {
 		ret[i] = record.make()
 	}
 	return
 }
 
+func (rl RecordListMaker) Init() {
+	for _, record := range rl.list {
+		record.Init()
+	}
+}
+
 type RecordMaker struct {
 	init     []featureToInit
 	exporter []Exporter
+	fields   []string
 	make     func() *record
+}
+
+func (rm RecordMaker) Init() {
+	for _, exporter := range rm.exporter {
+		exporter.Fields(rm.fields)
+	}
 }
 
 type graphInfo struct {
@@ -83,9 +99,10 @@ type featureToInit struct {
 	call      []int
 	event     bool
 	export    bool
+	variant   bool
 }
 
-func NewRecordMaker(features []interface{}, exporter []Exporter, base FeatureType) RecordMaker {
+func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Exporter, base FeatureType) {
 	type featureWithType struct {
 		feature     interface{}
 		ret         FeatureType
@@ -245,8 +262,20 @@ MAIN:
 						ie.Name = strings.Join(compositeToCall(typedFeature), "")
 					}
 					if feature.function {
-						//FIXME: calculate new ie type from arguments
-						//init[argumentPos[i]].ie.Type
+						if feature.ie.Type != ipfix.IllegalType {
+							ie.Type = feature.ie.Type
+							ie.Length = feature.ie.Length
+						} else {
+							if len(argumentPos) == 1 {
+								ie.Type = init[argumentPos[0]].ie.Type
+								ie.Length = init[argumentPos[0]].ie.Length
+							} else if len(argumentPos) == 2 {
+								ie.Type = UpConvertTypes(init[argumentPos[0]].ie.Type, init[argumentPos[1]].ie.Type)
+								ie.Length = ipfix.DefaultSize[ie.Type]
+							} else {
+								ie.Type = ipfix.IllegalType //FIXME
+							}
+						}
 					}
 				}
 				if currentFeature.selection != "" {
@@ -281,13 +310,15 @@ MAIN:
 		}
 	}
 
-	for _, feature := range init {
-		fmt.Fprintf(os.Stderr, "%#v\n", feature)
-	}
-
 	nevent := 0
 	nexport := 0
-	for _, feature := range init {
+	nvariants := 0
+
+	for i, feature := range init {
+		if len(feature.feature.variants) != 0 {
+			nvariants++
+			init[i].variant = true
+		}
 		if feature.export {
 			nexport++
 		}
@@ -296,13 +327,28 @@ MAIN:
 		}
 	}
 
-	return RecordMaker{
+	toexport := make([]featureToInit, 0, nexport)
+	for _, feature := range init {
+		if feature.export {
+			toexport = append(toexport, feature)
+		}
+	}
+
+	template, fields := makeTemplate(toexport, &rl.templates) //only exported ones!
+
+	for _, feature := range init {
+		fmt.Fprintf(os.Stderr, "%#v\n", feature)
+	}
+
+	rl.list = append(rl.list, RecordMaker{
 		init,
 		exporter,
+		fields,
 		func() *record {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
 			export := make([]Feature, 0, nexport)
+			variants := make([]Feature, 0, nvariants)
 			for i, feature := range init {
 				f[i] = feature.feature.make()
 				if feature.event {
@@ -310,6 +356,9 @@ MAIN:
 				}
 				if feature.export {
 					export = append(export, f[i])
+				}
+				if feature.variant {
+					variants = append(variants, f[i])
 				}
 			}
 			for i, feature := range init {
@@ -333,9 +382,11 @@ MAIN:
 				event:    event,
 				export:   export,
 				exporter: exporter,
+				variant:  variants,
+				template: template,
 			}
 		},
-	}
+	})
 }
 
 var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
@@ -393,7 +444,7 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		Nodes []Subgraph
 		Edges []Edge
 	}{}
-	for listID, fl := range r {
+	for listID, fl := range r.list {
 		var nodes []Node
 		export := make([]Node, len(fl.exporter))
 		for i, exporter := range fl.exporter {
