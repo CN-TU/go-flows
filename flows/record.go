@@ -3,7 +3,6 @@ package flows
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"text/template"
@@ -165,13 +164,17 @@ MAIN:
 					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", currentFeature.feature, currentFeature.ret))
 				}
 				seen[id] = len(init)
+				ie := feature.ie
+				if currentFeature.ie.Name != "" {
+					ie.Name = currentFeature.ie.Name
+				}
 				init = append(init, featureToInit{
 					feature: feature,
 					info: graphInfo{
 						ret:   currentFeature.ret,
 						apply: currentFeature.apply,
 					},
-					ie:        feature.ie, //this depends on function!
+					ie:        ie,
 					arguments: currentSelection.argument,
 					event:     currentSelection.argument == nil,
 					export:    currentFeature.export,
@@ -200,12 +203,7 @@ MAIN:
 					} else if fun == "map" && currentFeature.ret != PacketFeature {
 						panic("Unexpected map - did you mean apply?")
 					}
-					/*
-						if currentFeature.export {
-							currentFeature.function = strings.Join(compositeToCall(typedFeature), "")
-						}
-						FIXME
-					*/
+					ie := ipfix.InformationElement{Name: strings.Join(compositeToCall(typedFeature), ""), Type: ipfix.IllegalType}
 					if s, ok := selections[sel]; ok {
 						stack = append([]featureWithType{
 							{
@@ -214,6 +212,7 @@ MAIN:
 								export:  currentFeature.export,
 								apply:   fun,
 								reset:   true,
+								ie:      ie,
 							},
 						}, stack...)
 						currentSelection = s
@@ -230,6 +229,7 @@ MAIN:
 								export:  currentFeature.export,
 								apply:   fun,
 								reset:   true,
+								ie:      ie,
 							},
 						}, stack...)
 					}
@@ -334,11 +334,7 @@ MAIN:
 		}
 	}
 
-	template, fields := makeTemplate(toexport, &rl.templates) //only exported ones!
-
-	for _, feature := range init {
-		fmt.Fprintf(os.Stderr, "%#v\n", feature)
-	}
+	template, fields := makeTemplate(toexport, &rl.templates)
 
 	rl.list = append(rl.list, RecordMaker{
 		init,
