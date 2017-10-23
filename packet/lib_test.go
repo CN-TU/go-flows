@@ -15,7 +15,7 @@ type featureResult struct {
 }
 
 type featureLine struct {
-	when     flows.DateTimeNanoSeconds
+	when     flows.DateTimeNanoseconds
 	features []featureResult
 }
 
@@ -30,10 +30,11 @@ func makeAssertExporter() *assertExporter {
 func (ae *assertExporter) Fields([]string) {}
 
 //Export export given features
-func (ae *assertExporter) Export(features []flows.Feature, when flows.DateTimeNanoSeconds) {
+func (ae *assertExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	line := make([]featureResult, len(features))
+	ies := template.InformationElements()
 	for i, feature := range features {
-		line[i] = featureResult{feature.Type(), feature.Value()}
+		line[i] = featureResult{ies[i].Name, feature.Value()}
 	}
 	ae.seen = append(ae.seen, featureLine{when, line})
 }
@@ -58,47 +59,48 @@ type testTable struct {
 func makeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt flows.FlowOptions) (ret testTable) {
 	ret.t = t
 	if opt.ActiveTimeout == 0 {
-		opt.ActiveTimeout = flows.SecondsInNanoSeconds * 1800
+		opt.ActiveTimeout = flows.SecondsInNanoseconds * 1800
 	}
 	if opt.IdleTimeout == 0 {
-		opt.IdleTimeout = flows.SecondsInNanoSeconds * 300
+		opt.IdleTimeout = flows.SecondsInNanoseconds * 300
 	}
 	ret.exporter = makeAssertExporter()
 	featuresI := make([]interface{}, len(features))
 	for i, feature := range features {
 		featuresI[i] = feature
 	}
-	f := flows.NewFeatureListCreator(featuresI, []flows.Exporter{ret.exporter}, ft)
-	ret.table = flows.NewFlowTable(flows.FeatureListCreatorList{f}, NewFlow, opt, true)
+	var f flows.RecordListMaker
+	f.AppendRecord(featuresI, []flows.Exporter{ret.exporter}, ft)
+	ret.table = flows.NewFlowTable(f, NewFlow, opt, true)
 	return
 }
 
 func makeFlowFeatureTest(t *testing.T, feature string) testTable {
-	return makeFeatureTest(t, []string{feature}, flows.FeatureTypeFlow, flows.FlowOptions{})
+	return makeFeatureTest(t, []string{feature}, flows.FlowFeature, flows.FlowOptions{})
 }
 
 func makePacketFeatureTest(t *testing.T, feature string) testTable {
-	return makeFeatureTest(t, []string{feature}, flows.FeatureTypePacket, flows.FlowOptions{PerPacket: true})
+	return makeFeatureTest(t, []string{feature}, flows.PacketFeature, flows.FlowOptions{PerPacket: true})
 }
 
-func (t *testTable) EventLayers(when flows.DateTimeNanoSeconds, layerList ...SerializableLayerType) {
+func (t *testTable) EventLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) {
 	data := bufferFromLayers(when, layerList...)
 	key, fw := fivetuple(data)
 	data.setInfo(key, fw)
 	t.table.Event(data)
 }
 
-func (t *testTable) Finish(when flows.DateTimeNanoSeconds) {
+func (t *testTable) Finish(when flows.DateTimeNanoseconds) {
 	t.table.EOF(when)
 	t.exporter.Finish()
 }
 
-func pprintTime(t flows.DateTimeNanoSeconds) string {
+func pprintTime(t flows.DateTimeNanoseconds) string {
 	if t == 0 {
 		return "0ns"
 	}
 	unit := []string{"ns", "us", "ms", "s", "min"}
-	div := []flows.DateTimeNanoSeconds{1000, 1000, 1000, 60, 60}
+	div := []flows.DateTimeNanoseconds{1000, 1000, 1000, 60, 60}
 	for i := 0; i < len(div); i++ {
 		if t%div[i] == 0 {
 			t /= div[i]

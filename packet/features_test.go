@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/gopacket/layers"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 func TestSourceIPAddress(t *testing.T) {
@@ -45,10 +44,10 @@ func TestSourceTransportPort(t *testing.T) {
 	}
 	table.Finish(0)
 	table.assertFeatureList([]featureLine{
-		{0, []featureResult{{"sourceTransportPort", flows.Unsigned16(80)}}}, //UDP 80:80
-		{0, []featureResult{{"sourceTransportPort", flows.Unsigned16(80)}}}, //TCP 80:80
-		{0, []featureResult{{"sourceTransportPort", flows.Unsigned16(80)}}}, //UDP 80:81
-		{0, []featureResult{{"sourceTransportPort", flows.Unsigned16(81)}}}, //UDP 81:80
+		{0, []featureResult{{"sourceTransportPort", uint16(80)}}}, //UDP 80:80
+		{0, []featureResult{{"sourceTransportPort", uint16(80)}}}, //TCP 80:80
+		{0, []featureResult{{"sourceTransportPort", uint16(80)}}}, //UDP 80:81
+		{0, []featureResult{{"sourceTransportPort", uint16(81)}}}, //UDP 81:80
 	})
 }
 
@@ -67,10 +66,10 @@ func TestDestinationTransportPort(t *testing.T) {
 	}
 	table.Finish(0)
 	table.assertFeatureList([]featureLine{
-		{0, []featureResult{{"destinationTransportPort", flows.Unsigned16(80)}}}, //UDP 80:80
-		{0, []featureResult{{"destinationTransportPort", flows.Unsigned16(80)}}}, //TCP 80:80
-		{0, []featureResult{{"destinationTransportPort", flows.Unsigned16(81)}}}, //UDP 80:81
-		{0, []featureResult{{"destinationTransportPort", flows.Unsigned16(80)}}}, //UDP 81:80
+		{0, []featureResult{{"destinationTransportPort", uint16(80)}}}, //UDP 80:80
+		{0, []featureResult{{"destinationTransportPort", uint16(80)}}}, //TCP 80:80
+		{0, []featureResult{{"destinationTransportPort", uint16(81)}}}, //UDP 80:81
+		{0, []featureResult{{"destinationTransportPort", uint16(80)}}}, //UDP 81:80
 	})
 }
 func TestDestinationIPAddress(t *testing.T) {
