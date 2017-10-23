@@ -155,6 +155,7 @@ type NumberType int
 
 const (
 	IntType NumberType = iota
+	UIntType
 	FloatType
 	SecondsType
 	MillisecondsType
@@ -162,51 +163,59 @@ const (
 	NanosecondsType
 )
 
-func cleanUp(a interface{}) (ct NumberType, ret interface{}) {
+func cleanUp(a interface{}) (NumberType, NumberType, interface{}) {
 	switch i := a.(type) {
 	case float64:
-		return FloatType, i
+		return FloatType, FloatType, a
 	case float32:
-		return FloatType, float64(i)
+		return FloatType, FloatType, float64(i)
 	case int64:
-		return IntType, i
+		return IntType, IntType, a
 	case int32:
-		return IntType, int64(i)
+		return IntType, IntType, int64(i)
 	case int16:
-		return IntType, int64(i)
+		return IntType, IntType, int64(i)
 	case int8:
-		return IntType, int64(i)
+		return IntType, IntType, int64(i)
 	case int:
-		return IntType, int64(i)
+		return IntType, IntType, int64(i)
 	case uint64:
-		return IntType, int64(i)
+		return UIntType, UIntType, a
 	case uint32:
-		return IntType, int64(i)
+		return UIntType, UIntType, uint64(i)
 	case uint16:
-		return IntType, int64(i)
+		return UIntType, UIntType, uint64(i)
 	case uint8:
-		return IntType, int64(i)
+		return UIntType, UIntType, uint64(i)
 	case uint:
-		return IntType, int64(i)
+		return UIntType, UIntType, uint64(i)
 	case DateTimeSeconds:
-		return SecondsType, i
+		return SecondsType, UIntType, a
 	case DateTimeMilliseconds:
-		return MillisecondsType, i
+		return MillisecondsType, UIntType, a
 	case DateTimeMicroseconds:
-		return MicrosecondsType, i
+		return MicrosecondsType, UIntType, a
 	case DateTimeNanoseconds:
-		return NanosecondsType, i
+		return NanosecondsType, UIntType, a
 	case bool:
 		if i {
-			return IntType, int64(1)
+			return UIntType, UIntType, uint64(1)
 		}
-		return IntType, int64(0)
+		return UIntType, UIntType, uint64(0)
 	}
 	panic(fmt.Sprintf("Can't upconvert %v", a))
 }
 
+func uintToFloat(val interface{}) float64 {
+	return float64(val.(uint64))
+}
+
 func intToFloat(val interface{}) float64 {
 	return float64(val.(int64))
+}
+
+func uintToInt(val interface{}) int64 {
+	return int64(val.(uint64))
 }
 
 func floatToInt(val interface{}) int64 {
@@ -221,6 +230,20 @@ func intToTime(val interface{}, kind NumberType) interface{} {
 		return DateTimeMilliseconds(val.(int64))
 	case MicrosecondsType:
 		return DateTimeMicroseconds(val.(int64))
+	case NanosecondsType:
+		return DateTimeNanoseconds(val.(int64))
+	}
+	panic("This should never happen")
+}
+
+func uintToTime(val interface{}, kind NumberType) interface{} {
+	switch kind {
+	case SecondsType:
+		return DateTimeSeconds(val.(uint64))
+	case MillisecondsType:
+		return DateTimeMilliseconds(val.(uint64))
+	case MicrosecondsType:
+		return DateTimeMicroseconds(val.(uint64))
 	case NanosecondsType:
 		return DateTimeNanoseconds(val.(int64))
 	}
@@ -244,11 +267,11 @@ func floatToTime(val interface{}, kind NumberType) interface{} {
 func scaleTimetoNano(from NumberType, val interface{}) interface{} {
 	switch from {
 	case SecondsType:
-		return DateTimeSeconds(val.(int64) * 1e9)
+		return DateTimeSeconds(val.(DateTimeSeconds) * 1e9)
 	case MillisecondsType:
-		return DateTimeMilliseconds(val.(int64) * 1e6)
+		return DateTimeMilliseconds(val.(DateTimeMilliseconds) * 1e6)
 	case MicrosecondsType:
-		return DateTimeMicroseconds(val.(int64) * 1e3)
+		return DateTimeMicroseconds(val.(DateTimeMicroseconds) * 1e3)
 	case NanosecondsType:
 		return val
 	}
@@ -256,41 +279,56 @@ func scaleTimetoNano(from NumberType, val interface{}) interface{} {
 }
 
 // UpConvert returns either two Signed64 or two Float64 depending on the numbers
-func UpConvert(a, b interface{}) (dst NumberType, fl bool, ai, bi interface{}) {
-	var tA, tB NumberType
-	tA, ai = cleanUp(a)
-	tB, bi = cleanUp(b)
+func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi interface{}) {
+	var tA, tB, fA, fB NumberType
+	tA, fA, ai = cleanUp(a)
+	tB, fB, bi = cleanUp(b)
 	if tA == tB {
 		dst = tA
-		fl = tA == FloatType
+		family = fA
 		return
 	}
 	if tA == IntType {
-		if tB == FloatType {
-			return FloatType, true, intToFloat(ai), bi
+		if tB == UIntType {
+			return tA, fA, ai, uintToInt(bi)
 		}
-		return tB, false, intToTime(ai, tB), tB
+		if tB == FloatType {
+			return tB, fB, intToFloat(ai), bi
+		}
+		return tB, fB, intToTime(ai, tB), tB
+	}
+	if tA == UIntType {
+		if tB == IntType {
+			return tB, fB, uintToInt(ai), bi
+		}
+		if tB == FloatType {
+			return tB, fB, uintToFloat(ai), bi
+		}
+		return tB, fB, uintToTime(ai, tB), tB
 	}
 	if tA == FloatType {
-		if tB == IntType {
-			return FloatType, true, ai, intToFloat(bi)
+		if tB == UIntType {
+			return tA, fA, ai, uintToFloat(bi)
 		}
-		return tB, false, floatToTime(ai, tB), tB
+		if tB == IntType {
+			return tA, fA, ai, intToFloat(bi)
+		}
+		return tB, fB, floatToTime(ai, tB), tB
 	}
 	// both types are time - but differen timebases
-	return NanosecondsType, false, scaleTimetoNano(tA, a), scaleTimetoNano(tB, b)
+	return NanosecondsType, UIntType, scaleTimetoNano(tA, a), scaleTimetoNano(tB, b)
 }
 
 func FixType(val interface{}, t NumberType) interface{} {
 	switch t {
 	case SecondsType:
-		return DateTimeSeconds(val.(int64))
+		return DateTimeSeconds(val.(uint64))
 	case MillisecondsType:
-		return DateTimeMilliseconds(val.(int64))
+		return DateTimeMilliseconds(val.(uint64))
 	case MicrosecondsType:
-		return DateTimeMicroseconds(val.(int64))
+		return DateTimeMicroseconds(val.(uint64))
 	case NanosecondsType:
-		return DateTimeNanoseconds(val.(int64))
+		return DateTimeNanoseconds(val.(uint64))
 	}
 	return val
 }

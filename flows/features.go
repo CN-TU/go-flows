@@ -169,12 +169,17 @@ func (f *min) Event(new interface{}, context EventContext, src interface{}) {
 		f.value = new
 	} else {
 		_, fl, a, b := UpConvert(new, f.value)
-		if fl {
-			if a.(float64) < b.(float64) {
+		switch fl {
+		case UIntType:
+			if a.(uint64) < b.(uint64) {
 				f.value = new
 			}
-		} else {
+		case IntType:
 			if a.(int64) < b.(int64) {
+				f.value = new
+			}
+		case FloatType:
+			if a.(float64) < b.(float64) {
 				f.value = new
 			}
 		}
@@ -201,12 +206,17 @@ func (f *max) Event(new interface{}, context EventContext, src interface{}) {
 		f.value = new
 	} else {
 		_, fl, a, b := UpConvert(new, f.value)
-		if fl {
-			if a.(float64) > b.(float64) {
+		switch fl {
+		case UIntType:
+			if a.(uint64) > b.(uint64) {
 				f.value = new
 			}
-		} else {
+		case IntType:
 			if a.(int64) > b.(int64) {
+				f.value = new
+			}
+		case FloatType:
+			if a.(float64) > b.(float64) {
 				f.value = new
 			}
 		}
@@ -235,18 +245,13 @@ func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 	}
 
 	_, fl, a, b := UpConvert(values[0], values[1])
-	if fl {
-		if a.(float64) < b.(float64) {
-			f.SetValue(true, context, f)
-		} else {
-			f.SetValue(false, context, f)
-		}
-	} else {
-		if a.(int64) < b.(int64) {
-			f.SetValue(true, context, f)
-		} else {
-			f.SetValue(false, context, f)
-		}
+	switch fl {
+	case UIntType:
+		f.SetValue(a.(uint64) < b.(uint64), context, f)
+	case IntType:
+		f.SetValue(a.(int64) < b.(int64), context, f)
+	case FloatType:
+		f.SetValue(a.(float64) < b.(float64), context, f)
 	}
 }
 
@@ -266,18 +271,13 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 		return
 	}
 	_, fl, a, b := UpConvert(values[0], values[1])
-	if fl {
-		if a.(float64) >= b.(float64) {
-			f.SetValue(true, context, f)
-		} else {
-			f.SetValue(false, context, f)
-		}
-	} else {
-		if a.(int64) >= b.(int64) {
-			f.SetValue(true, context, f)
-		} else {
-			f.SetValue(false, context, f)
-		}
+	switch fl {
+	case UIntType:
+		f.SetValue(a.(uint64) >= b.(uint64), context, f)
+	case IntType:
+		f.SetValue(a.(int64) >= b.(int64), context, f)
+	case FloatType:
+		f.SetValue(a.(float64) >= b.(float64), context, f)
 	}
 }
 
@@ -365,10 +365,13 @@ func (f *divideFlow) Event(new interface{}, context EventContext, src interface{
 	}
 	dst, fl, a, b := UpConvert(values[0], values[1])
 	var result interface{}
-	if fl {
-		result = a.(float64) / b.(float64)
-	} else {
+	switch fl {
+	case UIntType:
+		result = a.(uint64) / b.(uint64)
+	case IntType:
 		result = a.(int64) / b.(int64)
+	case FloatType:
+		result = a.(float64) / b.(float64)
 	}
 	f.value = FixType(result, dst)
 }
@@ -394,10 +397,13 @@ func (f *multiplyFlow) Event(new interface{}, context EventContext, src interfac
 	}
 	dst, fl, a, b := UpConvert(values[0], values[1])
 	var result interface{}
-	if fl {
-		result = a.(float64) * b.(float64)
-	} else {
+	switch fl {
+	case UIntType:
+		result = a.(uint64) * b.(uint64)
+	case IntType:
 		result = a.(int64) * b.(int64)
+	case FloatType:
+		result = a.(float64) * b.(float64)
 	}
 	f.value = FixType(result, dst)
 }

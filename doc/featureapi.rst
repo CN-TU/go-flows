@@ -59,3 +59,6 @@ to the following rules:
 * float -> ``float64`` (everything in ``math`` package is ``float64``)
 * datetime -> same datetime
 * different datetime -> convert to ``DateTimeNanoseconds``
+* unsigned | signed -> signed
+* integer | float -> float
+* something | datetime -> datetime
