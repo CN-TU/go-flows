@@ -32,7 +32,7 @@ func (pe *csvExporter) Export(template flows.Template, features []flows.Feature,
 		case byte:
 			list[i] = fmt.Sprint(int(val))
 		case flows.DateTimeNanoseconds:
-			list[i] = fmt.Sprint(int64(val))
+			list[i] = fmt.Sprint(uint64(val))
 		case flows.FlowEndReason:
 			list[i] = fmt.Sprint(int(val))
 		default:
