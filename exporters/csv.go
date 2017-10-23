@@ -25,8 +25,8 @@ func (pe *csvExporter) Fields(fields []string) {
 
 //Export export given features
 func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	n := len(features)
-	var list = make([]string, n)
+	list := make([]string, len(features))
+	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
 		case byte:

@@ -59,7 +59,7 @@ func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, context EventContex
 
 func (fe *funcEntries) hasTimer(id TimerID) bool {
 	fep := *fe
-	if int(id) >= len(fep) {
+	if int(id) >= len(fep) || id < 0 {
 		return false
 	}
 	if fep[id].context.When == 0 {

@@ -104,11 +104,12 @@ type multiEvent interface {
 
 // singleMultiEvent (one not const) (every event is the right one!)
 type singleMultiEvent struct {
-	c []interface{}
+	c   []interface{}
+	ret []interface{}
 }
 
 func (m *singleMultiEvent) CheckAll(new interface{}, which interface{}) []interface{} {
-	ret := make([]interface{}, len(m.c))
+	ret := m.ret[:len(m.c)]
 	for i, c := range m.c {
 		if c == nil {
 			ret[i] = new
@@ -136,6 +137,7 @@ func (m *dualMultiEvent) CheckAll(new interface{}, which interface{}) []interfac
 	}
 	if m.state[0] && m.state[1] {
 		ret := make([]interface{}, len(m.c))
+		ret = ret[:len(m.c)]
 		j := 0
 		for i, c := range m.c {
 			if c == nil {
@@ -171,6 +173,7 @@ func (m *genericMultiEvent) CheckAll(new interface{}, which interface{}) []inter
 	}
 
 	ret := make([]interface{}, len(m.c))
+	ret = ret[:len(m.c)]
 	for i, c := range m.c {
 		if f, ok := c.(Feature); ok {
 			ret[i] = f.Value()
@@ -208,6 +211,7 @@ func (f *MultiBaseFeature) FinishEvent() {
 
 func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	featurelist := make([]interface{}, len(args))
+	featurelist = featurelist[:len(args)]
 	features := make([]int, 0, len(args))
 	for i, feature := range args {
 		if feature.IsConstant() {
@@ -220,9 +224,9 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	switch len(features) {
 	case 1:
 		featurelist[features[0]] = nil
-		f.eventReady = &singleMultiEvent{featurelist}
+		f.eventReady = &singleMultiEvent{featurelist, make([]interface{}, len(featurelist))}
 	case 2:
-		event := &dualMultiEvent{}
+		event := &dualMultiEvent{} //FIXME preallocate ret
 		event.nc[0] = featurelist[features[0]].(Feature)
 		event.nc[1] = featurelist[features[1]].(Feature)
 		featurelist[features[0]] = nil
@@ -234,7 +238,7 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 		for _, feature := range features {
 			nc[featurelist[feature].(Feature)] = feature
 		}
-		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))}
+		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))} //FIXME preallocate ret
 	}
 }
 

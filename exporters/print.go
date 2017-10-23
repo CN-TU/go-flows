@@ -20,11 +20,10 @@ func (pe *printExporter) Fields([]string) {}
 
 //Export export given features
 func (pe *printExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	n := len(features)
-	var list = make([]interface{}, n*2)
+	list := make([]interface{}, len(features))
+	list = list[:len(features)]
 	for i, elem := range features {
-		//list[i*2] = elem.Type() FIXME
-		list[i*2+1] = elem.Value()
+		list[i] = elem.Value()
 	}
 	pe.exportlist <- list
 }

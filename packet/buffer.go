@@ -98,7 +98,7 @@ func (smpb *shallowMultiPacketBuffer) reset() {
 }
 
 func (smpb *shallowMultiPacketBuffer) push(buffer *pcapPacketBuffer) bool {
-	if smpb.windex == len(smpb.buffers) {
+	if smpb.windex >= len(smpb.buffers) || smpb.windex < 0 {
 		return false
 	}
 	smpb.buffers[smpb.windex] = buffer
@@ -107,7 +107,7 @@ func (smpb *shallowMultiPacketBuffer) push(buffer *pcapPacketBuffer) bool {
 }
 
 func (smpb *shallowMultiPacketBuffer) read() (ret *pcapPacketBuffer) {
-	if smpb.rindex >= smpb.windex {
+	if smpb.rindex >= len(smpb.buffers) || smpb.rindex >= smpb.windex || smpb.rindex < 0 {
 		return nil
 	}
 	ret = smpb.buffers[smpb.rindex]
@@ -123,8 +123,9 @@ func (smpb *shallowMultiPacketBuffer) finalize() {
 }
 
 func (smpb *shallowMultiPacketBuffer) finalizeWritten() {
-	for i := smpb.rindex; i < smpb.windex; i++ {
-		smpb.buffers[i].Recycle()
+	rec := smpb.buffers[smpb.rindex:smpb.windex]
+	for _, buf := range rec {
+		buf.Recycle()
 	}
 	smpb.windex = smpb.rindex
 	smpb.finalize()
@@ -141,9 +142,10 @@ func (smpb *shallowMultiPacketBuffer) recycle() {
 	if !smpb.empty() {
 		var num int32
 		mpb := smpb.buffers[0].owner
-		for i := 0; i < smpb.windex; i++ {
-			if smpb.buffers[i].canRecycle() {
-				atomic.StoreInt32(&smpb.buffers[i].inUse, 0)
+		buf := smpb.buffers[:smpb.windex]
+		for i, b := range buf {
+			if b.canRecycle() {
+				atomic.StoreInt32(&buf[i].inUse, 0)
 				num++
 			}
 		}
@@ -163,8 +165,10 @@ func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
 }
 
 func (smpb *shallowMultiPacketBuffer) Copy(other *shallowMultiPacketBuffer) {
-	for i := 0; i < smpb.windex; i++ {
-		other.buffers[i] = smpb.buffers[i]
+	src := smpb.buffers[:smpb.windex]
+	target := other.buffers[:len(src)]
+	for i, buf := range src {
+		target[i] = buf
 	}
 	other.rindex = 0
 	other.windex = smpb.windex

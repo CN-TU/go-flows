@@ -58,6 +58,7 @@ type RecordListMaker struct {
 
 func (rl RecordListMaker) make() (ret []*record) {
 	ret = make([]*record, len(rl.list))
+	ret = ret[:len(rl.list)]
 	for i, record := range rl.list {
 		ret[i] = record.make()
 	}
@@ -345,6 +346,7 @@ MAIN:
 			event := make([]Feature, 0, nevent)
 			export := make([]Feature, 0, nexport)
 			variants := make([]Feature, 0, nvariants)
+			f = f[:len(init)]
 			for i, feature := range init {
 				f[i] = feature.feature.make()
 				if feature.event {
@@ -357,9 +359,11 @@ MAIN:
 					variants = append(variants, f[i])
 				}
 			}
+			f = f[:len(init)]
 			for i, feature := range init {
 				if len(feature.call) > 0 {
 					args := make([]Feature, len(feature.call))
+					args = args[:len(feature.call)]
 					for i, call := range feature.call {
 						args[i] = f[call]
 					}
@@ -367,6 +371,7 @@ MAIN:
 				}
 				if len(feature.arguments) > 0 {
 					args := make([]Feature, len(feature.arguments))
+					args = args[:len(feature.arguments)]
 					for i, arg := range feature.arguments {
 						args[i] = f[arg]
 					}

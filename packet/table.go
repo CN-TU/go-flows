@@ -166,21 +166,21 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 		pft.Expire()
 		pft.nextExpire = current + pft.expireTime
 	}
-	num := len(pft.tables)
 
-	for i := 0; i < num; i++ {
-		pft.tmp[i], _ = pft.buffers[i].popEmpty()
+	tmp := pft.tmp[:len(pft.buffers)]
+	for i, buf := range pft.buffers {
+		tmp[i], _ = buf.popEmpty()
 	}
 	for {
 		b := buffer.read()
 		if b == nil {
 			break
 		}
-		h := b.Key().Hash() % uint64(num)
-		pft.tmp[h].push(b)
+		h := b.Key().Hash() % uint64(len(tmp))
+		tmp[h].push(b)
 	}
-	for i := 0; i < num; i++ {
-		pft.tmp[i].finalize()
+	for _, buf := range pft.tmp {
+		buf.finalize()
 	}
 }
 

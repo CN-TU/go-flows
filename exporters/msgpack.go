@@ -22,8 +22,8 @@ type msgPack struct {
 
 //FIXME: remove
 func (pe *msgPack) Fields(fields []string) {
-	n := len(fields)
-	var list = make([]interface{}, n)
+	list := make([]interface{}, len(fields))
+	list = list[:len(fields)]
 	for i, elem := range fields {
 		list[i] = elem
 	}
@@ -32,8 +32,8 @@ func (pe *msgPack) Fields(fields []string) {
 
 //Export export given features
 func (pe *msgPack) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	n := len(features)
-	var list = make([]interface{}, n)
+	list := make([]interface{}, len(features))
+	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
 		case net.IP:
