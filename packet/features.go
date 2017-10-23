@@ -310,6 +310,10 @@ type _interPacketTimeNanoseconds struct {
 	time flows.DateTimeNanoseconds
 }
 
+func (f *_interPacketTimeNanoseconds) Start(context flows.EventContext) {
+	f.time = 0
+}
+
 func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
@@ -321,9 +325,9 @@ func (f *_interPacketTimeNanoseconds) Event(new interface{}, context flows.Event
 
 func init() {
 	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.DateTimeNanoseconds, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMicroseconds", ipfix.DateTimeMicroseconds, 0, "divide", "_interPacketTimeNanoseconds", 1000)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMilliseconds", ipfix.DateTimeMilliseconds, 0, "divide", "_interPacketTimeNanoseconds", 1000000)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeSeconds", ipfix.DateTimeSeconds, 0, "divide", "_interPacketTimeNanoseconds", 1000000000)
+	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.DateTimeMicroseconds, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.DateTimeMilliseconds, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.DateTimeSeconds, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

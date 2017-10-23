@@ -30,13 +30,19 @@ var _ Feature = (*constantFeature)(nil)
 
 func newConstantMetaFeature(value interface{}) featureMaker {
 	var t ipfix.Type
-	switch value.(type) {
+	switch cv := value.(type) {
 	case bool:
 		t = ipfix.Boolean
 	case float64:
 		t = ipfix.Float64
-	case int64, int:
+	case int:
+		value = int64(cv)
 		t = ipfix.Signed64
+	case int64:
+		t = ipfix.Signed64
+	case uint:
+		value = uint64(cv)
+		t = ipfix.Unsigned64
 	case uint64:
 		t = ipfix.Unsigned64
 	default:
@@ -113,7 +119,7 @@ func init() {
 
 type count struct {
 	BaseFeature
-	count int
+	count uint64
 }
 
 func (f *count) Start(context EventContext) {
@@ -137,7 +143,7 @@ func init() {
 type mean struct {
 	BaseFeature
 	total float64
-	count int64
+	count uint64
 }
 
 func (f *mean) Start(context EventContext) {
@@ -327,7 +333,7 @@ func (f *concatenate) Event(new interface{}, context EventContext, src interface
 }
 
 func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
-	f.SetValue(f.buffer.String(), context, f)
+	f.SetValue(f.buffer.Bytes(), context, f)
 }
 
 func init() {

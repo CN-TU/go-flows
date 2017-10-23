@@ -1,5 +1,3 @@
-// +build ignore
-
 package packet
 
 import (
@@ -21,21 +19,21 @@ Features in here are subject to change. Use them with caution.
 
 type _characters struct {
 	flows.BaseFeature
-	time int64
+	time flows.DateTimeNanoseconds
 	src  []byte
 }
 
 func (f *_characters) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
+	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
-		time = int64(context.When) - f.time
+		time = context.When - f.time
 	}
 	if len(f.src) == 0 {
-		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
-		f.src = tmp_src.Raw()
+		tmpSrc, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
+		f.src = tmpSrc.Raw()
 	}
-	f.time = int64(context.When)
-	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
+	f.time = context.When
+	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 
@@ -46,7 +44,7 @@ func (f *_characters) Event(new interface{}, context flows.EventContext, src int
 		buffer.WriteString("B")
 	}
 
-	buffer.WriteString(strings.Repeat("_", new_time))
+	buffer.WriteString(strings.Repeat("_", newTime))
 
 	f.SetValue(buffer.String(), context, f)
 }
@@ -59,21 +57,21 @@ func init() {
 
 type _characters2 struct {
 	flows.BaseFeature
-	time int64
+	time flows.DateTimeNanoseconds
 	src  []byte
 }
 
 func (f *_characters2) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
+	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
-		time = int64(context.When) - f.time
+		time = context.When - f.time
 	}
 	if len(f.src) == 0 {
-		tmp_src, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
-		f.src = tmp_src.Raw()
+		tmpSrc, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
+		f.src = tmpSrc.Raw()
 	}
-	f.time = int64(context.When)
-	new_time := int(float64(time) / 100000000.) // time is now in deciseconds
+	f.time = context.When
+	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 	tcp := getTcp(new.(PacketBuffer))
@@ -134,7 +132,7 @@ func (f *_characters2) Event(new interface{}, context flows.EventContext, src in
 		}
 	}
 
-	buffer.WriteString(strings.Repeat("-", new_time))
+	buffer.WriteString(strings.Repeat("-", newTime))
 
 	f.SetValue(buffer.String(), context, f)
 }
@@ -149,24 +147,24 @@ func init() {
 // seconds are counted from the first packet
 type __consecutiveSeconds struct {
 	flows.BaseFeature
-	count     flows.Unsigned64
-	last_time int64 // FIXME maybe this should be dateTimeSeconds?
+	count    uint64
+	lastTime flows.DateTimeNanoseconds
 }
 
 func (f *__consecutiveSeconds) Start(context flows.EventContext) {
-	f.last_time = 0
+	f.lastTime = 0
 	f.count = 0
 }
 
 func (f *__consecutiveSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
-	if f.last_time == 0 {
-		f.last_time = time
+	time := context.When
+	if f.lastTime == 0 {
+		f.lastTime = time
 		f.count++
 	} else {
-		if time-f.last_time > 1000000000 { // if time difference to f.last_time is more than one second
-			f.last_time = time
-			if time-f.last_time < 2000000000 { // if there is less than 2s between this and last packet, count
+		if time-f.lastTime > 1*flows.SecondsInNanoseconds { // if time difference to f.lastTime is more than one second
+			f.lastTime = time
+			if time-f.lastTime < 2*flows.SecondsInNanoseconds { // if there is less than 2s between this and last packet, count
 				f.count++
 			} else { // otherwise, there was a break in seconds between packets
 				f.SetValue(f.count, context, f)
@@ -181,9 +179,9 @@ func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.DateTimeSeconds, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.DateTimeSeconds, 0, "maximum", "__consecutiveSeconds")
-	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.DateTimeSeconds, 0, "minimum", "__consecutiveSeconds")
+	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64, 0, "maximum", "__consecutiveSeconds")
+	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64, 0, "minimum", "__consecutiveSeconds")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,23 +190,23 @@ func init() {
 // seconds are counted from the first packet
 type _activeForSeconds struct {
 	flows.BaseFeature
-	count     flows.Unsigned64
-	last_time int64 // FIXME maybe this should be dateTimeSeconds?
+	count    uint64
+	lastTime flows.DateTimeNanoseconds
 }
 
 func (f *_activeForSeconds) Start(context flows.EventContext) {
-	f.last_time = 0
+	f.lastTime = 0
 	f.count = 0
 }
 
 func (f *_activeForSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var time int64
-	if f.last_time == 0 {
-		f.last_time = time
+	time := context.When
+	if f.lastTime == 0 {
+		f.lastTime = time
 		f.count++
 	} else {
-		if time-f.last_time > 1000000000 { // if time difference to f.last_time is more than one second
-			f.last_time = time
+		if time-f.lastTime > 1*flows.SecondsInNanoseconds { // if time difference to f.lastTime is more than one second
+			f.lastTime = time
 			f.count++
 		}
 	}
@@ -219,5 +217,5 @@ func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context flows.Event
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.DateTimeSeconds, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.Unsigned64, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
 }
