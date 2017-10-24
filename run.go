@@ -421,8 +421,8 @@ func parseArguments(cmd string, args []string) {
 
 	buffer.Finish()
 
-	if *memprofile != "" {
-		f, err := os.Create(*memprofile)
+	if *heapprofile != "" {
+		f, err := os.Create(*heapprofile)
 		if err != nil {
 			log.Fatalln("could not create memory profile: ", err)
 		}

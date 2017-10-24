@@ -15,11 +15,13 @@ import (
 )
 
 var (
-	cpuprofile   = flag.String("cpuprofile", "", "Write cpu profile")
-	memprofile   = flag.String("memprofile", "", "Write memory profile")
-	blockprofile = flag.String("blockprofile", "", "Write goroutine blocking profile")
-	mutexprofile = flag.String("mutexprofile", "", "Write mutex blocking profile")
-	tracefile    = flag.String("trace", "", "Turn on tracing")
+	cpuprofile     = flag.String("cpuprofile", "", "Write cpu profile")
+	heapprofile    = flag.String("heapprofile", "", "Write heap profile")
+	memprofile     = flag.String("memprofile", "", "Write memory profile")
+	memprofilerate = flag.Int("memprofilerate", 0, "Set MemProfileRate")
+	blockprofile   = flag.String("blockprofile", "", "Write goroutine blocking profile")
+	mutexprofile   = flag.String("mutexprofile", "", "Write mutex blocking profile")
+	tracefile      = flag.String("trace", "", "Turn on tracing")
 )
 
 func flags() {
@@ -68,6 +70,23 @@ func main() {
 	})
 	flag.CommandLine.Usage = usage
 	flag.Parse()
+	if *memprofilerate != 0 {
+		runtime.MemProfileRate = *memprofilerate
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			runtime.GC()
+			err := pprof.Lookup("heap").WriteTo(f, 0)
+			if err != nil {
+				fmt.Println(err)
+			}
+			f.Close()
+		}()
+	}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
