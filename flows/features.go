@@ -32,19 +32,19 @@ func newConstantMetaFeature(value interface{}) featureMaker {
 	var t ipfix.Type
 	switch cv := value.(type) {
 	case bool:
-		t = ipfix.Boolean
+		t = ipfix.BooleanType
 	case float64:
-		t = ipfix.Float64
+		t = ipfix.Float64Type
 	case int:
 		value = int64(cv)
-		t = ipfix.Signed64
+		t = ipfix.Signed64Type
 	case int64:
-		t = ipfix.Signed64
+		t = ipfix.Signed64Type
 	case uint:
 		value = uint64(cv)
-		t = ipfix.Unsigned64
+		t = ipfix.Unsigned64Type
 	case uint64:
-		t = ipfix.Unsigned64
+		t = ipfix.Unsigned64Type
 	default:
 		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
 	}
@@ -135,7 +135,7 @@ func (f *count) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterTemporaryFeature("count", ipfix.Unsigned64, 0, FlowFeature, func() Feature { return &count{} }, Selection)
+	RegisterTemporaryFeature("count", ipfix.Unsigned64Type, 0, FlowFeature, func() Feature { return &count{} }, Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +161,7 @@ func (f *mean) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterTypedFunction("mean", ipfix.Float64, 0, FlowFeature, func() Feature { return &mean{} }, PacketFeature)
+	RegisterTypedFunction("mean", ipfix.Float64Type, 0, FlowFeature, func() Feature { return &mean{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +262,7 @@ func (f *less) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterTemporaryFeature("less", ipfix.Boolean, 0, MatchType, func() Feature { return &less{} }, MatchType, MatchType)
+	RegisterTemporaryFeature("less", ipfix.BooleanType, 0, MatchType, func() Feature { return &less{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +288,7 @@ func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterTemporaryFeature("geq", ipfix.Boolean, 0, MatchType, func() Feature { return &geq{} }, MatchType, MatchType)
+	RegisterTemporaryFeature("geq", ipfix.BooleanType, 0, MatchType, func() Feature { return &geq{} }, MatchType, MatchType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,7 +337,7 @@ func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterTemporaryFeature("concatenate", ipfix.OctetArray, 0, FlowFeature, func() Feature { return &concatenate{} }, PacketFeature)
+	RegisterTemporaryFeature("concatenate", ipfix.OctetArrayType, 0, FlowFeature, func() Feature { return &concatenate{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,7 +355,7 @@ func (f *logFlow) Stop(reason FlowEndReason, context EventContext) {
 }
 
 func init() {
-	RegisterTypedFunction("log", ipfix.Float64, 0, FlowFeature, func() Feature { return &logFlow{} }, FlowFeature)
+	RegisterTypedFunction("log", ipfix.Float64Type, 0, FlowFeature, func() Feature { return &logFlow{} }, FlowFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

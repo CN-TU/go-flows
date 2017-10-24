@@ -7,16 +7,16 @@ import (
 )
 
 // DateTimeSeconds represents time in units of seconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeSeconds uint64
+type DateTimeSeconds = ipfix.DateTimeSeconds
 
 // DateTimeMilliseconds represents time in units of milliseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeMilliseconds uint64
+type DateTimeMilliseconds = ipfix.DateTimeMilliseconds
 
 // DateTimeMicroseconds represents time in units of microseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeMicroseconds uint64
+type DateTimeMicroseconds = ipfix.DateTimeMicroseconds
 
 // DateTimeNanoseconds represents time in units of nanoseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
-type DateTimeNanoseconds uint64
+type DateTimeNanoseconds = ipfix.DateTimeNanoseconds
 
 func ToFloat(a interface{}) float64 {
 	switch i := a.(type) {
@@ -337,45 +337,45 @@ func FixType(val interface{}, t NumberType) interface{} {
 
 func cleanUpType(a ipfix.Type) ipfix.Type {
 	switch a {
-	case ipfix.OctetArray:
+	case ipfix.OctetArrayType:
 		return ipfix.IllegalType
-	case ipfix.Unsigned8:
-		return ipfix.Unsigned64
-	case ipfix.Unsigned16:
-		return ipfix.Unsigned64
-	case ipfix.Unsigned32:
-		return ipfix.Unsigned64
-	case ipfix.Unsigned64:
-		return ipfix.Unsigned64
-	case ipfix.Signed8:
-		return ipfix.Signed64
-	case ipfix.Signed16:
-		return ipfix.Signed64
-	case ipfix.Signed32:
-		return ipfix.Signed64
-	case ipfix.Signed64:
-		return ipfix.Signed64
-	case ipfix.Float32:
-		return ipfix.Float64
-	case ipfix.Float64:
-		return ipfix.Float64
-	case ipfix.Boolean:
-		return ipfix.Unsigned64
-	case ipfix.MacAddress:
+	case ipfix.Unsigned8Type:
+		return ipfix.Unsigned64Type
+	case ipfix.Unsigned16Type:
+		return ipfix.Unsigned64Type
+	case ipfix.Unsigned32Type:
+		return ipfix.Unsigned64Type
+	case ipfix.Unsigned64Type:
+		return ipfix.Unsigned64Type
+	case ipfix.Signed8Type:
+		return ipfix.Signed64Type
+	case ipfix.Signed16Type:
+		return ipfix.Signed64Type
+	case ipfix.Signed32Type:
+		return ipfix.Signed64Type
+	case ipfix.Signed64Type:
+		return ipfix.Signed64Type
+	case ipfix.Float32Type:
+		return ipfix.Float64Type
+	case ipfix.Float64Type:
+		return ipfix.Float64Type
+	case ipfix.BooleanType:
+		return ipfix.Unsigned64Type
+	case ipfix.MacAddressType:
 		return ipfix.IllegalType
-	case ipfix.String:
+	case ipfix.StringType:
 		return ipfix.IllegalType
-	case ipfix.DateTimeSeconds:
+	case ipfix.DateTimeSecondsType:
 		return a
-	case ipfix.DateTimeMilliseconds:
+	case ipfix.DateTimeMillisecondsType:
 		return a
-	case ipfix.DateTimeMicroseconds:
+	case ipfix.DateTimeMicrosecondsType:
 		return a
-	case ipfix.DateTimeNanoseconds:
+	case ipfix.DateTimeNanosecondsType:
 		return a
-	case ipfix.Ipv4Address:
+	case ipfix.Ipv4AddressType:
 		return ipfix.IllegalType
-	case ipfix.Ipv6Address:
+	case ipfix.Ipv6AddressType:
 		return ipfix.IllegalType
 	}
 	panic(fmt.Sprintf("Can't upconvert %s", a))
@@ -387,33 +387,33 @@ func UpConvertTypes(a, b ipfix.Type) ipfix.Type {
 	if tA == tB {
 		return tA
 	}
-	if tA == ipfix.Signed64 {
-		if tB == ipfix.Unsigned64 {
+	if tA == ipfix.Signed64Type {
+		if tB == ipfix.Unsigned64Type {
 			return tA
 		}
-		if tB == ipfix.Float64 {
+		if tB == ipfix.Float64Type {
 			return tB
 		}
 		return tB
 	}
-	if tA == ipfix.Unsigned64 {
-		if tB == ipfix.Signed64 {
+	if tA == ipfix.Unsigned64Type {
+		if tB == ipfix.Signed64Type {
 			return tB
 		}
-		if tB == ipfix.Float64 {
+		if tB == ipfix.Float64Type {
 			return tB
 		}
 		return tB
 	}
-	if tA == ipfix.Float64 {
-		if tB == ipfix.Unsigned64 {
+	if tA == ipfix.Float64Type {
+		if tB == ipfix.Unsigned64Type {
 			return tA
 		}
-		if tB == ipfix.Signed64 {
+		if tB == ipfix.Signed64Type {
 			return tA
 		}
 		return tB
 	}
 	// both types are time - but differen timebases
-	return ipfix.DateTimeNanoseconds
+	return ipfix.DateTimeNanosecondsType
 }

@@ -50,7 +50,7 @@ func (f *_characters) Event(new interface{}, context flows.EventContext, src int
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_characters", ipfix.String, 0, flows.PacketFeature, func() flows.Feature { return &_characters{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_characters", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +138,7 @@ func (f *_characters2) Event(new interface{}, context flows.EventContext, src in
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_characters2", ipfix.String, 0, flows.PacketFeature, func() flows.Feature { return &_characters2{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_characters2", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters2{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,9 +179,9 @@ func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64, 0, "maximum", "__consecutiveSeconds")
-	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64, 0, "minimum", "__consecutiveSeconds")
+	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "maximum", "__consecutiveSeconds")
+	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "minimum", "__consecutiveSeconds")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,5 +217,5 @@ func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context flows.Event
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.Unsigned64, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
 }
