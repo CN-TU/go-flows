@@ -1,20 +1,27 @@
 package exporters
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 )
 
+const PEN uint32 = 1234
+const TEMP uint16 = 0xF000
+
 type ipfixExporter struct {
 	id         string
 	outfile    string
+	specfile   string
 	exportlist chan ipfixRecord
 	finished   chan struct{}
+	allocated  map[string]ipfix.InformationElement
 }
 
 type ipfixRecord struct {
@@ -41,14 +48,54 @@ func (pe *ipfixExporter) Finish() {
 	<-pe.finished
 }
 
+func (pe *ipfixExporter) writeSpec(w io.Writer) {
+	ies := make([]ipfix.InformationElement, len(pe.allocated))
+	for _, ie := range pe.allocated {
+		ies[ie.ID-TEMP] = ie
+	}
+	for _, ie := range ies {
+		fmt.Fprintln(w, ie)
+	}
+}
+
 func (pe *ipfixExporter) ID() string {
 	return pe.id
+}
+
+var normalizer = strings.NewReplacer("(", "❲", ")", "❳")
+
+func normalizeName(name string) string {
+	return normalizer.Replace(name)
+}
+
+func (pe *ipfixExporter) AllocateIE(ies []ipfix.InformationElement) []ipfix.InformationElement {
+	for i, ie := range ies {
+		if ie.ID == 0 && ie.Pen == 0 { //Temporary Element
+			if ie, ok := pe.allocated[ie.Name]; ok {
+				ies[i] = ie
+				continue
+			}
+			name := ie.Name
+			ie = ipfix.InformationElement{
+				Name:   normalizeName(name),
+				Pen:    PEN,
+				ID:     uint16(len(pe.allocated)) + TEMP,
+				Type:   ie.Type,
+				Length: ie.Length,
+			}
+			ies[i] = ie
+			pe.allocated[name] = ie
+		}
+	}
+	return ies
 }
 
 func (pe *ipfixExporter) Init() {
 	pe.exportlist = make(chan ipfixRecord, 100)
 	pe.finished = make(chan struct{})
+	pe.allocated = make(map[string]ipfix.InformationElement)
 	var outfile io.WriteCloser
+	var specfile io.WriteCloser
 	if pe.outfile == "-" {
 		outfile = os.Stdout
 	} else {
@@ -56,6 +103,15 @@ func (pe *ipfixExporter) Init() {
 		outfile, err = os.Create(pe.outfile)
 		if err != nil {
 			log.Fatal("Couldn't open file ", pe.outfile, err)
+		}
+	}
+	if pe.specfile == "-" {
+		specfile = os.Stdout
+	} else if pe.specfile != "" {
+		var err error
+		specfile, err = os.Create(pe.specfile)
+		if err != nil {
+			log.Fatal("Couldn't open file ", pe.specfile, err)
 		}
 	}
 	writer := ipfix.MakeMessageStream(outfile, 65535, 0)
@@ -72,7 +128,7 @@ func (pe *ipfixExporter) Init() {
 			}
 			template := templates[id]
 			if template == 0 {
-				template, err = writer.AddTemplate(now, data.template.InformationElements()...)
+				template, err = writer.AddTemplate(now, pe.AllocateIE(data.template.InformationElements())...)
 				if err != nil {
 					log.Panic(err)
 				}
@@ -82,19 +138,44 @@ func (pe *ipfixExporter) Init() {
 		}
 		writer.Finalize(now)
 		outfile.Close()
+		if specfile != nil {
+			pe.writeSpec(specfile)
+			specfile.Close()
+		}
 	}()
 }
 
 func newIPFIXExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
 	var outfile string
+	var specfile string
 	if _, ok := opts.(flows.UseStringOption); ok {
-		if len(args) > 0 {
-			outfile = args[0]
-			arguments = args[1:]
+		set := flag.NewFlagSet("ipfix", flag.ExitOnError)
+		set.Usage = func() { ipfixhelp("ipfix") }
+		flowSpec := set.String("spec", "", "Flowspec file")
+
+		set.Parse(args)
+		if set.NArg() > 0 {
+			outfile = set.Args()[0]
+			arguments = set.Args()[1:]
 		}
+		specfile = *flowSpec
 	} else {
-		if f, ok := opts.(string); ok {
-			outfile = f
+		switch o := opts.(type) {
+		case string:
+			outfile = o
+		case []interface{}:
+			if len(o) != 2 {
+				log.Fatalln("IPFIX exporter needs outfile and specfile in list specification")
+			}
+			outfile = o[0].(string)
+			specfile = o[1].(string)
+		case map[string]interface{}:
+			if val, ok := o["out"]; ok {
+				outfile = val.(string)
+			}
+			if val, ok := o["spec"]; ok {
+				specfile = val.(string)
+			}
 		}
 	}
 	if outfile == "" {
@@ -104,7 +185,7 @@ func newIPFIXExporter(name string, opts interface{}, args []string) (arguments [
 		name = "IPFIX|" + outfile
 	}
 	ipfix.LoadIANASpec()
-	ret = &ipfixExporter{id: name, outfile: outfile}
+	ret = &ipfixExporter{id: name, outfile: outfile, specfile: specfile}
 	return
 }
 
@@ -116,14 +197,31 @@ header consisting of the feature description.
 As argument, the output file is needed.
 
 Usage command line:
-  export %s file.ipfix
+  export %s [-spec file.iespec] file.ipfix
+
+Flags:
+  -spec string
+    	Write iespec of temporary ies to file
 
 Usage json file:
   {
     "type": "%s",
     "options": "file.ipfix"
   }
-`, name, name, name)
+
+  {
+    "type": "%s",
+    "options": ["file.ipfix", "spec.iespec"]
+  }
+
+  {
+    "type": "%s",
+    "options": {
+      "out": "file.ipfix",
+      "spec": spec.iespec"
+    }
+  }
+`, name, name, name, name, name)
 }
 
 func init() {

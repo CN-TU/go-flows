@@ -168,6 +168,8 @@ MAIN:
 				ie := feature.ie
 				if currentFeature.ie.Name != "" {
 					ie.Name = currentFeature.ie.Name
+					ie.Pen = 0
+					ie.ID = 0
 				}
 				init = append(init, featureToInit{
 					feature: feature,
@@ -255,6 +257,8 @@ MAIN:
 				}
 				seen[id] = len(init)
 				ie := feature.ie
+				ie.Pen = 0
+				ie.ID = 0
 				if currentFeature.compositeID != "" {
 					seen[currentFeature.compositeID] = len(init)
 					ie = currentFeature.ie
