@@ -8,6 +8,8 @@ import (
 	"log"
 	"os"
 
+	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
@@ -26,13 +28,64 @@ func (pe *csvExporter) Fields(fields []string) {
 //Export export given features
 func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
 	list := make([]string, len(features))
+	ies := template.InformationElements()[:len(features)]
 	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
 		case byte:
 			list[i] = fmt.Sprint(int(val))
 		case flows.DateTimeNanoseconds:
-			list[i] = fmt.Sprint(uint64(val))
+			switch ies[i].Type {
+			case ipfix.DateTimeNanosecondsType:
+				list[i] = fmt.Sprint(uint64(val))
+			case ipfix.DateTimeMicrosecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e3))
+			case ipfix.DateTimeMillisecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e6))
+			case ipfix.DateTimeSecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e9))
+			default:
+				list[i] = fmt.Sprint(val)
+			}
+		case flows.DateTimeMicroseconds:
+			switch ies[i].Type {
+			case ipfix.DateTimeNanosecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e3))
+			case ipfix.DateTimeMicrosecondsType:
+				list[i] = fmt.Sprint(uint64(val))
+			case ipfix.DateTimeMillisecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e3))
+			case ipfix.DateTimeSecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e6))
+			default:
+				list[i] = fmt.Sprint(val)
+			}
+		case flows.DateTimeMilliseconds:
+			switch ies[i].Type {
+			case ipfix.DateTimeNanosecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e6))
+			case ipfix.DateTimeMicrosecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e3))
+			case ipfix.DateTimeMillisecondsType:
+				list[i] = fmt.Sprint(uint64(val))
+			case ipfix.DateTimeSecondsType:
+				list[i] = fmt.Sprint(uint64(val / 1e3))
+			default:
+				list[i] = fmt.Sprint(val)
+			}
+		case flows.DateTimeSeconds:
+			switch ies[i].Type {
+			case ipfix.DateTimeNanosecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e9))
+			case ipfix.DateTimeMicrosecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e6))
+			case ipfix.DateTimeMillisecondsType:
+				list[i] = fmt.Sprint(uint64(val * 1e3))
+			case ipfix.DateTimeSecondsType:
+				list[i] = fmt.Sprint(uint64(val))
+			default:
+				list[i] = fmt.Sprint(val)
+			}
 		case flows.FlowEndReason:
 			list[i] = fmt.Sprint(int(val))
 		default:
