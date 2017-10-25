@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"time"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
@@ -31,14 +30,7 @@ func (pe *ipfixExporter) Export(template flows.Template, features []flows.Featur
 	list := make([]interface{}, len(features))
 	list = list[:len(features)]
 	for i, elem := range features {
-		switch val := elem.Value().(type) {
-		case flows.DateTimeNanoseconds:
-			list[i] = time.Unix(0, int64(val))
-		case flows.FlowEndReason:
-			list[i] = uint8(val)
-		default:
-			list[i] = val
-		}
+		list[i] = elem.Value()
 	}
 	pe.exportlist <- ipfixRecord{template, list, when}
 }
@@ -70,11 +62,11 @@ func (pe *ipfixExporter) Init() {
 	go func() {
 		defer close(pe.finished)
 		templates := make([]int, 1)
-		var now time.Time
+		var now flows.DateTimeNanoseconds
 		var err error
 		for data := range pe.exportlist {
 			id := data.template.ID()
-			now = time.Unix(0, int64(data.when))
+			now = data.when
 			if id >= len(templates) {
 				templates = append(templates, make([]int, id-len(templates)+1)...)
 			}

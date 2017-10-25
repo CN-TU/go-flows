@@ -119,7 +119,7 @@ type flowEndReason struct {
 }
 
 func (f *flowEndReason) Stop(reason flows.FlowEndReason, context flows.EventContext) {
-	f.SetValue(reason, context, f)
+	f.SetValue(uint16(reason), context, f)
 }
 
 func init() {
