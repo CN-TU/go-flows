@@ -13,7 +13,7 @@ import (
 )
 
 const PEN uint32 = 1234
-const TEMP uint16 = 0xF000
+const TEMP uint16 = 0x7000
 
 type ipfixExporter struct {
 	id         string
