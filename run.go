@@ -321,6 +321,7 @@ func parseArguments(cmd string, args []string) {
 	maxPacket := set.Uint("size", 9000, "Maximum packet size read from source. 0 = automatic")
 	bpfFilter := set.String("filter", "", "Process only packets matching specified bpf filter")
 	commands := set.String("spec", "", "Load exporters and features from specified json file")
+	printStats := set.Bool("stats", false, "Output statistics")
 
 	set.Parse(args)
 	if set.NArg() == 0 {
@@ -435,5 +436,9 @@ func parseArguments(cmd string, args []string) {
 	flowtable.EOF(time)
 	for _, exporter := range exporters {
 		exporter.Finish()
+	}
+	if *printStats {
+		buffer.PrintStats(os.Stderr)
+		flowtable.PrintStats(os.Stderr)
 	}
 }

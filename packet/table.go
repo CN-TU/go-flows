@@ -1,17 +1,26 @@
 package packet
 
 import (
+	"fmt"
+	"io"
 	"runtime"
 	"sync"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
+type DecodeStats struct {
+	decodeError uint64
+	keyError    uint64
+}
+
 type EventTable interface {
 	Event(buffer *shallowMultiPacketBuffer)
 	Expire()
 	EOF(flows.DateTimeNanoseconds)
 	KeyFunc() func(PacketBuffer) (flows.FlowKey, bool)
+	DecodeStats() *DecodeStats
+	PrintStats(io.Writer)
 }
 
 type baseTable struct {
@@ -24,24 +33,43 @@ func (bt *baseTable) KeyFunc() func(PacketBuffer) (flows.FlowKey, bool) {
 
 type ParallelFlowTable struct {
 	baseTable
-	tables     []*flows.FlowTable
-	expire     []chan struct{}
-	expirewg   sync.WaitGroup
-	buffers    []*shallowMultiPacketBufferRing
-	tmp        []*shallowMultiPacketBuffer
-	wg         sync.WaitGroup
-	expireTime flows.DateTimeNanoseconds
-	nextExpire flows.DateTimeNanoseconds
+	tables      []*flows.FlowTable
+	expire      []chan struct{}
+	expirewg    sync.WaitGroup
+	buffers     []*shallowMultiPacketBufferRing
+	tmp         []*shallowMultiPacketBuffer
+	wg          sync.WaitGroup
+	decodeStats DecodeStats
+	expireTime  flows.DateTimeNanoseconds
+	nextExpire  flows.DateTimeNanoseconds
 }
 
 type SingleFlowTable struct {
 	baseTable
-	table      *flows.FlowTable
-	buffer     *shallowMultiPacketBufferRing
-	expire     chan struct{}
-	done       chan struct{}
-	expireTime flows.DateTimeNanoseconds
-	nextExpire flows.DateTimeNanoseconds
+	table       *flows.FlowTable
+	buffer      *shallowMultiPacketBufferRing
+	expire      chan struct{}
+	done        chan struct{}
+	decodeStats DecodeStats
+	expireTime  flows.DateTimeNanoseconds
+	nextExpire  flows.DateTimeNanoseconds
+}
+
+func (sft *SingleFlowTable) PrintStats(w io.Writer) {
+	fmt.Fprintf(w,
+		`Decode statistics:
+	decode errors: %d
+	key function rejects: %d
+`, sft.decodeStats.decodeError, sft.decodeStats.keyError)
+	fmt.Fprintf(w,
+		`Table statistics:
+	flows: %d
+	peak flows: %d
+`, sft.table.Stats.Flows, sft.table.Stats.Maxflows)
+}
+
+func (sft *SingleFlowTable) DecodeStats() *DecodeStats {
+	return &sft.decodeStats
 }
 
 func (sft *SingleFlowTable) Expire() {
@@ -149,6 +177,31 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 		}()
 	}
 	return ret
+}
+
+func (pft *ParallelFlowTable) PrintStats(w io.Writer) {
+	fmt.Fprintf(w,
+		`Decode statistics:
+	decode errors: %d
+	key function rejects: %d
+`, pft.decodeStats.decodeError, pft.decodeStats.keyError)
+	fmt.Fprintln(w, "Table statistics:")
+	var sumPackets, sumFlows uint64
+	for _, table := range pft.tables {
+		sumPackets += table.Stats.Packets
+		sumFlows += table.Stats.Flows
+	}
+	for i, table := range pft.tables {
+		fmt.Fprintf(w, `	Table #%d:
+		packets: %d (%2.2f)
+		flows: %d (%2.2f)
+		peak flows: %d
+`, i+1, table.Stats.Packets, float64(table.Stats.Packets)/float64(sumPackets)*100, table.Stats.Flows, float64(table.Stats.Flows)/float64(sumFlows)*100, table.Stats.Maxflows)
+	}
+}
+
+func (pft *ParallelFlowTable) DecodeStats() *DecodeStats {
+	return &pft.decodeStats
 }
 
 func (pft *ParallelFlowTable) Expire() {

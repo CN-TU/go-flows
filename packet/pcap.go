@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -20,12 +21,18 @@ const (
 	fullBuffers = 10
 )
 
+type PacketStats struct {
+	packets  uint64
+	filtered uint64
+}
+
 type PcapBuffer struct {
-	empty    *multiPacketBuffer
-	todecode *shallowMultiPacketBufferRing
-	current  *shallowMultiPacketBuffer
-	filter   string
-	plen     int
+	empty       *multiPacketBuffer
+	todecode    *shallowMultiPacketBufferRing
+	current     *shallowMultiPacketBuffer
+	packetStats PacketStats
+	filter      string
+	plen        int
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
@@ -42,6 +49,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
 		keyFunc := flowtable.KeyFunc()
+		stats := flowtable.DecodeStats()
 		for {
 			multibuffer, ok := ret.todecode.popFull()
 			if !ok {
@@ -53,7 +61,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 					break
 				}
 				if !buffer.decode() {
-					//count non interesting packets?
+					stats.decodeError++
 					discard.push(buffer)
 				} else {
 					key, fw := keyFunc(buffer)
@@ -61,6 +69,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 						buffer.setInfo(key, fw)
 						forward.push(buffer)
 					} else {
+						stats.keyError++
 						discard.push(buffer)
 					}
 				}
@@ -77,6 +86,14 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	ret.current, _ = ret.todecode.popEmpty()
 
 	return ret
+}
+
+func (input *PcapBuffer) PrintStats(w io.Writer) {
+	fmt.Fprintf(w,
+		`Packet statistics:
+	overall: %d
+	filtered: %d
+`, input.packetStats.packets, input.packetStats.filtered)
 }
 
 func (input *PcapBuffer) SetFilter(filter string) (old string) {
@@ -160,6 +177,8 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 		log.Fatalf("File format not implemented")
 	}
 	go func(time *flows.DateTimeNanoseconds, stop *bool) {
+		var npackets uint64
+		var nfiltered uint64
 		for {
 			data, ci, err := fhandle.ZeroCopyReadPacketData()
 			if err == io.EOF {
@@ -168,7 +187,9 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				log.Println("Error:", err)
 				continue
 			}
+			npackets++
 			if filter != nil && !filter.Matches(ci, data) {
+				nfiltered++
 				continue
 			}
 			if *stop {
@@ -187,6 +208,8 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				}
 			}
 		}
+		input.packetStats.packets = npackets
+		input.packetStats.filtered = nfiltered
 		finished <- nil
 	}(&time, &stop)
 	select {

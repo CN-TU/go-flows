@@ -3,6 +3,12 @@ package flows
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, FlowKey, DateTimeNanoseconds) Flow
 
+type TableStats struct {
+	Packets  uint64
+	Flows    uint64
+	Maxflows uint64
+}
+
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
 	FlowOptions
@@ -12,6 +18,7 @@ type FlowTable struct {
 	newflow   FlowCreator
 	now       DateTimeNanoseconds
 	records   RecordListMaker
+	Stats     TableStats
 	fivetuple bool
 	eof       bool
 }
@@ -44,6 +51,7 @@ func (tab *FlowTable) Expire() {
 
 // Event needs to be called for every event (e.g., a received packet). Handles flow expiry if the event belongs to a flow, flow creation, and forwarding the event to the flow.
 func (tab *FlowTable) Event(event Event) {
+	tab.Stats.Packets++
 	when := event.Timestamp()
 	key := event.Key()
 
@@ -64,6 +72,7 @@ func (tab *FlowTable) Event(event Event) {
 	}
 	if !ok {
 		elem := tab.newflow(event, tab, key, when)
+		tab.Stats.Flows++
 		var new int
 		freelen := len(tab.freelist)
 		if freelen == 0 {
@@ -74,6 +83,10 @@ func (tab *FlowTable) Event(event Event) {
 			tab.flowlist[new] = elem
 		}
 		tab.flows[key] = new
+		nflows := uint64(len(tab.flows))
+		if nflows > tab.Stats.Maxflows {
+			tab.Stats.Maxflows = nflows
+		}
 		elem.Event(event, when)
 	}
 }
