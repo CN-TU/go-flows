@@ -143,6 +143,20 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type flowStartNanoseconds struct {
+	flows.BaseFeature
+}
+
+func (f *flowStartNanoseconds) Start(context flows.EventContext) {
+	f.SetValue(context.When, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("flowStartNanoseconds", flows.FlowFeature, func() flows.Feature { return &flowStartNanoseconds{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type octetTotalCountPacket struct {
 	flows.BaseFeature
 }
