@@ -153,6 +153,9 @@ func (f *flowStartNanoseconds) Start(context flows.EventContext) {
 
 func init() {
 	flows.RegisterStandardFeature("flowStartNanoseconds", flows.FlowFeature, func() flows.Feature { return &flowStartNanoseconds{} }, flows.RawPacket)
+    flows.RegisterStandardCompositeFeature("flowStartMicroseconds", "multiply", "flowStartNanoseconds", 1000)
+    flows.RegisterStandardCompositeFeature("flowStartMilliseconds", "multiply", "flowStartMicroseconds", 1000)
+    flows.RegisterStandardCompositeFeature("flowStartSeconds", "multiply", "flowStartMilliseconds", 1000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
