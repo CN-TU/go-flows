@@ -2,8 +2,8 @@ package packet
 
 import (
 	"encoding/binary"
-    "strings"
 	"net"
+	"strings"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
@@ -930,8 +930,8 @@ func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src inte
 
 func init() {
 	flows.RegisterFunction("tcpReorder", flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, flows.RawPacket)
-    ie_text := []byte("_tcpReorderPayload(666)<octetArray>")
-    ie := ipfix.MakeIEFromSpec(ie_text)
+	ie_text := []byte("_tcpReorderPayload(666)<octetArray>")
+	ie := ipfix.MakeIEFromSpec(ie_text)
 	flows.RegisterCompositeFeature(ie, "_payload", "tcpReorder")
 }
 
@@ -961,11 +961,11 @@ func init() {
 
 type __httpLines struct {
 	flows.BaseFeature
-	buffer []byte
-    status uint8
-    status_next uint8
-    current string
-    src string
+	buffer      []byte
+	status      uint8
+	status_next uint8
+	current     string
+	src         string
 }
 
 const _NONE uint8 = 0
@@ -976,72 +976,72 @@ const _BODY uint8 = 4
 const _ERROR string = "-1"
 
 func (f *__httpLines) Start(context flows.EventContext) {
-    f.status = _REQUEST
-    f.status_next = _NONE
+	f.status = _REQUEST
+	f.status_next = _NONE
 }
 
 func (f *__httpLines) extractLine(ignore bool) (ret string) {
-    data := string(f.buffer)  // TODO maybe it's better to keep it as bytes and not use strings?
-    if ignore {
-        data = strings.TrimLeft(data, " \t\n\r")
-    }
-    data_split := strings.SplitN(data, "\n", 2)
-    if len(data_split) != 2 {
-        return _ERROR
-    }
-    f.buffer = []byte(data_split[1])  // TODO here maybe there's unnecessary allocations
-    return strings.TrimSpace(data_split[0])
+	data := string(f.buffer) // TODO maybe it's better to keep it as bytes and not use strings?
+	if ignore {
+		data = strings.TrimLeft(data, " \t\n\r")
+	}
+	data_split := strings.SplitN(data, "\n", 2)
+	if len(data_split) != 2 {
+		return _ERROR
+	}
+	f.buffer = []byte(data_split[1]) // TODO here maybe there's unnecessary allocations
+	return strings.TrimSpace(data_split[0])
 }
 
 func (f *__httpLines) extractRequest(line string) (ret string) {
-    // TODO implement proper request parsing
-    line_split := strings.Split(line, " ")
-    return line_split[0]
+	// TODO implement proper request parsing
+	line_split := strings.Split(line, " ")
+	return line_split[0]
 }
 
 func (f *__httpLines) parsePart(context flows.EventContext, src interface{}) (ret bool) {
-    // TODO nothing is implemented except for extracting headers in simple http sessions
-    switch f.status {
-    case _REQUEST:
-        line := f.extractLine(true)
-        if line == _ERROR {
-            return false
-        }
-        f.SetValue(line, context, src)
-        f.status_next = _RESPONSE
-        f.status = _HEADER
-        f.current = f.extractRequest(line)
-        if f.current == "" {
-            f.status = _REQUEST
-        }
-    case _HEADER:
-        line := f.extractLine(false)
-        if line == _ERROR {
-            return false
-        }
-        if line == "" {  // end of header
-            return false  // FIXME this should continue, and do more stuff
-        }
-        f.SetValue(line, context, src)
-    default:
-    }
-    return true
+	// TODO nothing is implemented except for extracting headers in simple http sessions
+	switch f.status {
+	case _REQUEST:
+		line := f.extractLine(true)
+		if line == _ERROR {
+			return false
+		}
+		f.SetValue(line, context, src)
+		f.status_next = _RESPONSE
+		f.status = _HEADER
+		f.current = f.extractRequest(line)
+		if f.current == "" {
+			f.status = _REQUEST
+		}
+	case _HEADER:
+		line := f.extractLine(false)
+		if line == _ERROR {
+			return false
+		}
+		if line == "" { // end of header
+			return false // FIXME this should continue, and do more stuff
+		}
+		f.SetValue(line, context, src)
+	default:
+	}
+	return true
 }
 
 func (f *__httpLines) Event(new interface{}, context flows.EventContext, src interface{}) {
-    f.buffer = append(f.buffer, []byte(new.(string))...)
-    for f.parsePart(context, src) == true {
-        continue
-    }
+	f.buffer = append(f.buffer, []byte(new.(string))...)
+	for f.parsePart(context, src) == true {
+		continue
+	}
 }
 
 func (f *__httpLines) Stop(reason flows.FlowEndReason, context flows.EventContext) {
 }
 
 func init() {
-    flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &__httpLines{} }, flows.PacketFeature)
-    ie_text := []byte("__httpLines(667)<octetArray>")
-    ie := ipfix.MakeIEFromSpec(ie_text)
+	flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &__httpLines{} }, flows.PacketFeature)
+	ie_text := []byte("__httpLines(667)<octetArray>")
+	ie := ipfix.MakeIEFromSpec(ie_text)
 	flows.RegisterCompositeFeature(ie, "httpLines", "_tcpReorderPayload")
 }
 
@@ -1050,13 +1050,13 @@ type httpRequestHost struct {
 }
 
 func (f *httpRequestHost) Event(new interface{}, context flows.EventContext, src interface{}) {
-    header := strings.SplitN(new.(string), ":", 2)
-    if header[0] == "Host" {
-        f.SetValue(strings.TrimSpace(header[1]), context, src)
-    }
+	header := strings.SplitN(new.(string), ":", 2)
+	if header[0] == "Host" {
+		f.SetValue(strings.TrimSpace(header[1]), context, src)
+	}
 }
 
 func init() {
-    flows.RegisterFunction("__httpRequestHost", flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
+	flows.RegisterFunction("__httpRequestHost", flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
 	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "__httpLines")
 }
