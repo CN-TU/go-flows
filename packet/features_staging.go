@@ -74,7 +74,7 @@ func (f *_characters2) Event(new interface{}, context flows.EventContext, src in
 	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}

@@ -977,7 +977,7 @@ const _Error string = "-1"
 
 func (f *_HTTPLines) Start(context flows.EventContext) {
 	f.status = _Request
-	f.statusNext = _NONE
+	f.statusNext = _None
 }
 
 func (f *_HTTPLines) extractLine(ignore bool) (ret string) {
