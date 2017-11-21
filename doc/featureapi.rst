@@ -62,3 +62,14 @@ to the following rules:
 * unsigned | signed -> signed
 * integer | float -> float
 * something | datetime -> datetime
+
+Export rules
+^^^^^^^^^^^^
+
+Time gets scaled if IE type and value type differs (e.g., DateTimeNanoseconds might be converted to
+DateTimeMilliseconds). If the exported value is a non-time type and IE is type, DateTimeNanoseconds
+is assumed. Other values are exported as is.
+
+Depending on the exporter, a conversion to the specified number format
+might happen (e.g., ipfix needs to convert the exported value to an unsigned number, if the IE type
+is unsigned).
