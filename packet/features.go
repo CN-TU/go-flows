@@ -272,18 +272,18 @@ type tcpControlBits struct {
 	flows.BaseFeature
 }
 
-func getTcp(packet PacketBuffer) *layers.TCP {
+func getTCP(packet PacketBuffer) *layers.TCP {
 	tcp := packet.Layer(layers.LayerTypeTCP)
 	if tcp == nil {
 		return nil
 	}
-	packet_tcp := tcp.(*layers.TCP)
-	return packet_tcp
+	packetTCP := tcp.(*layers.TCP)
+	return packetTCP
 }
 
 func (f *tcpControlBits) Event(new interface{}, context flows.EventContext, src interface{}) {
 	var value uint16
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -389,7 +389,7 @@ func boolInt(b bool) uint64 {
 }
 
 func (f *tcpSynTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -407,7 +407,7 @@ type tcpSynTotalCountPacket struct {
 }
 
 func (f *tcpSynTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -434,7 +434,7 @@ func (f *tcpFinTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *tcpFinTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -452,7 +452,7 @@ type tcpFinTotalCountPacket struct {
 }
 
 func (f *tcpFinTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -479,7 +479,7 @@ func (f *tcpRstTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *tcpRstTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -497,7 +497,7 @@ type tcpRstTotalCountPacket struct {
 }
 
 func (f *tcpRstTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -524,7 +524,7 @@ func (f *tcpPshTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *tcpPshTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -542,7 +542,7 @@ type tcpPshTotalCountPacket struct {
 }
 
 func (f *tcpPshTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -569,7 +569,7 @@ func (f *tcpAckTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *tcpAckTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -586,7 +586,7 @@ type tcpAckTotalCountPacket struct {
 }
 
 func (f *tcpAckTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -613,7 +613,7 @@ func (f *tcpUrgTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *tcpUrgTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -631,7 +631,7 @@ type tcpUrgTotalCountPacket struct {
 }
 
 func (f *tcpUrgTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -658,7 +658,7 @@ func (f *_tcpEceTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.E
 }
 
 func (f *_tcpEceTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -676,7 +676,7 @@ type _tcpEceTotalCountPacket struct {
 }
 
 func (f *_tcpEceTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -703,7 +703,7 @@ func (f *_tcpCwrTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.E
 }
 
 func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -721,7 +721,7 @@ type _tcpCwrTotalCountPacket struct {
 }
 
 func (f *_tcpCwrTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -748,7 +748,7 @@ func (f *_tcpNsTotalCountFlow) Stop(reason flows.FlowEndReason, context flows.Ev
 }
 
 func (f *_tcpNsTotalCountFlow) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -766,7 +766,7 @@ type _tcpNsTotalCountPacket struct {
 }
 
 func (f *_tcpNsTotalCountPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	tcp := getTcp(new.(PacketBuffer))
+	tcp := getTCP(new.(PacketBuffer))
 	if tcp == nil {
 		return
 	}
@@ -881,7 +881,7 @@ func payloadLength(packet PacketBuffer) int {
 
 func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src interface{}) {
 	packet := new.(PacketBuffer)
-	tcp := getTcp(packet)
+	tcp := getTCP(packet)
 	if tcp == nil {
 		return
 	}
@@ -930,8 +930,8 @@ func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src inte
 
 func init() {
 	flows.RegisterFunction("tcpReorder", flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, flows.RawPacket)
-	ie_text := []byte("_tcpReorderPayload(666)<octetArray>")
-	ie := ipfix.MakeIEFromSpec(ie_text)
+	ieText := []byte("_tcpReorderPayload(666)<octetArray>")
+	ie := ipfix.MakeIEFromSpec(ieText)
 	flows.RegisterCompositeFeature(ie, "_payload", "tcpReorder")
 }
 
@@ -959,64 +959,64 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type __httpLines struct {
+type _HTTPLines struct {
 	flows.BaseFeature
-	buffer      []byte
-	status      uint8
-	status_next uint8
-	current     string
-	src         string
+	buffer     []byte
+	status     uint8
+	statusNext uint8
+	current    string
+	src        string
 }
 
-const _NONE uint8 = 0
-const _REQUEST uint8 = 1
-const _RESPONSE uint8 = 2
-const _HEADER uint8 = 3
-const _BODY uint8 = 4
-const _ERROR string = "-1"
+const _None uint8 = 0
+const _Request uint8 = 1
+const _Response uint8 = 2
+const _Header uint8 = 3
+const _Body uint8 = 4
+const _Error string = "-1"
 
-func (f *__httpLines) Start(context flows.EventContext) {
-	f.status = _REQUEST
-	f.status_next = _NONE
+func (f *_HTTPLines) Start(context flows.EventContext) {
+	f.status = _Request
+	f.statusNext = _NONE
 }
 
-func (f *__httpLines) extractLine(ignore bool) (ret string) {
+func (f *_HTTPLines) extractLine(ignore bool) (ret string) {
 	data := string(f.buffer) // TODO maybe it's better to keep it as bytes and not use strings?
 	if ignore {
 		data = strings.TrimLeft(data, " \t\n\r")
 	}
-	data_split := strings.SplitN(data, "\n", 2)
-	if len(data_split) != 2 {
-		return _ERROR
+	dataSplit := strings.SplitN(data, "\n", 2)
+	if len(dataSplit) != 2 {
+		return _Error
 	}
-	f.buffer = []byte(data_split[1]) // TODO here maybe there's unnecessary allocations
-	return strings.TrimSpace(data_split[0])
+	f.buffer = []byte(dataSplit[1]) // TODO here maybe there's unnecessary allocations
+	return strings.TrimSpace(dataSplit[0])
 }
 
-func (f *__httpLines) extractRequest(line string) (ret string) {
+func (f *_HTTPLines) extractRequest(line string) (ret string) {
 	// TODO implement proper request parsing
-	line_split := strings.Split(line, " ")
-	return line_split[0]
+	lineSplit := strings.Split(line, " ")
+	return lineSplit[0]
 }
 
-func (f *__httpLines) parsePart(context flows.EventContext, src interface{}) (ret bool) {
+func (f *_HTTPLines) parsePart(context flows.EventContext, src interface{}) (ret bool) {
 	// TODO nothing is implemented except for extracting headers in simple http sessions
 	switch f.status {
-	case _REQUEST:
+	case _Request:
 		line := f.extractLine(true)
-		if line == _ERROR {
+		if line == _Error {
 			return false
 		}
 		f.SetValue(line, context, src)
-		f.status_next = _RESPONSE
-		f.status = _HEADER
+		f.statusNext = _Response
+		f.status = _Header
 		f.current = f.extractRequest(line)
 		if f.current == "" {
-			f.status = _REQUEST
+			f.status = _Request
 		}
-	case _HEADER:
+	case _Header:
 		line := f.extractLine(false)
-		if line == _ERROR {
+		if line == _Error {
 			return false
 		}
 		if line == "" { // end of header
@@ -1028,20 +1028,20 @@ func (f *__httpLines) parsePart(context flows.EventContext, src interface{}) (re
 	return true
 }
 
-func (f *__httpLines) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_HTTPLines) Event(new interface{}, context flows.EventContext, src interface{}) {
 	f.buffer = append(f.buffer, []byte(new.(string))...)
 	for f.parsePart(context, src) == true {
 		continue
 	}
 }
 
-func (f *__httpLines) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+func (f *_HTTPLines) Stop(reason flows.FlowEndReason, context flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &__httpLines{} }, flows.PacketFeature)
-	ie_text := []byte("__httpLines(667)<octetArray>")
-	ie := ipfix.MakeIEFromSpec(ie_text)
+	flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
+	ieText := []byte("_HTTPLines(667)<octetArray>")
+	ie := ipfix.MakeIEFromSpec(ieText)
 	flows.RegisterCompositeFeature(ie, "httpLines", "_tcpReorderPayload")
 }
 
@@ -1058,5 +1058,5 @@ func (f *httpRequestHost) Event(new interface{}, context flows.EventContext, src
 
 func init() {
 	flows.RegisterFunction("__httpRequestHost", flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
-	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "__httpLines")
+	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "_HTTPLines")
 }
