@@ -930,7 +930,7 @@ func (f *tcpReorder) Event(new interface{}, context flows.EventContext, src inte
 
 func init() {
 	flows.RegisterFunction("tcpReorder", flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, flows.RawPacket)
-	ieText := []byte("_tcpReorderPayload(666)<octetArray>")
+	ieText := []byte("_tcpReorderPayload(666)<octetArray>") // FIXME get number for IE
 	ie := ipfix.MakeIEFromSpec(ieText)
 	flows.RegisterCompositeFeature(ie, "_payload", "tcpReorder")
 }
@@ -1040,7 +1040,7 @@ func (f *_HTTPLines) Stop(reason flows.FlowEndReason, context flows.EventContext
 
 func init() {
 	flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
-	ieText := []byte("_HTTPLines(667)<octetArray>")
+	ieText := []byte("_HTTPLines(667)<octetArray>") // FIXME get number for IE
 	ie := ipfix.MakeIEFromSpec(ieText)
 	flows.RegisterCompositeFeature(ie, "httpLines", "_tcpReorderPayload")
 }
