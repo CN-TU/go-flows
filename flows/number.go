@@ -297,7 +297,7 @@ func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi inte
 		if tB == FloatType {
 			return tB, fB, intToFloat(ai), bi
 		}
-		return tB, fB, intToTime(ai, tB), tB
+		return tB, fB, unfixType(ai, tA), unfixType(bi, tB)
 	}
 	if tA == UIntType {
 		if tB == IntType {
@@ -306,7 +306,7 @@ func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi inte
 		if tB == FloatType {
 			return tB, fB, uintToFloat(ai), bi
 		}
-		return tB, fB, uintToTime(ai, tB), tB
+		return tB, fB, unfixType(ai, tA), unfixType(bi, tB)
 	}
 	if tA == FloatType {
 		if tB == UIntType {
@@ -315,10 +315,39 @@ func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi inte
 		if tB == IntType {
 			return tA, fA, ai, intToFloat(bi)
 		}
-		return tB, fB, floatToTime(ai, tB), tB
+		return tB, fB, unfixType(ai, tA), unfixType(bi, tB)
+	}
+	if tB == IntType {
+		return tA, fA, unfixType(ai, tA), unfixType(bi, tB)
+	}
+	if tB == UIntType {
+		return tA, fA, unfixType(ai, tA), unfixType(bi, tB)
+	}
+	if tB == FloatType {
+		return tA, fA, unfixType(ai, tA), unfixType(bi, tB)
 	}
 	// both types are time - but differen timebases
 	return NanosecondsType, UIntType, scaleTimetoNano(tA, a), scaleTimetoNano(tB, b)
+}
+
+func unfixType(val interface{}, t NumberType) interface{} {
+	switch t {
+	case SecondsType:
+		return uint64(val.(DateTimeSeconds))
+	case MillisecondsType:
+		return uint64(val.(DateTimeMilliseconds))
+	case MicrosecondsType:
+		return uint64(val.(DateTimeMicroseconds))
+	case NanosecondsType:
+		return uint64(val.(DateTimeNanoseconds))
+	case IntType:
+		return uint64(val.(int64))
+	case UIntType:
+		return val
+	case FloatType:
+		return uint64(val.(float64))
+	}
+	panic("Should never happen")
 }
 
 func FixType(val interface{}, t NumberType) interface{} {
