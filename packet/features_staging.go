@@ -2,6 +2,7 @@ package packet
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"strings"
 
@@ -311,4 +312,55 @@ func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context flows.EventCo
 
 func init() {
 	flows.RegisterTemporaryFeature("_tcpOptionDataFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionDataFirstPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs list of the difference of tcp timestamp divided by actual time in the packets in the flow
+type _tcpTimestampsPerSeconds struct {
+	flows.BaseFeature
+	timestamps []uint32
+	times      []uint32
+}
+
+func (f *_tcpTimestampsPerSeconds) Start(context flows.EventContext) {
+}
+
+func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+	tcp := getTCP(new.(PacketBuffer))
+	opts := tcp.Options
+	for _, o := range opts {
+		if o.OptionType.String() == "Timestamps" {
+			timestamp := binary.BigEndian.Uint32(o.OptionData[0:4])
+			f.timestamps = append(f.timestamps, timestamp)
+			time := context.When
+			newTime := uint32(time / flows.SecondsInNanoseconds)
+			f.times = append(f.times, newTime)
+		}
+	}
+}
+
+func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	var buffer []float64
+	if len(f.timestamps) > 1 {
+		for i, _ := range f.timestamps[0 : len(f.timestamps)-1] {
+			tcpStampDif := f.timestamps[i+1] - f.timestamps[i]
+			stampDif := f.times[i+1] - f.times[i]
+
+			if stampDif > 0 {
+				res := float64(tcpStampDif) / float64(stampDif)
+				buffer = append(buffer, res)
+			}
+		}
+
+		if len(buffer) > 0 {
+			for _, val := range buffer {
+				f.SetValue(val, context, f)
+			}
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpTimestampsPerSeconds", ipfix.Float64Type, 0, flows.PacketFeature, func() flows.Feature { return &_tcpTimestampsPerSeconds{} }, flows.RawPacket)
 }
