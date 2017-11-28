@@ -266,22 +266,23 @@ func (f *_tcpTimestampFirstPacket) Start(context flows.EventContext) {
 }
 
 func (f *_tcpTimestampFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
-	var buffer bytes.Buffer
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
-		opts := tcp.Options
-		for _, o := range opts {
-			if o.OptionType.String() == "Timestamps" {
-				buffer.WriteString(fmt.Sprintf("%x", o.OptionData[0:2]))
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				if o.OptionType.String() == "Timestamps" {
+					ts := binary.BigEndian.Uint32(o.OptionData[0:4])
+					f.SetValue(ts, context, f)
+				}
 			}
 		}
-		f.SetValue(buffer.String(), context, f)
 	}
 	f.done = true
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpTimestampFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpTimestampFirstPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpTimestampFirstPacket", ipfix.Unsigned32Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpTimestampFirstPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
