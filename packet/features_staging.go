@@ -238,11 +238,13 @@ func (f *_tcpOptionsFirstPacket) Event(new interface{}, context flows.EventConte
 	var buffer bytes.Buffer
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
-		opts := tcp.Options
-		for _, o := range opts {
-			buffer.WriteString(fmt.Sprintf("[%d %d %x]", o.OptionType, o.OptionLength, o.OptionData))
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				buffer.WriteString(fmt.Sprintf("[%d %d %x]", o.OptionType, o.OptionLength, o.OptionData))
+			}
+			f.SetValue(buffer.String(), context, f)
 		}
-		f.SetValue(buffer.String(), context, f)
 	}
 	f.done = true
 }
@@ -298,14 +300,16 @@ func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context flows.EventCo
 	var buffer bytes.Buffer
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
-		opts := tcp.Options
-		for _, o := range opts {
-			if o.OptionType.String() == "Timestamps" {
-				break
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				if o.OptionType.String() == "Timestamps" {
+					break
+				}
+				buffer.WriteString(fmt.Sprintf("[%x]", o.OptionData))
 			}
-			buffer.WriteString(fmt.Sprintf("[%x]", o.OptionData))
+			f.SetValue(buffer.String(), context, f)
 		}
-		f.SetValue(buffer.String(), context, f)
 	}
 	f.done = true
 }
@@ -328,14 +332,16 @@ func (f *_tcpTimestampsPerSeconds) Start(context flows.EventContext) {
 
 func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
 	tcp := getTCP(new.(PacketBuffer))
-	opts := tcp.Options
-	for _, o := range opts {
-		if o.OptionType.String() == "Timestamps" {
-			timestamp := binary.BigEndian.Uint32(o.OptionData[0:4])
-			f.timestamps = append(f.timestamps, timestamp)
-			time := context.When
-			newTime := uint32(time / flows.SecondsInNanoseconds)
-			f.times = append(f.times, newTime)
+	if tcp != nil {
+		opts := tcp.Options
+		for _, o := range opts {
+			if o.OptionType.String() == "Timestamps" {
+				timestamp := binary.BigEndian.Uint32(o.OptionData[0:4])
+				f.timestamps = append(f.timestamps, timestamp)
+				time := context.When
+				newTime := uint32(time / flows.SecondsInNanoseconds)
+				f.times = append(f.times, newTime)
+			}
 		}
 	}
 }
