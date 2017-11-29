@@ -2,6 +2,8 @@ package packet
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
 	"strings"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
@@ -218,4 +220,154 @@ func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context flows.Event
 
 func init() {
 	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs tcp options of the 1st packet
+type _tcpOptionsFirstPacket struct {
+	flows.BaseFeature
+	done bool
+}
+
+func (f *_tcpOptionsFirstPacket) Start(context flows.EventContext) {
+	f.done = false
+}
+
+func (f *_tcpOptionsFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+	var buffer bytes.Buffer
+	if !f.done {
+		tcp := getTCP(new.(PacketBuffer))
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				buffer.WriteString(fmt.Sprintf("[%d %d %x]", o.OptionType, o.OptionLength, o.OptionData))
+			}
+			f.SetValue(buffer.String(), context, f)
+		}
+	}
+	f.done = true
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpOptionsFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionsFirstPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs first 2 bytes of tcp timestamp of the 1st packet
+type _tcpTimestampFirstPacket struct {
+	flows.BaseFeature
+	done bool
+}
+
+func (f *_tcpTimestampFirstPacket) Start(context flows.EventContext) {
+	f.done = false
+}
+
+func (f *_tcpTimestampFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+	if !f.done {
+		tcp := getTCP(new.(PacketBuffer))
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				if o.OptionType.String() == "Timestamps" {
+					ts := binary.BigEndian.Uint32(o.OptionData[0:4])
+					f.SetValue(ts, context, f)
+				}
+			}
+		}
+	}
+	f.done = true
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpTimestampFirstPacket", ipfix.Unsigned32Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpTimestampFirstPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs option data of tcp options before timestamp of the 1st packet
+type _tcpOptionDataFirstPacket struct {
+	flows.BaseFeature
+	done bool
+}
+
+func (f *_tcpOptionDataFirstPacket) Start(context flows.EventContext) {
+	f.done = false
+}
+
+func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+	var buffer bytes.Buffer
+	if !f.done {
+		tcp := getTCP(new.(PacketBuffer))
+		if tcp != nil {
+			opts := tcp.Options
+			for _, o := range opts {
+				if o.OptionType.String() == "Timestamps" {
+					break
+				}
+				buffer.WriteString(fmt.Sprintf("[%x]", o.OptionData))
+			}
+			f.SetValue(buffer.String(), context, f)
+		}
+	}
+	f.done = true
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpOptionDataFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionDataFirstPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// outputs list of the difference of tcp timestamp divided by actual time in the packets in the flow
+type _tcpTimestampsPerSeconds struct {
+	flows.BaseFeature
+	timestamps []uint32
+	times      []uint32
+}
+
+func (f *_tcpTimestampsPerSeconds) Start(context flows.EventContext) {
+}
+
+func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+	tcp := getTCP(new.(PacketBuffer))
+	if tcp != nil {
+		opts := tcp.Options
+		for _, o := range opts {
+			if o.OptionType.String() == "Timestamps" {
+				timestamp := binary.BigEndian.Uint32(o.OptionData[0:4])
+				f.timestamps = append(f.timestamps, timestamp)
+				time := context.When
+				newTime := uint32(time / flows.SecondsInNanoseconds)
+				f.times = append(f.times, newTime)
+			}
+		}
+	}
+}
+
+func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+	var buffer []float64
+	if len(f.timestamps) > 1 {
+		for i, _ := range f.timestamps[0 : len(f.timestamps)-1] {
+			tcpStampDif := f.timestamps[i+1] - f.timestamps[i]
+			stampDif := f.times[i+1] - f.times[i]
+
+			if stampDif > 0 {
+				res := float64(tcpStampDif) / float64(stampDif)
+				buffer = append(buffer, res)
+			}
+		}
+
+		if len(buffer) > 0 {
+			for _, val := range buffer {
+				f.SetValue(val, context, f)
+			}
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpTimestampsPerSeconds", ipfix.Float64Type, 0, flows.PacketFeature, func() flows.Feature { return &_tcpTimestampsPerSeconds{} }, flows.RawPacket)
 }
