@@ -481,25 +481,25 @@ func (pb *pcapPacketBuffer) Layers() []gopacket.Layer {
 	return ret
 }
 func (pb *pcapPacketBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
-	if pb.link.LayerType() == lt {
+	if pb.link != nil && pb.link.LayerType() == lt {
 		return pb.link
 	}
-	if pb.network.LayerType() == lt {
+	if pb.network != nil && pb.network.LayerType() == lt {
 		return pb.network
 	}
-	if pb.transport.LayerType() == lt {
+	if pb.transport != nil && pb.transport.LayerType() == lt {
 		return pb.transport
 	}
 	return nil
 }
 func (pb *pcapPacketBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
-	if lc.Contains(pb.link.LayerType()) {
+	if pb.link != nil && lc.Contains(pb.link.LayerType()) {
 		return pb.link
 	}
-	if lc.Contains(pb.network.LayerType()) {
+	if pb.network != nil && lc.Contains(pb.network.LayerType()) {
 		return pb.network
 	}
-	if lc.Contains(pb.transport.LayerType()) {
+	if pb.transport != nil && lc.Contains(pb.transport.LayerType()) {
 		return pb.transport
 	}
 	return nil
