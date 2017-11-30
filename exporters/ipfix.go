@@ -218,7 +218,7 @@ Usage json file:
     "type": "%s",
     "options": {
       "out": "file.ipfix",
-      "spec": spec.iespec"
+      "spec": "spec.iespec"
     }
   }
 `, name, name, name, name, name)
