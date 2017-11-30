@@ -72,10 +72,11 @@ func (rl RecordListMaker) Init() {
 }
 
 type RecordMaker struct {
-	init     []featureToInit
-	exporter []Exporter
-	fields   []string
-	make     func() *record
+	init       []featureToInit
+	exportList []int
+	exporter   []Exporter
+	fields     []string
+	make       func() *record
 }
 
 func (rm RecordMaker) Init() {
@@ -98,7 +99,6 @@ type featureToInit struct {
 	arguments []int
 	call      []int
 	event     bool
-	export    bool
 	variant   bool
 }
 
@@ -136,13 +136,18 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Expor
 	selections[feature2id([]interface{}{"select", true}, Selection)] = mainSelection
 	currentSelection := mainSelection
 
+	var exportList []int
+
 	var currentFeature featureWithType
 MAIN:
 	for len(stack) > 0 {
 		currentFeature, stack = stack[0], stack[1:]
 		id := feature2id(currentFeature.feature, currentFeature.ret)
 		seen := currentSelection.seen
-		if _, ok := seen[id]; ok {
+		if i, ok := seen[id]; ok {
+			if currentFeature.export {
+				exportList = append(exportList, i)
+			}
 			continue MAIN
 		}
 		switch typedFeature := currentFeature.feature.(type) {
@@ -165,6 +170,9 @@ MAIN:
 					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", currentFeature.feature, currentFeature.ret))
 				}
 				seen[id] = len(init)
+				if currentFeature.export {
+					exportList = append(exportList, len(init))
+				}
 				ie := feature.ie
 				if currentFeature.ie.Name != "" {
 					ie.Name = currentFeature.ie.Name
@@ -180,19 +188,20 @@ MAIN:
 					ie:        ie,
 					arguments: currentSelection.argument,
 					event:     currentSelection.argument == nil,
-					export:    currentFeature.export,
 				})
 			}
 		case bool, float64, int64, uint64, int:
 			feature := newConstantMetaFeature(typedFeature)
 			seen[id] = len(init)
+			if currentFeature.export {
+				exportList = append(exportList, len(init))
+			}
 			init = append(init, featureToInit{
 				feature: feature,
 				info: graphInfo{
 					data: typedFeature,
 				},
-				ie:     feature.ie,
-				export: currentFeature.export,
+				ie: feature.ie,
 			})
 		case []interface{}:
 			fun := typedFeature[0].(string)
@@ -256,6 +265,9 @@ MAIN:
 					}
 				}
 				seen[id] = len(init)
+				if currentFeature.export {
+					exportList = append(exportList, len(init))
+				}
 				ie := feature.ie
 				ie.Pen = 0
 				ie.ID = 0
@@ -298,7 +310,6 @@ MAIN:
 					arguments: argumentPos,
 					ie:        ie,
 					event:     fun == "select" || (fun == "select_slice" && len(argumentPos) == 2),
-					export:    currentFeature.export,
 				})
 			}
 		default:
@@ -316,7 +327,6 @@ MAIN:
 	}
 
 	nevent := 0
-	nexport := 0
 	nvariants := 0
 
 	for i, feature := range init {
@@ -324,31 +334,27 @@ MAIN:
 			nvariants++
 			init[i].variant = true
 		}
-		if feature.export {
-			nexport++
-		}
 		if feature.event {
 			nevent++
 		}
 	}
 
-	toexport := make([]featureToInit, 0, nexport)
-	for _, feature := range init {
-		if feature.export {
-			toexport = append(toexport, feature)
-		}
+	toexport := make([]featureToInit, len(exportList))
+	toexport = toexport[:len(exportList)]
+	for i, val := range exportList {
+		toexport[i] = init[val]
 	}
 
 	template, fields := makeTemplate(toexport, &rl.templates)
 
 	rl.list = append(rl.list, RecordMaker{
 		init,
+		exportList,
 		exporter,
 		fields,
 		func() *record {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
-			export := make([]Feature, 0, nexport)
 			variants := make([]Feature, 0, nvariants)
 			f = f[:len(init)]
 			for i, feature := range init {
@@ -356,12 +362,14 @@ MAIN:
 				if feature.event {
 					event = append(event, f[i])
 				}
-				if feature.export {
-					export = append(export, f[i])
-				}
 				if feature.variant {
 					variants = append(variants, f[i])
 				}
+			}
+			export := make([]Feature, 0, len(exportList))
+			export = export[:len(exportList)]
+			for i, val := range exportList {
+				export[i] = f[val]
 			}
 			f = f[:len(init)]
 			for i, feature := range init {
@@ -494,9 +502,6 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 			if feature.event {
 				data.Edges = append(data.Edges, Edge{"event", "", toId(listID, i), ""})
 			}
-			if feature.export {
-				data.Edges = append(data.Edges, Edge{toId(listID, i), "", fmt.Sprintf("export%d", listID), ""})
-			}
 			for index, j := range feature.arguments {
 				index := strconv.Itoa(index)
 				if len(feature.arguments) <= 1 {
@@ -504,6 +509,9 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 				}
 				data.Edges = append(data.Edges, Edge{toId(listID, j), "", toId(listID, i), index})
 			}
+		}
+		for _, i := range fl.exportList {
+			data.Edges = append(data.Edges, Edge{toId(listID, i), "", fmt.Sprintf("export%d", listID), ""})
 		}
 		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
 	}
