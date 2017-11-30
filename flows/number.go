@@ -269,11 +269,11 @@ func floatToTime(val interface{}, kind NumberType) interface{} {
 func scaleTimetoNano(from NumberType, val interface{}) interface{} {
 	switch from {
 	case SecondsType:
-		return DateTimeSeconds(val.(DateTimeSeconds) * 1e9)
+		return uint64(val.(DateTimeSeconds) * 1e9)
 	case MillisecondsType:
-		return DateTimeMilliseconds(val.(DateTimeMilliseconds) * 1e6)
+		return uint64(val.(DateTimeMilliseconds) * 1e6)
 	case MicrosecondsType:
-		return DateTimeMicroseconds(val.(DateTimeMicroseconds) * 1e3)
+		return uint64(val.(DateTimeMicroseconds) * 1e3)
 	case NanosecondsType:
 		return val
 	}
@@ -286,8 +286,26 @@ func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi inte
 	tA, fA, ai = cleanUp(a)
 	tB, fB, bi = cleanUp(b)
 	if tA == tB {
-		dst = tA
 		family = fA
+		switch tA {
+		case SecondsType:
+			ai = uint64(ai.(DateTimeSeconds))
+			bi = uint64(bi.(DateTimeSeconds))
+			family = UIntType
+		case MillisecondsType:
+			ai = uint64(ai.(DateTimeMilliseconds))
+			bi = uint64(bi.(DateTimeMilliseconds))
+			family = UIntType
+		case MicrosecondsType:
+			ai = uint64(ai.(DateTimeMicroseconds))
+			bi = uint64(bi.(DateTimeMicroseconds))
+			family = UIntType
+		case NanosecondsType:
+			ai = uint64(ai.(DateTimeNanoseconds))
+			bi = uint64(bi.(DateTimeNanoseconds))
+			family = UIntType
+		}
+		dst = tA
 		return
 	}
 	if tA == IntType {
