@@ -213,7 +213,7 @@ Usage json file:
 	  "topic": "topic_name"
     }
   }
-`, name, name, name)
+`, name, name, name, name, name)
 }
 
 func init() {
