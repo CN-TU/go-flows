@@ -371,3 +371,20 @@ func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context flow
 func init() {
 	flows.RegisterTemporaryFeature("_tcpTimestampsPerSeconds", ipfix.Float64Type, 0, flows.PacketFeature, func() flows.Feature { return &_tcpTimestampsPerSeconds{} }, flows.RawPacket)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type __label struct {
+	flows.BaseFeature
+}
+
+func (f *__label) Event(new interface{}, context flows.EventContext, src interface{}) {
+	label := new.(PacketBuffer).Label()
+	if label != nil {
+		f.SetValue(label, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("__label", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &__label{} }, flows.RawPacket)
+}

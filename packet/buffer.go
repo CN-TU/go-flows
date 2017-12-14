@@ -212,6 +212,7 @@ type PacketBuffer interface {
 	Copy() PacketBuffer
 	Hlen() int
 	Proto() uint8
+	Label() interface{}
 	setInfo(flows.FlowKey, bool)
 	Recycle()
 	decode() bool
@@ -237,6 +238,7 @@ type pcapPacketBuffer struct {
 	application gopacket.ApplicationLayer
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
+	label       interface{}
 	hlen        int
 	refcnt      int
 	proto       uint8
@@ -403,7 +405,7 @@ func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 	return pb
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType) flows.DateTimeNanoseconds {
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, label interface{}) flows.DateTimeNanoseconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -425,6 +427,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	pb.ci.CaptureInfo = ci
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
+	pb.label = label
 	return pb.time
 }
 
@@ -511,6 +514,7 @@ func (pb *pcapPacketBuffer) ApplicationLayer() gopacket.ApplicationLayer { retur
 func (pb *pcapPacketBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
 func (pb *pcapPacketBuffer) Data() []byte                                { return pb.buffer }
 func (pb *pcapPacketBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
+func (pb *pcapPacketBuffer) Label() interface{}                          { return pb.label }
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *pcapPacketBuffer) decode() (ret bool) {

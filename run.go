@@ -28,7 +28,14 @@ func tableUsage(cmd string, tableset *flag.FlagSet) {
 	case "offline":
 		cmdString(fmt.Sprintf("%s [args] %s input inputfile [...]", cmd, main))
 		cmdString(fmt.Sprintf("%s [args] -spec commands.json inputfile [...]", cmd))
-		fmt.Fprint(os.Stderr, "\nParse the packets from input file(s) and export the specified feature set to the specified exporters.")
+		fmt.Fprint(os.Stderr, `
+Parse the packets from input file(s) and export the specified feature set to the specified exporters.
+
+Packet labels might be provided as csv files. These files must start with a
+header. If there is only one column in the csv file, every row is matched
+up with a packet. If there are at least two columns, the first row must be
+the packet number this label belongs to. The number of the first packet is
+1!`)
 	case "online":
 		cmdString(fmt.Sprintf("%s [args] %s input interface", cmd, main))
 		cmdString(fmt.Sprintf("%s [args] -spec commands.json interface", cmd))
@@ -375,6 +382,7 @@ func parseArguments(cmd string, args []string) {
 
 	keyselector := packet.MakeDynamicKeySelector(key, bidirectional)
 
+	var labels []string
 	switch cmd {
 	case "callgraph":
 		recordList.CallGraph(os.Stdout)
@@ -384,9 +392,18 @@ func parseArguments(cmd string, args []string) {
 			log.Fatalln("Online mode needs extactly one interface!")
 		}
 	case "offline":
-		if len(arguments) == 0 {
+		var input []string
+		for _, argument := range arguments {
+			if strings.HasSuffix(argument, ".csv") {
+				labels = append(labels, argument)
+			} else {
+				input = append(input, argument)
+			}
+		}
+		if len(input) == 0 {
 			log.Fatalln("Offline mode needs one or more pcap files as input!")
 		}
+		arguments = input
 	}
 
 	for _, exporter := range exporters {
@@ -415,6 +432,7 @@ func parseArguments(cmd string, args []string) {
 	if cmd == "online" {
 		time = buffer.ReadInterface(arguments[0])
 	} else {
+		buffer.SetLabel(labels)
 		for _, fname := range arguments {
 			time = buffer.ReadFile(fname)
 		}
