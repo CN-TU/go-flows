@@ -13,12 +13,11 @@ import (
 )
 
 type kafkaExporter struct {
-	id         string
-	kafka      string
-	zookeeper  string
-	topic      string
-	exportlist chan []byte
-	finished   chan struct{}
+	id        string
+	kafka     string
+	zookeeper string
+	topic     string
+	producer  sarama.AsyncProducer
 }
 
 //FIXME: remove
@@ -92,15 +91,17 @@ func (pe *kafkaExporter) Export(template flows.Template, features []flows.Featur
 			list[i] = val
 		}
 	}
-	out, _ := bson.Marshal(bson.M{"ts": int(when), "features": list})
-	pe.exportlist <- out
+	out, err := bson.Marshal(bson.M{"ts": int(when), "features": list})
+	if err != nil {
+		fmt.Println(err)
+	}
+	pe.producer.Input() <- &sarama.ProducerMessage{Topic: pe.topic, Key: nil, Value: sarama.ByteEncoder(out)}
 	//pe.exportlist <- bson.Marshal(&Flow{ts: int(when), features: list})
 }
 
 //Finish Write outstanding data and wait for completion
 func (pe *kafkaExporter) Finish() {
-	close(pe.exportlist)
-	<-pe.finished
+	pe.producer.Close()
 }
 
 func (pe *kafkaExporter) ID() string {
@@ -108,28 +109,14 @@ func (pe *kafkaExporter) ID() string {
 }
 
 func (pe *kafkaExporter) Init() {
-	pe.exportlist = make(chan []byte, 100)
-	pe.finished = make(chan struct{})
 	producer, err := sarama.NewAsyncProducer([]string{pe.kafka}, nil)
 	if err != nil {
 		log.Fatal("Couldn't open connect to Kafka at ", pe.kafka, ". Error message: ", err)
 	}
+	pe.producer = producer
 	go func() {
-		// defer closing of producer
-		defer func() {
-			if err := producer.Close(); err != nil {
-				log.Fatalln(err)
-			}
-			close(pe.finished)
-		}()
-
-		for data := range pe.exportlist {
-			select {
-			case producer.Input() <- &sarama.ProducerMessage{Topic: pe.topic, Key: nil, Value: sarama.ByteEncoder(data)}:
-				// do nothing if message succeeds
-			case err := <-producer.Errors():
-				log.Println("Failed to produce message with error ", err)
-			}
+		for err := range producer.Errors() {
+			log.Println("Failed to produce message with error ", err)
 		}
 	}()
 }
