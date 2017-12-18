@@ -50,7 +50,7 @@ func (fe *funcEntries) expire(when DateTimeNanoseconds) DateTimeNanoseconds {
 func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, context EventContext) {
 	fep := *fe
 	if int(id) >= len(fep) {
-		fep = append(fep, make(funcEntries, len(fep)-int(id)+1)...)
+		fep = append(fep, make(funcEntries, int(id)-len(fep)+1)...)
 		*fe = fep
 	}
 	fep[id].function = f
