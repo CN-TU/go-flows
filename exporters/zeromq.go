@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	zmq "github.com/pebbe/zmq4"
 	"labix.org/v2/mgo/bson"
@@ -118,18 +119,23 @@ func (pe *zeromqExporter) Init() {
 	context, _ := zmq.NewContext()
 	pe.context = context
 
-	publisher, _ := context.NewSocket(zmq.PUB)
+	publisher, _ := context.NewSocket(zmq.PUSH)
 	publisher.Connect("tcp://" + pe.subscriber)
+
+	time.Sleep(10)
 
 	go func() {
 		defer close(pe.finished)
 		defer publisher.Close()
+		n := 0
 		for data := range pe.exportlist {
 			_, err := publisher.SendMessage([][]byte{[]byte(pe.topic), data})
+			n += 1
 			if err != nil {
 				log.Println("Failed to produce message with error ", err)
 			}
 		}
+		log.Println(n, "flows exported!")
 	}()
 }
 
