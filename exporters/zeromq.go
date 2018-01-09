@@ -112,15 +112,32 @@ func (pe *zeromqExporter) ID() string {
 	return pe.id
 }
 
+func (pe *zeromqExporter) registerProducer() (*zmq.Socket, string) {
+	request_socket, _ := pe.context.NewSocket(zmq.REQ)
+	hostname, _ := os.Hostname()
+	request_socket.SetIdentity(hostname)
+
+	request_socket.Connect("tcp://" + pe.subscriber)
+	return request_socket, hostname
+}
+
 func (pe *zeromqExporter) Init() {
+	port := "5678"
 	pe.exportlist = make(chan []byte, 100)
 	pe.finished = make(chan struct{})
 
 	context, _ := zmq.NewContext()
 	pe.context = context
 
-	publisher, _ := context.NewSocket(zmq.PUSH)
-	publisher.Connect("tcp://" + pe.subscriber)
+	request_socket, hostname := pe.registerProducer()
+	reply := ""
+	for string(reply) != "SUCCESS" {
+		request_socket.Send("prod"+pe.topic+","+hostname+":"+port, 0)
+		reply, _ = request_socket.Recv(0)
+	}
+
+	publisher, _ := context.NewSocket(zmq.PUB)
+	publisher.Bind("tcp://*:" + port)
 
 	time.Sleep(10)
 
