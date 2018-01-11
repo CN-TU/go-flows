@@ -107,6 +107,9 @@ func (pe *zeromqExporter) Export(template flows.Template, features []flows.Featu
 func (pe *zeromqExporter) Finish() {
 	close(pe.exportlist)
 	<-pe.finished
+	for _, socket := range pe.consumerSockets {
+		socket.Close()
+	}
 	pe.context.Term()
 }
 
