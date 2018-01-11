@@ -14,13 +14,15 @@ import (
 )
 
 type zeromqExporter struct {
-	id         string
-	subscriber string
-	topic      string
-	exportlist chan []byte
-	finished   chan struct{}
-	context    *zmq.Context
-	publisher  *zmq.Socket
+	id              string
+	subscriber      string
+	topic           string
+	exportlist      chan []byte
+	finished        chan struct{}
+	context         *zmq.Context
+	producer        *zmq.Socket
+	consumerSockets []*zmq.Socket
+	curPort         int
 }
 
 //FIXME: remove
@@ -112,47 +114,97 @@ func (pe *zeromqExporter) ID() string {
 	return pe.id
 }
 
-func (pe *zeromqExporter) registerProducer() (*zmq.Socket, string) {
-	request_socket, _ := pe.context.NewSocket(zmq.REQ)
+func (pe *zeromqExporter) getRequestSocket(broker string) (requestSocket *zmq.Socket) {
+	requestSocket, _ = pe.context.NewSocket(zmq.REQ)
 	hostname, _ := os.Hostname()
-	request_socket.SetIdentity(hostname)
+	requestSocket.SetIdentity(hostname)
+	requestSocket.Connect("tcp://" + broker)
 
-	request_socket.Connect("tcp://" + pe.subscriber)
-	return request_socket, hostname
+	return requestSocket
+}
+
+func (pe *zeromqExporter) getProducer() (socket *zmq.Socket) {
+	broker := pe.subscriber
+	port := "5678"
+	hostname, _ := os.Hostname()
+	address := hostname + ":" + port
+
+	requestSocket := pe.getRequestSocket(broker)
+	log.Println("Producing to", pe.topic)
+	reply := ""
+	for string(reply) != "SUCCESS" {
+		time.Sleep(1)
+		log.Println("Sending request...")
+		requestSocket.Send("prod"+pe.topic+","+address, 0)
+		reply, _ = requestSocket.Recv(0)
+	}
+	requestSocket.Close()
+	log.Println("Registered producer!")
+
+	socket, _ = pe.context.NewSocket(zmq.ROUTER)
+	socket.Bind("tcp://*:" + port)
+
+	return socket
+}
+
+func (pe *zeromqExporter) checkNewConsumers() {
+	for true {
+		messages, err := pe.producer.RecvMessage(zmq.DONTWAIT)
+		if err == nil {
+			address := messages[0]
+			reply := messages[2]
+			if reply == "REQ" { // found request
+				log.Println("Found consumer request")
+				hostname, _ := os.Hostname()
+				newAddress := hostname + fmt.Sprintf(":%d", pe.curPort)
+				newSocket, _ := pe.context.NewSocket(zmq.PUSH)
+				newSocket.Bind(fmt.Sprintf("tcp://*:%d", pe.curPort))
+				pe.curPort++
+				pe.consumerSockets = append(pe.consumerSockets, newSocket)
+
+				log.Println("Sending address to consumer...")
+				pe.producer.SendMessage([]string{address, "", newAddress})
+				log.Println("Sent reply to consumer! Now have", len(pe.consumerSockets), "consumers")
+				continue
+			}
+		}
+		break
+	}
+}
+
+func (pe *zeromqExporter) sendMessageConsumers(message []byte) {
+	for _, socket := range pe.consumerSockets {
+		_, err := socket.SendBytes(message, 0)
+		if err != nil {
+			log.Println("Failed to produce message with error ", err)
+		}
+	}
 }
 
 func (pe *zeromqExporter) Init() {
-	port := "5678"
+	//	port := "5678"
+	pe.curPort = 5679
 	pe.exportlist = make(chan []byte, 100)
 	pe.finished = make(chan struct{})
 
 	context, _ := zmq.NewContext()
 	pe.context = context
 
-	request_socket, hostname := pe.registerProducer()
-	reply := ""
-	for string(reply) != "SUCCESS" {
-		request_socket.Send("prod"+pe.topic+","+hostname+":"+port, 0)
-		reply, _ = request_socket.Recv(0)
-	}
-
-	publisher, _ := context.NewSocket(zmq.PUB)
-	publisher.Bind("tcp://*:" + port)
+	pe.producer = pe.getProducer()
 
 	time.Sleep(10)
 
 	go func() {
 		defer close(pe.finished)
-		defer publisher.Close()
+		defer pe.producer.Close()
 		n := 0
 		for data := range pe.exportlist {
-			_, err := publisher.SendMessage([][]byte{[]byte(pe.topic), data})
-			n += 1
-			if err != nil {
-				log.Println("Failed to produce message with error ", err)
-			}
+			pe.checkNewConsumers()
+			pe.sendMessageConsumers(data)
+			n++
 		}
-		log.Println(n, "flows exported!")
+		pe.sendMessageConsumers([]byte("END"))
+		log.Println(n, "flows exported")
 	}()
 }
 
