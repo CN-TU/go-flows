@@ -120,7 +120,14 @@ func (pe *zeromqExporter) Init() {
 	if err != nil {
 		panic(err)
 	}
-	socket.Bind(pe.listen)
+	err = socket.SetLinger(-1)
+	if err != nil {
+		panic(err)
+	}
+	err = socket.Bind(pe.listen)
+	if err != nil {
+		panic(err)
+	}
 
 	go func() {
 		defer close(pe.finished)
@@ -136,7 +143,12 @@ func (pe *zeromqExporter) Init() {
 		if err != nil {
 			log.Println("Failed to produce message with error ", err)
 		}
-		socket.Close()
+		if err := socket.Close(); err != nil {
+			log.Println(err)
+		}
+		if err := context.Term(); err != nil {
+			log.Println(err)
+		}
 		log.Println(n, "flows exported")
 	}()
 }
