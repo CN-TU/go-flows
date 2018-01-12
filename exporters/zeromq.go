@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	zmq "github.com/pebbe/zmq4"
 	"labix.org/v2/mgo/bson"
@@ -14,15 +13,10 @@ import (
 )
 
 type zeromqExporter struct {
-	id              string
-	subscriber      string
-	topic           string
-	exportlist      chan []byte
-	finished        chan struct{}
-	context         *zmq.Context
-	producer        *zmq.Socket
-	consumerSockets []*zmq.Socket
-	curPort         int
+	id         string
+	listen     string
+	exportlist chan []byte
+	finished   chan struct{}
 }
 
 //FIXME: remove
@@ -107,181 +101,90 @@ func (pe *zeromqExporter) Export(template flows.Template, features []flows.Featu
 func (pe *zeromqExporter) Finish() {
 	close(pe.exportlist)
 	<-pe.finished
-	for _, socket := range pe.consumerSockets {
-		socket.Close()
-	}
-	pe.context.Term()
 }
 
 func (pe *zeromqExporter) ID() string {
 	return pe.id
 }
 
-func (pe *zeromqExporter) getRequestSocket(broker string) (requestSocket *zmq.Socket) {
-	requestSocket, _ = pe.context.NewSocket(zmq.REQ)
-	hostname, _ := os.Hostname()
-	requestSocket.SetIdentity(hostname)
-	requestSocket.Connect("tcp://" + broker)
-
-	return requestSocket
-}
-
-func (pe *zeromqExporter) getProducer() (socket *zmq.Socket) {
-	broker := pe.subscriber
-	port := "5678"
-	hostname, _ := os.Hostname()
-	address := hostname + ":" + port
-
-	requestSocket := pe.getRequestSocket(broker)
-	log.Println("Producing to", pe.topic)
-	reply := ""
-	for string(reply) != "SUCCESS" {
-		time.Sleep(1)
-		log.Println("Sending request...")
-		requestSocket.Send("prod"+pe.topic+","+address, 0)
-		reply, _ = requestSocket.Recv(0)
-	}
-	requestSocket.Close()
-	log.Println("Registered producer!")
-
-	socket, _ = pe.context.NewSocket(zmq.ROUTER)
-	socket.Bind("tcp://*:" + port)
-
-	return socket
-}
-
-func (pe *zeromqExporter) checkNewConsumers() {
-	for true {
-		messages, err := pe.producer.RecvMessage(zmq.DONTWAIT)
-		if err == nil {
-			address := messages[0]
-			reply := messages[2]
-			if reply == "REQ" { // found request
-				log.Println("Found consumer request")
-				hostname, _ := os.Hostname()
-				newAddress := hostname + fmt.Sprintf(":%d", pe.curPort)
-				newSocket, _ := pe.context.NewSocket(zmq.PUSH)
-				newSocket.Bind(fmt.Sprintf("tcp://*:%d", pe.curPort))
-				pe.curPort++
-				pe.consumerSockets = append(pe.consumerSockets, newSocket)
-
-				log.Println("Sending address to consumer...")
-				pe.producer.SendMessage([]string{address, "", newAddress})
-				log.Println("Sent reply to consumer! Now have", len(pe.consumerSockets), "consumers")
-				continue
-			}
-		}
-		break
-	}
-}
-
-func (pe *zeromqExporter) sendMessageConsumers(message []byte) {
-	for _, socket := range pe.consumerSockets {
-		_, err := socket.SendBytes(message, 0)
-		if err != nil {
-			log.Println("Failed to produce message with error ", err)
-		}
-	}
-}
-
 func (pe *zeromqExporter) Init() {
-	//	port := "5678"
-	pe.curPort = 5679
 	pe.exportlist = make(chan []byte, 100)
 	pe.finished = make(chan struct{})
 
-	context, _ := zmq.NewContext()
-	pe.context = context
+	context, err := zmq.NewContext()
+	if err != nil {
+		panic(err)
+	}
 
-	pe.producer = pe.getProducer()
-
-	time.Sleep(10)
+	socket, err := context.NewSocket(zmq.PUSH)
+	if err != nil {
+		panic(err)
+	}
+	socket.Bind(pe.listen)
 
 	go func() {
 		defer close(pe.finished)
-		defer pe.producer.Close()
 		n := 0
 		for data := range pe.exportlist {
-			pe.checkNewConsumers()
-			pe.sendMessageConsumers(data)
+			_, err := socket.SendBytes(data, 0)
+			if err != nil {
+				log.Println("Failed to produce message with error ", err)
+			}
 			n++
 		}
-		pe.sendMessageConsumers([]byte("END"))
+		_, err := socket.SendBytes([]byte("END"), 0)
+		if err != nil {
+			log.Println("Failed to produce message with error ", err)
+		}
+		socket.Close()
 		log.Println(n, "flows exported")
 	}()
 }
 
 func newZeromqExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
-	var subscriber string
-	var topic string
+	var listen string
 	if _, ok := opts.(flows.UseStringOption); ok {
 		if len(args) > 1 {
-			subscriber = args[0]
-			topic = args[1]
-			arguments = args[2:]
+			listen = args[0]
+			arguments = args[1:]
 		}
 	} else {
 		switch o := opts.(type) {
-		case []interface{}:
-			if len(o) != 2 {
-				log.Fatalln("ZeroMQ needs at least subscriber address and topic in list specification")
-			}
-			subscriber = o[0].(string)
-			topic = o[1].(string)
 		case map[string]interface{}:
-			if val, ok := o["subscriber"]; ok {
-				subscriber = val.(string)
-			}
-			if val, ok := o["topic"]; ok {
-				topic = val.(string)
+			if val, ok := o["listen"]; ok {
+				listen = val.(string)
 			}
 		}
 	}
-	if subscriber == "" {
-		log.Fatalln("ZeroMQ exporter needs a subscriber address as argument")
-	}
-	if topic == "" {
-		log.Fatalln("ZeroMQ exporter needs a topic as argument")
+	if listen == "" {
+		log.Fatalln("ZeroMQ exporter needs a listen address as argument")
 	}
 	if name == "" {
-		name = "ZeroMQ|" + subscriber + "|" + topic
+		name = "ZeroMQ|" + listen
 	}
-	ret = &zeromqExporter{id: name, subscriber: subscriber, topic: topic}
+	ret = &zeromqExporter{id: name, listen: listen}
 	return
 }
 
 func zeromqhelp(name string) {
 	fmt.Fprintf(os.Stderr, `
-The %s exporter writes the output to a ZeroMQ topic with a flow per message,
-in BSON format, with keys "features" and "ts", in which "features" are the requested
+The %s exporter PUSHes the output to ZeroMQ with a flow per message
+in BSON format with keys "features" and "ts", in which "features" are the requested
 features (in order), and "ts" the timestamp that the flow was exported.
 
-As argument, the ZeroMQ subscriber address (e.g., "localhost:5559"), the Zookeeper address
-(e.g., "localhost:2181"), and a topic name to which the producer will write are needed.
+As argument, the ZeroMQ listen address (e.g., "tcp://*:5559") is needed.
 
 Usage command line:
-	export %s subscriber:5559  topic_name
+	export %s tcp://*:5559
 
 Usage json file:
   {
     "type": "%s",
-	"options": "subscriber:5559 zookeeper:2181 topic_name"
-  }
-
-  {
-    "type": "%s",
-	"options": ["subscriber:5559", "zookeeper:2181", "topic_name"]
-  }
-
-  {
-    "type": "%s",
     "options": {
-	  "subscriber": "subscriber:9092",
-	  "zookeeper": "zookeeper:2181",
-	  "topic": "topic_name"
+	  "listen": "tcp://*:5559",
     }
   }
-`, name, name, name, name, name)
+`, name, name, name)
 }
 
 func init() {
