@@ -105,12 +105,16 @@ func (pe *zeromqExporter) Export(template flows.Template, features []flows.Featu
 
 //Finish Write outstanding data and wait for completion
 func (pe *zeromqExporter) Finish() {
+	log.Println("Closing exportlist...")
 	close(pe.exportlist)
+	log.Println("<-pe.finished...")
 	<-pe.finished
+}
+
+func (pe *zeromqExporter) closeConsumerSockets() {
 	for _, socket := range pe.consumerSockets {
 		socket.Close()
 	}
-	pe.context.Term()
 }
 
 func (pe *zeromqExporter) ID() string {
@@ -162,6 +166,7 @@ func (pe *zeromqExporter) checkNewConsumers() {
 				newAddress := hostname + fmt.Sprintf(":%d", pe.curPort)
 				newSocket, _ := pe.context.NewSocket(zmq.PUSH)
 				newSocket.Bind(fmt.Sprintf("tcp://*:%d", pe.curPort))
+				newSocket.SetLinger(-1)
 				pe.curPort++
 				pe.consumerSockets = append(pe.consumerSockets, newSocket)
 
@@ -185,7 +190,6 @@ func (pe *zeromqExporter) sendMessageConsumers(message []byte) {
 }
 
 func (pe *zeromqExporter) Init() {
-	//	port := "5678"
 	pe.curPort = 5679
 	pe.exportlist = make(chan []byte, 100)
 	pe.finished = make(chan struct{})
@@ -195,19 +199,27 @@ func (pe *zeromqExporter) Init() {
 
 	pe.producer = pe.getProducer()
 
-	time.Sleep(10)
-
 	go func() {
 		defer close(pe.finished)
-		defer pe.producer.Close()
+
+		time.Sleep(10 * time.Second)
 		n := 0
 		for data := range pe.exportlist {
 			pe.checkNewConsumers()
 			pe.sendMessageConsumers(data)
 			n++
 		}
+		log.Println("Sending END message...")
 		pe.sendMessageConsumers([]byte("END"))
 		log.Println(n, "flows exported")
+
+		log.Println("Closing producer...")
+		pe.producer.Close()
+		log.Println("Closing consumers...")
+		pe.closeConsumerSockets()
+		time.Sleep(time.Duration(n/100000+1) * time.Second) // sleeps one second for each 100k exported flows
+		log.Println("Terminating context...")
+		pe.context.Term()
 	}()
 }
 
