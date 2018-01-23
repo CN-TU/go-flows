@@ -5,11 +5,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/CN-TU/go-ipfix"
 	"github.com/Shopify/sarama"
 	"labix.org/v2/mgo/bson"
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
+	"github.com/CN-TU/go-flows/flows"
 )
 
 type kafkaExporter struct {

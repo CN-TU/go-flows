@@ -5,9 +5,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 type multiPacketBuffer struct {

@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-ipfix"
 )
 
 const PEN uint32 = 1234

@@ -3,7 +3,7 @@ package flows
 import (
 	"fmt"
 
-	ipfix "pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	ipfix "github.com/CN-TU/go-ipfix"
 )
 
 // DateTimeSeconds represents time in units of seconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.

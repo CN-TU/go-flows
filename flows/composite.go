@@ -3,7 +3,7 @@ package flows
 import (
 	"fmt"
 
-	ipfix "pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	ipfix "github.com/CN-TU/go-ipfix"
 )
 
 type compositeFeatureMaker struct {

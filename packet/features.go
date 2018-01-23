@@ -5,10 +5,10 @@ import (
 	"net"
 	"strings"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	"github.com/CN-TU/go-ipfix"
 
+	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket/layers"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

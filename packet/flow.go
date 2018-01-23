@@ -1,8 +1,8 @@
 package packet
 
 import (
+	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket/layers"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 type TCPFlow struct {
