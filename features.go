@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
-	_ "pm.cn.tuwien.ac.at/ipfix/go-flows/packet" //initialize features
+	"github.com/CN-TU/go-flows/flows"
+	_ "github.com/CN-TU/go-flows/packet" //initialize features
 )
 
 func init() {

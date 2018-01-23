@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 var layerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})

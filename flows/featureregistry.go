@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	"github.com/CN-TU/go-ipfix"
 )
 
 type MakeFeature func() Feature

@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	_ "pm.cn.tuwien.ac.at/ipfix/go-flows/exporters" //initialize exporters
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
+	_ "github.com/CN-TU/go-flows/exporters" //initialize exporters
+	"github.com/CN-TU/go-flows/flows"
 )
 
 func init() {

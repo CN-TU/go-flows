@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
+	"github.com/CN-TU/go-ipfix"
 )
 
 // generates a textual representation of a feature usable for comparison loosely based on <type>name

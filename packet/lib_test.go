@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
+	"github.com/CN-TU/go-flows/flows"
 )
 
 type featureResult struct {

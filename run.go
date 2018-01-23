@@ -13,9 +13,9 @@ import (
 	"sort"
 	"strings"
 
-	_ "pm.cn.tuwien.ac.at/ipfix/go-flows/exporters"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/packet"
+	_ "github.com/CN-TU/go-flows/exporters"
+	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/packet"
 )
 
 func tableUsage(cmd string, tableset *flag.FlagSet) {

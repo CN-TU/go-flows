@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket/layers"
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
 )
 
 // src 4 dst 4 proto 1 src 2 dst 2
