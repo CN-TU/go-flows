@@ -7,7 +7,7 @@ import (
 	"time"
 
 	zmq "github.com/pebbe/zmq4"
-	"labix.org/v2/mgo/bson"
+	bson "github.com/vmihailenco/msgpack"
 	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
 	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
@@ -23,6 +23,11 @@ type zeromqExporter struct {
 	producer        *zmq.Socket
 	consumerSockets []*zmq.Socket
 	curPort         int
+}
+
+type Flow struct {
+	features []interface{}
+	ts       int
 }
 
 //FIXME: remove
@@ -96,7 +101,7 @@ func (pe *zeromqExporter) Export(template flows.Template, features []flows.Featu
 			list[i] = val
 		}
 	}
-	out, err := bson.Marshal(bson.M{"ts": int(when), "features": list})
+	out, err := bson.Marshal(map[string]interface{}{"ts": int(when), "features": list})
 	if err != nil {
 		log.Println(err)
 	}
@@ -216,8 +221,9 @@ func (pe *zeromqExporter) Init() {
 		log.Println("Closing producer...")
 		pe.producer.Close()
 		log.Println("Closing consumers...")
+		log.Println(fmt.Sprintf("Resting for %d seconds...", n/100000+30))
 		pe.closeConsumerSockets()
-		time.Sleep(time.Duration(n/100000+1) * time.Second) // sleeps one second for each 100k exported flows
+		time.Sleep(time.Duration(n/100000+30) * time.Second) // sleeps one second for each 100k exported flows
 		log.Println("Terminating context...")
 		pe.context.Term()
 	}()
