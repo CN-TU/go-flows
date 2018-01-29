@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/CN-TU/go-ipfix"
 	zmq "github.com/pebbe/zmq4"
 	bson "github.com/vmihailenco/msgpack"
-	"pm.cn.tuwien.ac.at/ipfix/go-ipfix"
 
-	"pm.cn.tuwien.ac.at/ipfix/go-flows/flows"
+	"github.com/CN-TU/go-flows/flows"
 )
 
 type zeromqExporter struct {
