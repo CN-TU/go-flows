@@ -48,9 +48,9 @@ func (f *sourceTransportPort) Event(new interface{}, context flows.EventContext,
 	if f.Value() == nil {
 		transport := new.(PacketBuffer).TransportLayer()
 		if transport != nil {
-			src := transport.TransportFlow().Src().Raw()
-			if src != nil {
-				fin := binary.BigEndian.Uint16(src)
+			srcp := transport.TransportFlow().Src().Raw()
+			if srcp != nil {
+				fin := binary.BigEndian.Uint16(srcp)
 				f.SetValue(fin, context, f)
 			}
 		}
@@ -71,9 +71,9 @@ func (f *destinationTransportPort) Event(new interface{}, context flows.EventCon
 	if f.Value() == nil {
 		transport := new.(PacketBuffer).TransportLayer()
 		if transport != nil {
-			dst := transport.TransportFlow().Dst().Raw()
-			if src != nil {
-				fin := binary.BigEndian.Uint16(dst)
+			dstp := transport.TransportFlow().Dst().Raw()
+			if dstp != nil {
+				fin := binary.BigEndian.Uint16(dstp)
 				f.SetValue(fin, context, f)
 			}
 		}
