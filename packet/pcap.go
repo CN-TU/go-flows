@@ -266,6 +266,9 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 		lt = layers.LayerTypeEthernet
 	case layers.LinkTypeRaw, layers.LinkType(12):
 		lt = layerTypeIPv46
+	case layers.LinkTypeLinuxSLL:
+		lt = layers.LayerTypeLinuxSLL
+
 	default:
 		log.Fatalf("File format not implemented")
 	}
