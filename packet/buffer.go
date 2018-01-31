@@ -225,6 +225,7 @@ type pcapPacketBuffer struct {
 	time        flows.DateTimeNanoseconds
 	buffer      []byte
 	first       gopacket.LayerType
+	sll         layers.LinuxSLL
 	eth         layers.Ethernet
 	ip4         layers.IPv4
 	ip6         layers.IPv6
@@ -292,6 +293,12 @@ func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 		switch layer.LayerType() {
 		case layers.LayerTypeEthernet:
 			pb.first = layers.LayerTypeEthernet
+			if pb.link != nil {
+				log.Panic("Can only assign one Link Layer")
+			}
+			pb.link = layer.(gopacket.LinkLayer)
+		case layers.LayerTypeLinuxSLL:
+			pb.first = layers.LayerTypeLinuxSLL
 			if pb.link != nil {
 				log.Panic("Can only assign one Link Layer")
 			}
@@ -536,6 +543,8 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 		switch typ {
 		case layers.LayerTypeEthernet:
 			decoder = &pb.eth
+		case layers.LayerTypeLinuxSLL:
+			decoder = &pb.sll
 		case layers.LayerTypeIPv4:
 			decoder = &pb.ip4
 		case layers.LayerTypeIPv6:
@@ -574,6 +583,8 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 		case layers.LayerTypeEthernet:
 			pb.link = &pb.eth
 			pb.hlen += len(pb.eth.Contents)
+		case layers.LayerTypeLinuxSLL:
+			pb.link = &pb.sll
 		case layers.LayerTypeIPv4:
 			pb.network = &pb.ip4
 			pb.proto = uint8(pb.ip4.Protocol)
