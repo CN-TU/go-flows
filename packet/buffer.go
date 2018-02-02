@@ -573,7 +573,7 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 			if layers.LayerClassIPv6Extension.Contains(typ) {
 				decoder = &ip6skipper
 			} else {
-				return false
+				return true
 			}
 		}
 		if err := decoder.DecodeFromBytes(data, pb); err != nil {
@@ -621,5 +621,5 @@ func (pb *pcapPacketBuffer) decode() (ret bool) {
 		typ = decoder.NextLayerType()
 		data = decoder.LayerPayload()
 	}
-	return false
+	return true
 }
