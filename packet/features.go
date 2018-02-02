@@ -19,7 +19,14 @@ type sourceIPAddress struct {
 
 func (f *sourceIPAddress) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Src().Raw()), context, f)
+		network := new.(PacketBuffer).NetworkLayer()
+		if network != nil {
+			ipaddr := network.NetworkFlow().Src().Raw()
+			if ipaddr != nil {
+				fin := net.IP(ipaddr)
+				f.SetValue(fin, context, f)
+			}
+		}
 	}
 }
 
@@ -92,7 +99,14 @@ type destinationIPAddress struct {
 
 func (f *destinationIPAddress) Event(new interface{}, context flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(net.IP(new.(PacketBuffer).NetworkLayer().NetworkFlow().Dst().Raw()), context, f)
+		network := new.(PacketBuffer).NetworkLayer()
+		if network != nil {
+			ipaddr := network.NetworkFlow().Dst().Raw()
+			if ipaddr != nil {
+				fin := net.IP(ipaddr)
+				f.SetValue(fin, context, f)
+			}
+		}
 	}
 }
 
