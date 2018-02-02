@@ -280,8 +280,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				log.Println("Error:", err)
-				continue
+				log.Fatalln("Error:", err)
 			}
 			npackets++
 			label := input.label.pop()
