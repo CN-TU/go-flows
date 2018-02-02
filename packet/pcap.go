@@ -304,8 +304,8 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				}
 			}
 		}
-		input.packetStats.packets = npackets
-		input.packetStats.filtered = nfiltered
+		input.packetStats.packets += npackets
+		input.packetStats.filtered += nfiltered
 		finished <- nil
 	}(&time, &stop)
 	select {
