@@ -109,6 +109,32 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type slice struct {
+	EmptyBaseFeature
+	start, stop, current int64
+}
+
+func (f *slice) SetArguments(arguments []Feature) {
+	f.start = ToInt(arguments[0].Value())
+	f.stop = ToInt(arguments[1].Value())
+}
+func (f *slice) Start(EventContext) { f.current = 0 }
+
+func (f *slice) Event(new interface{}, context EventContext, src interface{}) {
+	if f.current >= f.start && f.current < f.stop {
+		for _, v := range f.dependent {
+			v.SetValue(new, context, f)
+		}
+		f.current++
+	}
+}
+
+func init() {
+	RegisterFunction("slice", PacketFeature, func() Feature { return &slice{} }, Const, Const)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //apply and map pseudofeatures
 func init() {
 	RegisterFunction("apply", FlowFeature, nil, FlowFeature, Selection)
