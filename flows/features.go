@@ -130,7 +130,7 @@ func (f *slice) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterFunction("slice", PacketFeature, func() Feature { return &slice{} }, Const, Const)
+	RegisterFunction("slice", PacketFeature, func() Feature { return &slice{} }, Const, Const, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +155,7 @@ func (f *get) Event(new interface{}, context EventContext, src interface{}) {
 }
 
 func init() {
-	RegisterFunction("get", FlowFeature, func() Feature { return &get{} }, Const)
+	RegisterFunction("get", FlowFeature, func() Feature { return &get{} }, Const, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
