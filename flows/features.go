@@ -125,8 +125,8 @@ func (f *slice) Event(new interface{}, context EventContext, src interface{}) {
 		for _, v := range f.dependent {
 			v.SetValue(new, context, f)
 		}
-		f.current++
 	}
+	f.current++
 }
 
 func init() {
