@@ -135,6 +135,31 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type get struct {
+	EmptyBaseFeature
+	index, current int64
+}
+
+func (f *get) SetArguments(arguments []Feature) {
+	f.index = ToInt(arguments[0].Value())
+}
+func (f *get) Start(EventContext) { f.current = 0 }
+
+func (f *get) Event(new interface{}, context EventContext, src interface{}) {
+	if f.current == f.index {
+		for _, v := range f.dependent {
+			v.SetValue(new, context, f)
+		}
+	}
+	f.current++
+}
+
+func init() {
+	RegisterFunction("get", FlowFeature, func() Feature { return &get{} }, Const)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //apply and map pseudofeatures
 func init() {
 	RegisterFunction("apply", FlowFeature, nil, FlowFeature, Selection)
