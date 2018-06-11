@@ -1,0 +1,21 @@
+{
+    "features": [
+        "sourceIPAddress",
+        "destinationIPAddress",
+        "protocolIdentifier",
+        "sourceTransportPort",
+        "destinationTransportPort",
+        "flowEndReason",
+        "flowEndNanoseconds",
+        {"accumulate": ["ipTotalLength"]},
+        {"get": [2, "ipTotalLength"]}
+    ],
+    "bidirectional": true,
+    "key_features": [
+        "sourceIPAddress",
+        "destinationIPAddress",
+        "protocolIdentifier",
+        "sourceTransportPort",
+        "destinationTransportPort"
+    ]
+}
