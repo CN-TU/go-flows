@@ -273,8 +273,12 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 		log.Fatalf("File format not implemented")
 	}
 	go func(time *flows.DateTimeNanoseconds, stop *bool) {
-		var npackets uint64
-		var nfiltered uint64
+		npackets := input.packetStats.packets - 1
+		nfiltered := input.packetStats.filtered
+		defer func() {
+			input.packetStats.packets = npackets + 1
+			input.packetStats.filtered = nfiltered
+		}()
 		for {
 			data, ci, err := fhandle.ZeroCopyReadPacketData()
 			if err == io.EOF {
@@ -296,7 +300,7 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				input.empty.Pop(input.current)
 			}
 			buffer := input.current.read()
-			*time = buffer.assign(data, ci, lt, label)
+			*time = buffer.assign(data, ci, lt, npackets, label)
 			if input.current.full() {
 				input.current.finalize()
 				var ok bool
@@ -305,8 +309,6 @@ func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (tim
 				}
 			}
 		}
-		input.packetStats.packets += npackets
-		input.packetStats.filtered += nfiltered
 		finished <- nil
 	}(&time, &stop)
 	select {

@@ -215,6 +215,7 @@ type PacketBuffer interface {
 	Label() interface{}
 	setInfo(flows.FlowKey, bool)
 	Recycle()
+	PacketNr() uint64
 	decode() bool
 }
 
@@ -242,6 +243,7 @@ type pcapPacketBuffer struct {
 	label       interface{}
 	hlen        int
 	refcnt      int
+	packetnr    uint64
 	proto       uint8
 	forward     bool
 	resize      bool
@@ -407,12 +409,16 @@ func (pb *pcapPacketBuffer) Proto() uint8 {
 	return pb.proto
 }
 
+func (pb *pcapPacketBuffer) PacketNr() uint64 {
+	return pb.packetnr
+}
+
 func (pb *pcapPacketBuffer) Copy() PacketBuffer {
 	pb.refcnt++
 	return pb
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, label interface{}) flows.DateTimeNanoseconds {
+func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, packetnr uint64, label interface{}) flows.DateTimeNanoseconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -435,6 +441,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
 	pb.label = label
+	pb.packetnr = packetnr
 	return pb.time
 }
 
