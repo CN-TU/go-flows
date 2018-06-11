@@ -110,7 +110,7 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 
 type slice struct {
-	EmptyBaseFeature
+	BaseFeature
 	start, stop, current int64
 }
 
@@ -122,21 +122,23 @@ func (f *slice) Start(EventContext) { f.current = 0 }
 
 func (f *slice) Event(new interface{}, context EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
-		for _, v := range f.dependent {
-			v.SetValue(new, context, f)
-		}
+		f.SetValue(new, context, f)
 	}
 	f.current++
 }
 
+func resolveSlice(args []ipfix.InformationElement) ipfix.InformationElement {
+	return args[2]
+}
+
 func init() {
-	RegisterFunction("slice", PacketFeature, func() Feature { return &slice{} }, Const, Const, PacketFeature)
+	RegisterCustomFunction("slice", resolveSlice, PacketFeature, func() Feature { return &slice{} }, Const, Const, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type get struct {
-	EmptyBaseFeature
+	BaseFeature
 	index, current int64
 }
 
@@ -147,15 +149,17 @@ func (f *get) Start(EventContext) { f.current = 0 }
 
 func (f *get) Event(new interface{}, context EventContext, src interface{}) {
 	if f.current == f.index {
-		for _, v := range f.dependent {
-			v.SetValue(new, context, f)
-		}
+		f.SetValue(new, context, f)
 	}
 	f.current++
 }
 
+func resolveGet(args []ipfix.InformationElement) ipfix.InformationElement {
+	return args[1]
+}
+
 func init() {
-	RegisterFunction("get", FlowFeature, func() Feature { return &get{} }, Const, PacketFeature)
+	RegisterCustomFunction("get", resolveGet, FlowFeature, func() Feature { return &get{} }, Const, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,9 +367,13 @@ func (f *accumulate) Event(new interface{}, context EventContext, src interface{
 	f.vector = append(f.vector, new)
 }
 
+func resolveAccumulate(args []ipfix.InformationElement) ipfix.InformationElement {
+	return ipfix.NewBasicList("accumulate", args[0], 0)
+}
+
 //FIXME: this has a bad name
 func init() {
-	RegisterFunction("accumulate", MatchType, func() Feature { return &accumulate{} }, PacketFeature)
+	RegisterCustomFunction("accumulate", resolveAccumulate, MatchType, func() Feature { return &accumulate{} }, PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
