@@ -58,6 +58,17 @@ func RegisterTypedFunction(name string, t ipfix.Type, tl uint16, ret FeatureType
 		})
 }
 
+func RegisterCustomFunction(name string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+	featureRegistry[ret][name] = append(featureRegistry[ret][name],
+		featureMaker{
+			ret:       ret,
+			make:      make,
+			arguments: arguments,
+			resolver:  resolver,
+			function:  true,
+		})
+}
+
 func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],

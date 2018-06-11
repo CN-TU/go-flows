@@ -275,11 +275,14 @@ MAIN:
 					seen[currentFeature.compositeID] = len(init)
 					ie = currentFeature.ie
 				} else {
-					if currentFeature.export {
-						ie.Name = strings.Join(compositeToCall(typedFeature), "")
-					}
 					if feature.function {
-						if feature.ie.Type != ipfix.IllegalType {
+						if feature.resolver != nil {
+							ieargs := make([]ipfix.InformationElement, len(argumentPos))
+							for i := range ieargs {
+								ieargs[i] = init[argumentPos[i]].ie
+							}
+							ie = feature.resolver(ieargs)
+						} else if feature.ie.Type != ipfix.IllegalType {
 							ie.Type = feature.ie.Type
 							ie.Length = feature.ie.Length
 						} else {
@@ -293,6 +296,9 @@ MAIN:
 								ie.Type = ipfix.IllegalType //FIXME
 							}
 						}
+					}
+					if currentFeature.export {
+						ie.Name = strings.Join(compositeToCall(typedFeature), "")
 					}
 				}
 				if currentFeature.selection != "" {

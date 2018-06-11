@@ -242,12 +242,15 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	}
 }
 
+type TypeResolver func([]ipfix.InformationElement) ipfix.InformationElement
+
 type featureMaker struct {
 	ret       FeatureType
 	make      func() Feature
 	arguments []FeatureType
 	ie        ipfix.InformationElement
 	variants  []ipfix.InformationElement
+	resolver  TypeResolver
 	function  bool
 }
 
