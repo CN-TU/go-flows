@@ -73,9 +73,7 @@ func (f *selectF) Event(new interface{}, context EventContext, src interface{}) 
 		f.sel = new.(bool)
 	} else {
 		if f.sel {
-			for _, v := range f.dependent {
-				v.Event(new, context, nil) // is it ok to use nil as source? (we are faking flow source here)
-			}
+			f.Emit(new, context, nil)
 			f.sel = false
 		}
 	}
@@ -94,9 +92,7 @@ func (f *selectS) Start(EventContext) { f.current = 0 }
 
 func (f *selectS) Event(new interface{}, context EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
-		for _, v := range f.dependent {
-			v.Event(new, context, nil) // is it ok to use nil as source? (we are faking flow source here)
-		}
+		f.Emit(new, context, nil)
 	}
 	f.current++
 }
