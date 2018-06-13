@@ -987,6 +987,26 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+type ipClassOfService struct {
+	flows.BaseFeature
+}
+
+func (f *ipClassOfService) Event(new interface{}, context flows.EventContext, src interface{}) {
+	network := new.(PacketBuffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.TOS, context, f)
+	}
+	if ip, ok := network.(*layers.IPv6); ok {
+		f.SetValue(ip.TrafficClass, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("ipClassOfService", flows.PacketFeature, func() flows.Feature { return &ipClassOfService{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 type _HTTPLines struct {
 	flows.BaseFeature
 	buffer     []byte
