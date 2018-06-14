@@ -61,7 +61,7 @@ type BaseFlow struct {
 	table      *FlowTable
 	timers     funcEntries
 	expireNext DateTimeNanoseconds
-	records    []*record
+	records    Record
 	active     bool
 }
 
@@ -115,10 +115,8 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now Dat
 	if !flow.active {
 		return //WTF, this should not happen
 	}
-	for _, record := range flow.records {
-		record.Stop(reason, context)
-		record.Export(context)
-	}
+	flow.records.Stop(reason, context)
+	flow.records.Export(context)
 	flow.Stop()
 }
 
@@ -146,12 +144,12 @@ func (flow *BaseFlow) Event(event Event, when DateTimeNanoseconds) {
 			flow.AddTimer(timerActive, flow.activeEvent, context.FutureEventContext(flow.table.ActiveTimeout))
 		}
 	}
-	for _, record := range flow.records {
-		context.record = record
-		record.Event(event, context)
+	flow.records.Event(event, context)
+	if !flow.records.Active() {
+		flow.Stop()
+		return
 	}
 	if flow.table.PerPacket {
-		context.record = nil
 		flow.Export(FlowEndReasonEnd, context, when)
 	}
 }
@@ -167,8 +165,5 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time DateTimeNanosecon
 		When: time,
 		Flow: flow,
 	}
-	for _, record := range flow.records {
-		context.record = record
-		record.Start(context)
-	}
+	flow.records.Start(context)
 }

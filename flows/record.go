@@ -10,6 +10,14 @@ import (
 	"github.com/CN-TU/go-ipfix"
 )
 
+type Record interface {
+	Start(EventContext)
+	Event(interface{}, EventContext)
+	Stop(FlowEndReason, EventContext)
+	Export(EventContext)
+	Active() bool
+}
+
 type record struct {
 	event    []Feature
 	export   []Feature
@@ -17,9 +25,11 @@ type record struct {
 	exporter []Exporter
 	variant  []Feature
 	template Template
+	active   bool
 }
 
 func (r *record) Start(context EventContext) {
+	r.active = true
 	for _, feature := range r.startup {
 		feature.Start(context)
 	}
@@ -51,18 +61,61 @@ func (r *record) Export(context EventContext) {
 	}
 }
 
+func (r *record) Active() bool {
+	return r.active
+}
+
+type recordList []*record
+
+func (r recordList) Start(context EventContext) {
+	for _, record := range r {
+		record.Start(context)
+	}
+}
+
+func (r recordList) Stop(reason FlowEndReason, context EventContext) {
+	for _, record := range r {
+		record.Stop(reason, context)
+	}
+}
+
+func (r recordList) Event(data interface{}, context EventContext) {
+	for _, record := range r {
+		record.Event(data, context)
+	}
+}
+
+func (r recordList) Export(context EventContext) {
+	for _, record := range r {
+		record.Export(context)
+	}
+}
+
+func (r recordList) Active() bool {
+	for _, record := range r {
+		if record.Active() {
+			return true
+		}
+	}
+	return false
+}
+
 type RecordListMaker struct {
 	list      []RecordMaker
 	templates int
 }
 
-func (rl RecordListMaker) make() (ret []*record) {
-	ret = make([]*record, len(rl.list))
+func (rl RecordListMaker) make() Record {
+	l := len(rl.list)
+	if l == 1 {
+		return rl.list[0].make()
+	}
+	ret := make(recordList, len(rl.list))
 	ret = ret[:len(rl.list)]
 	for i, record := range rl.list {
 		ret[i] = record.make()
 	}
-	return
+	return ret
 }
 
 func (rl RecordListMaker) Init() {
