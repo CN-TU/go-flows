@@ -23,7 +23,7 @@ const (
 	// Selection specifies a packet/flow selection
 	Selection
 
-	// VariadicPacketFeature represents a continuation of the last argument
+	// Ellipsis represents a continuation of the last argument
 	Ellipsis
 
 	featureTypeMax
