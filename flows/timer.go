@@ -4,7 +4,7 @@ package flows
 type TimerID int
 
 // TimerCallback is a function the gets called upon a timer event. This event receives the expiry time and the current time.
-type TimerCallback func(EventContext, DateTimeNanoseconds)
+type TimerCallback func(*EventContext, DateTimeNanoseconds)
 
 var timerMaxID TimerID
 
@@ -22,7 +22,7 @@ var (
 
 type funcEntry struct {
 	function TimerCallback
-	context  EventContext
+	context  *EventContext
 }
 
 type funcEntries []funcEntry
@@ -35,19 +35,19 @@ func (fe *funcEntries) expire(when DateTimeNanoseconds) DateTimeNanoseconds {
 	var next DateTimeNanoseconds
 	fep := *fe
 	for i, v := range fep {
-		if v.context.When != 0 {
-			if v.context.When <= when {
+		if v.context != nil {
+			if v.context.when <= when {
 				fep[i].function(v.context, when)
-				fep[i].context.When = 0
-			} else if next == 0 || v.context.When <= next {
-				next = v.context.When
+				fep[i].context = nil
+			} else if next == 0 || v.context.when <= next {
+				next = v.context.when
 			}
 		}
 	}
 	return next
 }
 
-func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, context EventContext) {
+func (fe *funcEntries) addTimer(id TimerID, f TimerCallback, context *EventContext) {
 	fep := *fe
 	if int(id) >= len(fep) {
 		fep = append(fep, make(funcEntries, int(id)-len(fep)+1)...)
@@ -62,7 +62,7 @@ func (fe *funcEntries) hasTimer(id TimerID) bool {
 	if int(id) >= len(fep) || id < 0 {
 		return false
 	}
-	if fep[id].context.When == 0 {
+	if fep[id].context == nil {
 		return false
 	}
 	return true

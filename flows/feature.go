@@ -34,21 +34,21 @@ func feature2id(feature interface{}, ret FeatureType) string {
 // Feature interfaces, which all features need to implement
 type Feature interface {
 	// Event gets called for every event. Data is provided via the first argument and current time via the second.
-	Event(interface{}, EventContext, interface{})
+	Event(interface{}, *EventContext, interface{})
 	// FinishEvent gets called after every Event happened
 	FinishEvent()
 	// Value provides the current stored value.
 	Value() interface{}
 	// SetValue stores a new value with the associated time.
-	SetValue(interface{}, EventContext, interface{})
+	SetValue(interface{}, *EventContext, interface{})
 	// Start gets called when the flow starts.
-	Start(EventContext)
+	Start(*EventContext)
 	// Stop gets called with an end reason and time when a flow stops
-	Stop(FlowEndReason, EventContext)
+	Stop(FlowEndReason, *EventContext)
 	// Type returns the InformationElement
 	Variant() int
 	// Emit sends value new, with time when, and source self to the dependent Features
-	Emit(new interface{}, when EventContext, self interface{})
+	Emit(new interface{}, when *EventContext, self interface{})
 	setDependent([]Feature)
 	SetArguments([]Feature)
 	IsConstant() bool
@@ -60,18 +60,18 @@ type EmptyBaseFeature struct {
 	dependent []Feature
 }
 
-func (f *EmptyBaseFeature) Event(interface{}, EventContext, interface{}) {}
+func (f *EmptyBaseFeature) Event(interface{}, *EventContext, interface{}) {}
 func (f *EmptyBaseFeature) FinishEvent() {
 	for _, v := range f.dependent {
 		v.FinishEvent()
 	}
 }
-func (f *EmptyBaseFeature) Value() interface{}                                            { return nil }
-func (f *EmptyBaseFeature) SetValue(new interface{}, when EventContext, self interface{}) {}
-func (f *EmptyBaseFeature) Start(EventContext)                                            {}
-func (f *EmptyBaseFeature) Stop(FlowEndReason, EventContext)                              {}
-func (f *EmptyBaseFeature) Variant() int                                                  { return NoVariant }
-func (f *EmptyBaseFeature) Emit(new interface{}, context EventContext, self interface{}) {
+func (f *EmptyBaseFeature) Value() interface{}                                             { return nil }
+func (f *EmptyBaseFeature) SetValue(new interface{}, when *EventContext, self interface{}) {}
+func (f *EmptyBaseFeature) Start(*EventContext)                                            {}
+func (f *EmptyBaseFeature) Stop(FlowEndReason, *EventContext)                              {}
+func (f *EmptyBaseFeature) Variant() int                                                   { return NoVariant }
+func (f *EmptyBaseFeature) Emit(new interface{}, context *EventContext, self interface{}) {
 	for _, v := range f.dependent {
 		v.Event(new, context, self)
 	}
@@ -90,7 +90,7 @@ type BaseFeature struct {
 }
 
 func (f *BaseFeature) Value() interface{} { return f.value }
-func (f *BaseFeature) SetValue(new interface{}, context EventContext, self interface{}) {
+func (f *BaseFeature) SetValue(new interface{}, context *EventContext, self interface{}) {
 	f.value = new
 	if new != nil {
 		f.Emit(new, context, self)

@@ -11,10 +11,10 @@ import (
 )
 
 type Record interface {
-	Start(EventContext)
-	Event(interface{}, EventContext)
-	Stop(FlowEndReason, EventContext)
-	Export(EventContext)
+	Start(*EventContext)
+	Event(interface{}, *EventContext)
+	Stop(FlowEndReason, *EventContext)
+	Export(DateTimeNanoseconds)
 	Active() bool
 }
 
@@ -28,20 +28,20 @@ type record struct {
 	active   bool
 }
 
-func (r *record) Start(context EventContext) {
+func (r *record) Start(context *EventContext) {
 	r.active = true
 	for _, feature := range r.startup {
 		feature.Start(context)
 	}
 }
 
-func (r *record) Stop(reason FlowEndReason, context EventContext) {
+func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 	for _, feature := range r.startup {
 		feature.Stop(reason, context)
 	}
 }
 
-func (r *record) Event(data interface{}, context EventContext) {
+func (r *record) Event(data interface{}, context *EventContext) {
 	for _, feature := range r.event {
 		feature.Event(data, context, nil) //Events trickle down the tree
 	}
@@ -51,13 +51,13 @@ func (r *record) Event(data interface{}, context EventContext) {
 	//FIXME read stuff todo (reset, stop, whatever) from context
 }
 
-func (r *record) Export(context EventContext) {
+func (r *record) Export(now DateTimeNanoseconds) {
 	template := r.template
 	for _, variant := range r.variant {
 		template = template.subTemplate(variant.Variant())
 	}
 	for _, exporter := range r.exporter {
-		exporter.Export(template, r.export, context.When)
+		exporter.Export(template, r.export, now)
 	}
 }
 
@@ -67,27 +67,27 @@ func (r *record) Active() bool {
 
 type recordList []*record
 
-func (r recordList) Start(context EventContext) {
+func (r recordList) Start(context *EventContext) {
 	for _, record := range r {
 		record.Start(context)
 	}
 }
 
-func (r recordList) Stop(reason FlowEndReason, context EventContext) {
+func (r recordList) Stop(reason FlowEndReason, context *EventContext) {
 	for _, record := range r {
 		record.Stop(reason, context)
 	}
 }
 
-func (r recordList) Event(data interface{}, context EventContext) {
+func (r recordList) Event(data interface{}, context *EventContext) {
 	for _, record := range r {
 		record.Event(data, context)
 	}
 }
 
-func (r recordList) Export(context EventContext) {
+func (r recordList) Export(now DateTimeNanoseconds) {
 	for _, record := range r {
-		record.Export(context)
+		record.Export(now)
 	}
 }
 

@@ -13,18 +13,18 @@ type constantFeature struct {
 	value interface{}
 }
 
-func (f *constantFeature) Event(interface{}, EventContext, interface{})    {}
-func (f *constantFeature) FinishEvent()                                    {}
-func (f *constantFeature) Value() interface{}                              { return f.value }
-func (f *constantFeature) SetValue(interface{}, EventContext, interface{}) {}
-func (f *constantFeature) Start(EventContext)                              {}
-func (f *constantFeature) Stop(FlowEndReason, EventContext)                {}
-func (f *constantFeature) Variant() int                                    { return NoVariant }
-func (f *constantFeature) Emit(interface{}, EventContext, interface{})     {}
-func (f *constantFeature) setDependent([]Feature)                          {}
-func (f *constantFeature) SetArguments([]Feature)                          {}
-func (f *constantFeature) IsConstant() bool                                { return true }
-func (f *constantFeature) setRecord(*record)                               {}
+func (f *constantFeature) Event(interface{}, *EventContext, interface{})    {}
+func (f *constantFeature) FinishEvent()                                     {}
+func (f *constantFeature) Value() interface{}                               { return f.value }
+func (f *constantFeature) SetValue(interface{}, *EventContext, interface{}) {}
+func (f *constantFeature) Start(*EventContext)                              {}
+func (f *constantFeature) Stop(FlowEndReason, *EventContext)                {}
+func (f *constantFeature) Variant() int                                     { return NoVariant }
+func (f *constantFeature) Emit(interface{}, *EventContext, interface{})     {}
+func (f *constantFeature) setDependent([]Feature)                           {}
+func (f *constantFeature) SetArguments([]Feature)                           {}
+func (f *constantFeature) IsConstant() bool                                 { return true }
+func (f *constantFeature) setRecord(*record)                                {}
 
 var _ Feature = (*constantFeature)(nil)
 
@@ -63,9 +63,9 @@ type selectF struct {
 	sel bool
 }
 
-func (f *selectF) Start(EventContext) { f.sel = false }
+func (f *selectF) Start(*EventContext) { f.sel = false }
 
-func (f *selectF) Event(new interface{}, context EventContext, src interface{}) {
+func (f *selectF) Event(new interface{}, context *EventContext, src interface{}) {
 	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
 	   otherwise we have an event from the flow -> forward it in case we should and reset sel
 	*/
@@ -88,9 +88,9 @@ func (f *selectS) SetArguments(arguments []Feature) {
 	f.start = ToInt(arguments[0].Value())
 	f.stop = ToInt(arguments[1].Value())
 }
-func (f *selectS) Start(EventContext) { f.current = 0 }
+func (f *selectS) Start(*EventContext) { f.current = 0 }
 
-func (f *selectS) Event(new interface{}, context EventContext, src interface{}) {
+func (f *selectS) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
 		f.Emit(new, context, nil)
 	}
@@ -114,9 +114,9 @@ func (f *slice) SetArguments(arguments []Feature) {
 	f.start = ToInt(arguments[0].Value())
 	f.stop = ToInt(arguments[1].Value())
 }
-func (f *slice) Start(EventContext) { f.current = 0 }
+func (f *slice) Start(*EventContext) { f.current = 0 }
 
-func (f *slice) Event(new interface{}, context EventContext, src interface{}) {
+func (f *slice) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
 		f.SetValue(new, context, f)
 	}
@@ -141,9 +141,9 @@ type get struct {
 func (f *get) SetArguments(arguments []Feature) {
 	f.index = ToInt(arguments[0].Value())
 }
-func (f *get) Start(EventContext) { f.current = 0 }
+func (f *get) Start(*EventContext) { f.current = 0 }
 
-func (f *get) Event(new interface{}, context EventContext, src interface{}) {
+func (f *get) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.current == f.index {
 		f.SetValue(new, context, f)
 	}
@@ -173,15 +173,15 @@ type count struct {
 	count uint64
 }
 
-func (f *count) Start(context EventContext) {
+func (f *count) Start(context *EventContext) {
 	f.count = 0
 }
 
-func (f *count) Event(new interface{}, context EventContext, src interface{}) {
+func (f *count) Event(new interface{}, context *EventContext, src interface{}) {
 	f.count++
 }
 
-func (f *count) Stop(reason FlowEndReason, context EventContext) {
+func (f *count) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.count, context, f)
 }
 
@@ -197,17 +197,17 @@ type mean struct {
 	count uint64
 }
 
-func (f *mean) Start(context EventContext) {
+func (f *mean) Start(context *EventContext) {
 	f.total = 0
 	f.count = 0
 }
 
-func (f *mean) Event(new interface{}, context EventContext, src interface{}) {
+func (f *mean) Event(new interface{}, context *EventContext, src interface{}) {
 	f.total += ToFloat(new)
 	f.count++
 }
 
-func (f *mean) Stop(reason FlowEndReason, context EventContext) {
+func (f *mean) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.total/float64(f.count), context, f)
 }
 
@@ -221,7 +221,7 @@ type min struct {
 	BaseFeature
 }
 
-func (f *min) Event(new interface{}, context EventContext, src interface{}) {
+func (f *min) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.value == nil {
 		f.value = new
 	} else {
@@ -243,7 +243,7 @@ func (f *min) Event(new interface{}, context EventContext, src interface{}) {
 	}
 }
 
-func (f *min) Stop(reason FlowEndReason, context EventContext) {
+func (f *min) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
@@ -258,7 +258,7 @@ type max struct {
 	BaseFeature
 }
 
-func (f *max) Event(new interface{}, context EventContext, src interface{}) {
+func (f *max) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.value == nil {
 		f.value = new
 	} else {
@@ -280,7 +280,7 @@ func (f *max) Event(new interface{}, context EventContext, src interface{}) {
 	}
 }
 
-func (f *max) Stop(reason FlowEndReason, context EventContext) {
+func (f *max) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
@@ -295,7 +295,7 @@ type less struct {
 	MultiBaseFeature
 }
 
-func (f *less) Event(new interface{}, context EventContext, src interface{}) {
+func (f *less) Event(new interface{}, context *EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
@@ -322,7 +322,7 @@ type geq struct {
 	MultiBaseFeature
 }
 
-func (f *geq) Event(new interface{}, context EventContext, src interface{}) {
+func (f *geq) Event(new interface{}, context *EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
@@ -349,17 +349,17 @@ type accumulate struct {
 	vector []interface{}
 }
 
-func (f *accumulate) Start(context EventContext) {
+func (f *accumulate) Start(context *EventContext) {
 	f.vector = make([]interface{}, 0)
 }
 
-func (f *accumulate) Stop(reason FlowEndReason, context EventContext) {
+func (f *accumulate) Stop(reason FlowEndReason, context *EventContext) {
 	if len(f.vector) != 0 {
 		f.SetValue(f.vector, context, f)
 	}
 }
 
-func (f *accumulate) Event(new interface{}, context EventContext, src interface{}) {
+func (f *accumulate) Event(new interface{}, context *EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 }
 
@@ -379,15 +379,15 @@ type concatenate struct {
 	buffer *bytes.Buffer
 }
 
-func (f *concatenate) Start(context EventContext) {
+func (f *concatenate) Start(context *EventContext) {
 	f.buffer = new(bytes.Buffer)
 }
 
-func (f *concatenate) Event(new interface{}, context EventContext, src interface{}) {
+func (f *concatenate) Event(new interface{}, context *EventContext, src interface{}) {
 	fmt.Fprint(f.buffer, new)
 }
 
-func (f *concatenate) Stop(reason FlowEndReason, context EventContext) {
+func (f *concatenate) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.buffer.Bytes(), context, f)
 }
 
@@ -401,11 +401,11 @@ type logFlow struct {
 	BaseFeature
 }
 
-func (f *logFlow) Event(new interface{}, context EventContext, src interface{}) {
+func (f *logFlow) Event(new interface{}, context *EventContext, src interface{}) {
 	f.value = math.Log(ToFloat(new))
 }
 
-func (f *logFlow) Stop(reason FlowEndReason, context EventContext) {
+func (f *logFlow) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
@@ -419,7 +419,7 @@ type divideFlow struct {
 	MultiBaseFeature
 }
 
-func (f *divideFlow) Event(new interface{}, context EventContext, src interface{}) {
+func (f *divideFlow) Event(new interface{}, context *EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
@@ -437,7 +437,7 @@ func (f *divideFlow) Event(new interface{}, context EventContext, src interface{
 	f.value = FixType(result, dst)
 }
 
-func (f *divideFlow) Stop(reason FlowEndReason, context EventContext) {
+func (f *divideFlow) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
@@ -451,7 +451,7 @@ type multiplyFlow struct {
 	MultiBaseFeature
 }
 
-func (f *multiplyFlow) Event(new interface{}, context EventContext, src interface{}) {
+func (f *multiplyFlow) Event(new interface{}, context *EventContext, src interface{}) {
 	values := f.EventResult(new, src)
 	if values == nil {
 		return
@@ -469,7 +469,7 @@ func (f *multiplyFlow) Event(new interface{}, context EventContext, src interfac
 	f.value = FixType(result, dst)
 }
 
-func (f *multiplyFlow) Stop(reason FlowEndReason, context EventContext) {
+func (f *multiplyFlow) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.value, context, f)
 }
 
@@ -484,15 +484,15 @@ type packetTotalCount struct {
 	count uint64
 }
 
-func (f *packetTotalCount) Start(context EventContext) {
+func (f *packetTotalCount) Start(context *EventContext) {
 	f.count = 0
 }
 
-func (f *packetTotalCount) Event(new interface{}, context EventContext, src interface{}) {
+func (f *packetTotalCount) Event(new interface{}, context *EventContext, src interface{}) {
 	f.count++
 }
 
-func (f *packetTotalCount) Stop(reason FlowEndReason, context EventContext) {
+func (f *packetTotalCount) Stop(reason FlowEndReason, context *EventContext) {
 	f.SetValue(f.count, context, f)
 }
 

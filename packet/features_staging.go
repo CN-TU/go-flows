@@ -25,16 +25,16 @@ type _characters struct {
 	src  []byte
 }
 
-func (f *_characters) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_characters) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
-		time = context.When - f.time
+		time = context.When() - f.time
 	}
 	if len(f.src) == 0 {
 		tmpSrc, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmpSrc.Raw()
 	}
-	f.time = context.When
+	f.time = context.When()
 	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
@@ -63,16 +63,16 @@ type _characters2 struct {
 	src  []byte
 }
 
-func (f *_characters2) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_characters2) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var time flows.DateTimeNanoseconds
 	if f.time != 0 {
-		time = context.When - f.time
+		time = context.When() - f.time
 	}
 	if len(f.src) == 0 {
 		tmpSrc, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmpSrc.Raw()
 	}
-	f.time = context.When
+	f.time = context.When()
 	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
 	srcIP, _ := new.(PacketBuffer).NetworkLayer().NetworkFlow().Endpoints()
@@ -153,13 +153,13 @@ type __consecutiveSeconds struct {
 	lastTime flows.DateTimeNanoseconds
 }
 
-func (f *__consecutiveSeconds) Start(context flows.EventContext) {
+func (f *__consecutiveSeconds) Start(context *flows.EventContext) {
 	f.lastTime = 0
 	f.count = 0
 }
 
-func (f *__consecutiveSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	time := context.When
+func (f *__consecutiveSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	time := context.When()
 	if f.lastTime == 0 {
 		f.lastTime = time
 		f.count++
@@ -176,7 +176,7 @@ func (f *__consecutiveSeconds) Event(new interface{}, context flows.EventContext
 	}
 }
 
-func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	f.SetValue(f.count, context, f)
 }
 
@@ -196,13 +196,13 @@ type _activeForSeconds struct {
 	lastTime flows.DateTimeNanoseconds
 }
 
-func (f *_activeForSeconds) Start(context flows.EventContext) {
+func (f *_activeForSeconds) Start(context *flows.EventContext) {
 	f.lastTime = 0
 	f.count = 0
 }
 
-func (f *_activeForSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
-	time := context.When
+func (f *_activeForSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	time := context.When()
 	if f.lastTime == 0 {
 		f.lastTime = time
 		f.count++
@@ -214,7 +214,7 @@ func (f *_activeForSeconds) Event(new interface{}, context flows.EventContext, s
 	}
 }
 
-func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	f.SetValue(f.count, context, f)
 }
 
@@ -230,11 +230,11 @@ type _tcpOptionsFirstPacket struct {
 	done bool
 }
 
-func (f *_tcpOptionsFirstPacket) Start(context flows.EventContext) {
+func (f *_tcpOptionsFirstPacket) Start(context *flows.EventContext) {
 	f.done = false
 }
 
-func (f *_tcpOptionsFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_tcpOptionsFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var buffer bytes.Buffer
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
@@ -261,11 +261,11 @@ type _tcpTimestampFirstPacket struct {
 	done bool
 }
 
-func (f *_tcpTimestampFirstPacket) Start(context flows.EventContext) {
+func (f *_tcpTimestampFirstPacket) Start(context *flows.EventContext) {
 	f.done = false
 }
 
-func (f *_tcpTimestampFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_tcpTimestampFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
 		if tcp != nil {
@@ -293,11 +293,11 @@ type _tcpOptionDataFirstPacket struct {
 	done bool
 }
 
-func (f *_tcpOptionDataFirstPacket) Start(context flows.EventContext) {
+func (f *_tcpOptionDataFirstPacket) Start(context *flows.EventContext) {
 	f.done = false
 }
 
-func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var buffer bytes.Buffer
 	if !f.done {
 		tcp := getTCP(new.(PacketBuffer))
@@ -328,10 +328,10 @@ type _tcpTimestampsPerSeconds struct {
 	times      []uint32
 }
 
-func (f *_tcpTimestampsPerSeconds) Start(context flows.EventContext) {
+func (f *_tcpTimestampsPerSeconds) Start(context *flows.EventContext) {
 }
 
-func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	tcp := getTCP(new.(PacketBuffer))
 	if tcp != nil {
 		opts := tcp.Options
@@ -339,7 +339,7 @@ func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventCon
 			if o.OptionType.String() == "Timestamps" {
 				timestamp := binary.BigEndian.Uint32(o.OptionData[0:4])
 				f.timestamps = append(f.timestamps, timestamp)
-				time := context.When
+				time := context.When()
 				newTime := uint32(time / flows.SecondsInNanoseconds)
 				f.times = append(f.times, newTime)
 			}
@@ -347,7 +347,7 @@ func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context flows.EventCon
 	}
 }
 
-func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context flows.EventContext) {
+func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	var buffer []float64
 	if len(f.timestamps) > 1 {
 		for i, _ := range f.timestamps[0 : len(f.timestamps)-1] {
@@ -378,7 +378,7 @@ type __label struct {
 	flows.BaseFeature
 }
 
-func (f *__label) Event(new interface{}, context flows.EventContext, src interface{}) {
+func (f *__label) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	label := new.(PacketBuffer).Label()
 	if label != nil {
 		f.SetValue(label, context, f)

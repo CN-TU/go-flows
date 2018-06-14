@@ -24,16 +24,16 @@ type FlowKey interface {
 
 // Flow interface which needs to be implemented by every flow.
 type Flow interface {
-	Event(Event, DateTimeNanoseconds)
-	AddTimer(TimerID, TimerCallback, EventContext)
+	Event(Event, *EventContext)
+	AddTimer(TimerID, TimerCallback, *EventContext)
 	HasTimer(TimerID) bool
-	EOF(DateTimeNanoseconds)
+	EOF(*EventContext)
 	Active() bool
 	Key() FlowKey
-	Init(*FlowTable, FlowKey, DateTimeNanoseconds)
+	Init(*FlowTable, FlowKey, *EventContext)
 	Table() *FlowTable
 	nextEvent() DateTimeNanoseconds
-	expire(DateTimeNanoseconds)
+	expire(*EventContext)
 }
 
 //FlowOptions applying to each flow
@@ -41,18 +41,6 @@ type FlowOptions struct {
 	ActiveTimeout DateTimeNanoseconds
 	IdleTimeout   DateTimeNanoseconds
 	PerPacket     bool
-}
-
-type EventContext struct {
-	When   DateTimeNanoseconds
-	Flow   Flow
-	record *record
-}
-
-func (ec EventContext) FutureEventContext(offset DateTimeNanoseconds) (ret EventContext) {
-	ret = ec
-	ret.When += offset
-	return
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
@@ -82,18 +70,18 @@ func (flow *BaseFlow) Key() FlowKey { return flow.key }
 // Table returns the flow table belonging to this flow.
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
 
-func (flow *BaseFlow) expire(when DateTimeNanoseconds) {
+func (flow *BaseFlow) expire(context *EventContext) {
 	if flow.expireNext == 0 {
 		return
 	}
-	flow.expireNext = flow.timers.expire(when)
+	flow.expireNext = flow.timers.expire(context.when)
 }
 
 // AddTimer adds a new timer with the associated id, callback, at the time when. If the timerid already exists, then the old timer will be overwritten.
-func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, context EventContext) {
+func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, context *EventContext) {
 	flow.timers.addTimer(id, f, context)
-	if context.When < flow.expireNext || flow.expireNext == 0 {
-		flow.expireNext = context.When
+	if context.when < flow.expireNext || flow.expireNext == 0 {
+		flow.expireNext = context.when
 	}
 }
 
@@ -102,42 +90,31 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return flow.timers.hasTimer(id)
 }
 
-func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, now DateTimeNanoseconds) {
-	context := EventContext{
-		When: now,
-		Flow: flow,
-	}
-	flow.Export(reason, context, now)
-}
-
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
-func (flow *BaseFlow) Export(reason FlowEndReason, context EventContext, now DateTimeNanoseconds) {
+func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
 	if !flow.active {
 		return //WTF, this should not happen
 	}
 	flow.records.Stop(reason, context)
-	flow.records.Export(context)
+	flow.records.Export(now)
 	flow.Stop()
 }
 
-func (flow *BaseFlow) idleEvent(context EventContext, now DateTimeNanoseconds) {
+func (flow *BaseFlow) idleEvent(context *EventContext, now DateTimeNanoseconds) {
 	flow.Export(FlowEndReasonIdle, context, now)
 }
-func (flow *BaseFlow) activeEvent(context EventContext, now DateTimeNanoseconds) {
+func (flow *BaseFlow) activeEvent(context *EventContext, now DateTimeNanoseconds) {
 	flow.Export(FlowEndReasonActive, context, now)
 }
 
 // EOF stops the flow with forced end reason.
-func (flow *BaseFlow) EOF(now DateTimeNanoseconds) {
-	flow.ExportWithoutContext(FlowEndReasonForcedEnd, now)
+func (flow *BaseFlow) EOF(context *EventContext) {
+	flow.Export(FlowEndReasonForcedEnd, context, context.when)
 }
 
 // Event handles the given event and the active and idle timers.
-func (flow *BaseFlow) Event(event Event, when DateTimeNanoseconds) {
-	context := EventContext{
-		When: when,
-		Flow: flow,
-	}
+func (flow *BaseFlow) Event(event Event, context *EventContext) {
+	// set flow in context?
 	if !flow.table.PerPacket {
 		flow.AddTimer(timerIdle, flow.idleEvent, context.FutureEventContext(flow.table.IdleTimeout))
 		if !flow.HasTimer(timerActive) {
@@ -150,20 +127,17 @@ func (flow *BaseFlow) Event(event Event, when DateTimeNanoseconds) {
 		return
 	}
 	if flow.table.PerPacket {
-		flow.Export(FlowEndReasonEnd, context, when)
+		flow.Export(FlowEndReasonEnd, context, context.when)
 	}
 }
 
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
-func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, time DateTimeNanoseconds) {
+func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext) {
 	flow.key = key
 	flow.table = table
 	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.records = table.records.make()
-	context := EventContext{
-		When: time,
-		Flow: flow,
-	}
+	// set flow in context?
 	flow.records.Start(context)
 }

@@ -1,7 +1,7 @@
 package flows
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
-type FlowCreator func(Event, *FlowTable, FlowKey, DateTimeNanoseconds) Flow
+type FlowCreator func(Event, *FlowTable, FlowKey, *EventContext) Flow
 
 type TableStats struct {
 	Packets  uint64
@@ -16,9 +16,9 @@ type FlowTable struct {
 	flowlist  []Flow
 	freelist  []int
 	newflow   FlowCreator
-	now       DateTimeNanoseconds
 	records   RecordListMaker
 	Stats     TableStats
+	context   *EventContext
 	fivetuple bool
 	eof       bool
 }
@@ -33,18 +33,19 @@ func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOpti
 		FlowOptions: options,
 		records:     records,
 		fivetuple:   fivetuple,
+		context:     &EventContext{},
 	}
 }
 
 // Expire expires all unhandled timer events. Can be called periodically to conserve memory.
 func (tab *FlowTable) Expire() {
-	when := tab.now
+	when := tab.context.when
 	for _, elem := range tab.flowlist {
 		if elem == nil {
 			continue
 		}
 		if when > elem.nextEvent() {
-			elem.expire(when)
+			elem.expire(tab.context)
 		}
 	}
 }
@@ -55,23 +56,23 @@ func (tab *FlowTable) Event(event Event) {
 	when := event.Timestamp()
 	key := event.Key()
 
-	tab.now = when
+	tab.context.when = when
 
 	elem, ok := tab.flows[key]
 	if ok {
 		elem := tab.flowlist[elem]
 		if elem != nil {
 			if when > elem.nextEvent() {
-				elem.expire(when)
+				elem.expire(tab.context)
 				ok = elem.Active()
 			}
-			elem.Event(event, when)
+			elem.Event(event, tab.context)
 		} else {
 			ok = false
 		}
 	}
 	if !ok {
-		elem := tab.newflow(event, tab, key, when)
+		elem := tab.newflow(event, tab, key, tab.context)
 		tab.Stats.Flows++
 		var new int
 		freelen := len(tab.freelist)
@@ -87,7 +88,7 @@ func (tab *FlowTable) Event(event Event) {
 		if nflows > tab.Stats.Maxflows {
 			tab.Stats.Maxflows = nflows
 		}
-		elem.Event(event, when)
+		elem.Event(event, tab.context)
 	}
 }
 
@@ -103,15 +104,16 @@ func (tab *FlowTable) remove(entry Flow) {
 // EOF needs to be called upon end of file (e.g., program termination). All outstanding timers get expired, and the rest of the flows terminated with an eof event.
 func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.eof = true
+	context := &EventContext{when: now}
 	for _, v := range tab.flowlist {
 		if v == nil {
 			continue
 		}
 		if now > v.nextEvent() {
-			v.expire(now)
+			v.expire(context)
 		}
 		if v.Active() {
-			v.EOF(now)
+			v.EOF(context)
 		}
 	}
 	tab.flows = make(map[FlowKey]int)

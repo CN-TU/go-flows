@@ -14,29 +14,29 @@ type UniFlow struct {
 	flows.BaseFlow
 }
 
-func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, time flows.DateTimeNanoseconds) flows.Flow {
+func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, context *flows.EventContext) flows.Flow {
 	if table.FiveTuple() {
 		tp := event.(PacketBuffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 			ret := new(TCPFlow)
-			ret.Init(table, key, time)
+			ret.Init(table, key, context)
 			return ret
 		}
 	}
 	ret := new(UniFlow)
-	ret.Init(table, key, time)
+	ret.Init(table, key, context)
 	return ret
 }
 
-func (flow *TCPFlow) Event(event flows.Event, when flows.DateTimeNanoseconds) {
-	flow.BaseFlow.Event(event, when)
+func (flow *TCPFlow) Event(event flows.Event, context *flows.EventContext) {
+	flow.BaseFlow.Event(event, context)
 	if !flow.Active() {
 		return
 	}
 	buffer := event.(PacketBuffer)
 	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
-		flow.ExportWithoutContext(flows.FlowEndReasonEnd, when)
+		flow.Export(flows.FlowEndReasonEnd, context, context.When())
 		return
 	}
 	if buffer.Forward() {
@@ -56,6 +56,6 @@ func (flow *TCPFlow) Event(event flows.Event, when flows.DateTimeNanoseconds) {
 	}
 
 	if flow.srcFIN && flow.srcACK && flow.dstFIN && flow.dstACK {
-		flow.ExportWithoutContext(flows.FlowEndReasonEnd, when)
+		flow.Export(flows.FlowEndReasonEnd, context, context.When())
 	}
 }
