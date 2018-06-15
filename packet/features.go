@@ -176,7 +176,7 @@ type flowStartNanoseconds struct {
 }
 
 func (f *flowStartNanoseconds) Start(context *flows.EventContext) {
-	f.SetValue(context.When, context, f)
+	f.SetValue(context.When(), context, f)
 }
 
 func init() {
