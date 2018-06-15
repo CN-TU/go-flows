@@ -19,6 +19,7 @@ type Record interface {
 }
 
 type record struct {
+	control  []Feature
 	event    []Feature
 	export   []Feature
 	startup  []Feature
@@ -39,16 +40,48 @@ func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 	for _, feature := range r.startup {
 		feature.Stop(reason, context)
 	}
+	r.active = false
 }
 
 func (r *record) Event(data interface{}, context *EventContext) {
+	if !r.active {
+		r.Start(context)
+	}
+RESTART:
+	context.clear()
+	for _, feature := range r.control {
+		feature.Event(data, context, nil) // no tree for control
+		if context.stop {
+			r.active = false
+			return
+		}
+		if context.now {
+			if context.export {
+				r.Stop(context.reason, context)
+				r.Export(context.when)
+				goto RESTART
+			}
+			if context.restart {
+				r.Start(context)
+				goto RESTART
+			}
+		}
+	}
 	for _, feature := range r.event {
 		feature.Event(data, context, nil) //Events trickle down the tree
 	}
 	for _, feature := range r.event {
 		feature.FinishEvent() //Same for finishevents
 	}
-	//FIXME read stuff todo (reset, stop, whatever) from context
+	if !context.now {
+		if context.export {
+			r.Stop(context.reason, context)
+			r.Export(context.when)
+		}
+		if context.restart {
+			r.Start(context)
+		}
+	}
 }
 
 func (r *record) Export(now DateTimeNanoseconds) {
@@ -152,6 +185,7 @@ type featureToInit struct {
 	arguments []int
 	call      []int
 	event     bool
+	control   bool
 	variant   bool
 }
 
@@ -207,7 +241,19 @@ MAIN:
 		case string:
 			if feature, ok := getFeature(typedFeature, currentFeature.ret, 1); !ok {
 				if composite, ok := compositeFeatures[typedFeature]; !ok {
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
+					if currentSelection == mainSelection {
+						if feature, ok := getFeature(typedFeature, ControlFeature, 1); ok {
+							seen[id] = len(init)
+							init = append(init, featureToInit{
+								feature: feature,
+								control: true,
+							})
+						} else {
+							panic(fmt.Sprintf("Feature or ControlFeature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
+						}
+					} else {
+						panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
+					}
 				} else {
 					stack = append([]featureWithType{
 						{
@@ -386,6 +432,7 @@ MAIN:
 	}
 
 	nevent := 0
+	ncontrol := 0
 	nvariants := 0
 
 	for i, feature := range init {
@@ -395,6 +442,9 @@ MAIN:
 		}
 		if feature.event {
 			nevent++
+		}
+		if feature.control {
+			ncontrol++
 		}
 	}
 
@@ -414,12 +464,16 @@ MAIN:
 		func() *record {
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
+			control := make([]Feature, 0, ncontrol)
 			variants := make([]Feature, 0, nvariants)
 			f = f[:len(init)]
 			for i, feature := range init {
 				f[i] = feature.feature.make()
 				if feature.event {
 					event = append(event, f[i])
+				}
+				if feature.control {
+					control = append(control, f[i])
 				}
 				if feature.variant {
 					variants = append(variants, f[i])
@@ -451,6 +505,7 @@ MAIN:
 			}
 			return &record{
 				startup:  f,
+				control:  control,
 				event:    event,
 				export:   export,
 				exporter: exporter,

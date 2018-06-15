@@ -147,5 +147,4 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext)
 	flow.active = true
 	flow.records = table.records.make()
 	context.initFlow(flow)
-	flow.records.Start(context)
 }

@@ -91,6 +91,10 @@ func RegisterTemporaryFeature(name string, t ipfix.Type, tl uint16, ret FeatureT
 	RegisterFeature(ie, ret, make, arguments...)
 }
 
+func RegisterControlFeature(name string, make MakeFeature) {
+	RegisterFunction(name, ControlFeature, make, PacketFeature)
+}
+
 // RegisterCompositeFeature registers a new composite feature with the given name. Composite features are features that depend on other features and need to be
 // represented in the form ["featurea", ["featureb", "featurec"]]
 func RegisterCompositeFeature(ie ipfix.InformationElement, definition ...interface{}) {
@@ -139,11 +143,13 @@ func ListFeatures(w io.Writer) {
 	ff := make(map[string]string)
 	args := make(map[string]string)
 	impl := make(map[string]string)
-	var base, functions, filters []string
+	var base, functions, filters, control []string
 	for ret, features := range featureRegistry {
 		for name, featurelist := range features {
 			for _, feature := range featurelist {
-				if feature.ret == RawPacket || feature.ret == RawFlow {
+				if feature.ret == ControlFeature {
+					control = append(control, name)
+				} else if feature.ret == RawPacket || feature.ret == RawFlow {
 					filters = append(filters, name)
 					tmp := make([]string, len(feature.arguments))
 					for i := range feature.arguments {
@@ -262,7 +268,19 @@ func ListFeatures(w io.Writer) {
 		t.Write(line.Bytes())
 	}
 	t.Flush()
-
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Control:")
+	fmt.Fprintln(w, "      Name")
+	for _, name := range control {
+		if name == last {
+			continue
+		}
+		last = name
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s\n", " ", " ", name)
+		t.Write(line.Bytes())
+	}
+	t.Flush()
 }
 
 // CleanupFeatures deletes _all_ feature definitions for conserving memory. Call this after you've finished creating all feature lists with NewFeatureListCreator.

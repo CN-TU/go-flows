@@ -56,6 +56,20 @@ type Feature interface {
 
 const NoVariant = -1
 
+type NoopFeature struct{}
+
+func (f *NoopFeature) Event(interface{}, *EventContext, interface{})                  {}
+func (f *NoopFeature) FinishEvent()                                                   {}
+func (f *NoopFeature) Value() interface{}                                             { return nil }
+func (f *NoopFeature) SetValue(new interface{}, when *EventContext, self interface{}) {}
+func (f *NoopFeature) Start(*EventContext)                                            {}
+func (f *NoopFeature) Stop(FlowEndReason, *EventContext)                              {}
+func (f *NoopFeature) Variant() int                                                   { return NoVariant }
+func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interface{})  {}
+func (f *NoopFeature) setDependent(dep []Feature)                                     {}
+func (f *NoopFeature) SetArguments([]Feature)                                         {}
+func (f *NoopFeature) IsConstant() bool                                               { return false }
+
 type EmptyBaseFeature struct {
 	dependent []Feature
 }

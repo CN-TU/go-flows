@@ -26,6 +26,9 @@ const (
 	// Ellipsis represents a continuation of the last argument
 	Ellipsis
 
+	// ControlFeature is a feature, that is called first and is able to modify Flow behaviour
+	ControlFeature
+
 	featureTypeMax
 )
 
@@ -47,6 +50,8 @@ func (f FeatureType) String() string {
 		return "Selection"
 	case Ellipsis:
 		return "..."
+	case ControlFeature:
+		return "ControlFeature"
 	}
 	return "<InvalidFeatureType>"
 }
