@@ -25,7 +25,7 @@ type FlowKey interface {
 // Flow interface which needs to be implemented by every flow.
 type Flow interface {
 	Event(Event, *EventContext)
-	AddTimer(TimerID, TimerCallback, *EventContext)
+	AddTimer(TimerID, TimerCallback, DateTimeNanoseconds)
 	HasTimer(TimerID) bool
 	EOF(*EventContext)
 	Active() bool
@@ -78,10 +78,10 @@ func (flow *BaseFlow) expire(context *EventContext) {
 }
 
 // AddTimer adds a new timer with the associated id, callback, at the time when. If the timerid already exists, then the old timer will be overwritten.
-func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, context *EventContext) {
-	flow.timers.addTimer(id, f, context)
-	if context.when < flow.expireNext || flow.expireNext == 0 {
-		flow.expireNext = context.when
+func (flow *BaseFlow) AddTimer(id TimerID, f TimerCallback, when DateTimeNanoseconds) {
+	flow.timers.addTimer(id, f, when)
+	if when < flow.expireNext || flow.expireNext == 0 {
+		flow.expireNext = when
 	}
 }
 
@@ -100,11 +100,18 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now Da
 	flow.Stop()
 }
 
-func (flow *BaseFlow) idleEvent(context *EventContext, now DateTimeNanoseconds) {
-	flow.Export(FlowEndReasonIdle, context, now)
+func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, expire, now DateTimeNanoseconds) {
+	context := &EventContext{
+		when: expire, //flow?
+	}
+	flow.Export(reason, context, now)
 }
-func (flow *BaseFlow) activeEvent(context *EventContext, now DateTimeNanoseconds) {
-	flow.Export(FlowEndReasonActive, context, now)
+
+func (flow *BaseFlow) idleEvent(expires, now DateTimeNanoseconds) {
+	flow.ExportWithoutContext(FlowEndReasonIdle, expires, now)
+}
+func (flow *BaseFlow) activeEvent(expires, now DateTimeNanoseconds) {
+	flow.ExportWithoutContext(FlowEndReasonActive, expires, now)
 }
 
 // EOF stops the flow with forced end reason.
@@ -116,9 +123,9 @@ func (flow *BaseFlow) EOF(context *EventContext) {
 func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	// set flow in context?
 	if !flow.table.PerPacket {
-		flow.AddTimer(timerIdle, flow.idleEvent, context.FutureEventContext(flow.table.IdleTimeout))
+		flow.AddTimer(timerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 		if !flow.HasTimer(timerActive) {
-			flow.AddTimer(timerActive, flow.activeEvent, context.FutureEventContext(flow.table.ActiveTimeout))
+			flow.AddTimer(timerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
 		}
 	}
 	flow.records.Event(event, context)
