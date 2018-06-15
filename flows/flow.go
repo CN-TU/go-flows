@@ -102,8 +102,9 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now Da
 
 func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, expire, now DateTimeNanoseconds) {
 	context := &EventContext{
-		when: expire, //flow?
+		when: expire,
 	}
+	context.initFlow(flow)
 	flow.Export(reason, context, now)
 }
 
@@ -121,7 +122,7 @@ func (flow *BaseFlow) EOF(context *EventContext) {
 
 // Event handles the given event and the active and idle timers.
 func (flow *BaseFlow) Event(event Event, context *EventContext) {
-	// set flow in context?
+	context.initFlow(flow)
 	if !flow.table.PerPacket {
 		flow.AddTimer(timerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 		if !flow.HasTimer(timerActive) {
@@ -145,6 +146,6 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext)
 	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.records = table.records.make()
-	// set flow in context?
+	context.initFlow(flow)
 	flow.records.Start(context)
 }

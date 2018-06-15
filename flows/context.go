@@ -7,11 +7,10 @@ type EventContext struct {
 	export  bool
 }
 
-func (ec *EventContext) FutureEventContext(offset DateTimeNanoseconds) *EventContext {
-	return &EventContext{
-		when: ec.when + offset,
-		flow: ec.flow,
-	}
+func (ec *EventContext) initFlow(flow Flow) {
+	ec.flow = flow
+	ec.restart = false
+	ec.export = false
 }
 
 func (ec *EventContext) When() DateTimeNanoseconds {
