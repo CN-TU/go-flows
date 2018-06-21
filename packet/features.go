@@ -1109,3 +1109,19 @@ func init() {
 	flows.RegisterFunction("__httpRequestHost", flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
 	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "_HTTPLines")
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type flowDirection struct {
+	flows.BaseFeature
+}
+
+func (f *flowDirection) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		f.SetValue(new.(PacketBuffer).Forward(), context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("flowDirection", flows.FlowFeature, func() flows.Feature { return &flowDirection{} }, flows.RawPacket)
+}
