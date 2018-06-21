@@ -19,6 +19,7 @@ type Record interface {
 }
 
 type record struct {
+	filter   []Feature
 	control  []Feature
 	event    []Feature
 	export   []Feature
@@ -26,7 +27,8 @@ type record struct {
 	exporter []Exporter
 	variant  []Feature
 	template Template
-	active   bool
+	active   bool // this record forwards events to features
+	alive    bool // this record forwards events to filters
 }
 
 func (r *record) Start(context *EventContext) {
@@ -37,33 +39,40 @@ func (r *record) Start(context *EventContext) {
 }
 
 func (r *record) Stop(reason FlowEndReason, context *EventContext) {
+	// make a two-level stop for filter and rest
 	for _, feature := range r.startup {
 		feature.Stop(reason, context)
 	}
 	r.active = false
+	r.alive = false
+	for _, feature := range r.filter {
+		feature.Stop(reason, context)
+		r.alive = (context.keep || r.alive) && !context.hard
+	}
 }
 
-func (r *record) Event(data interface{}, context *EventContext) {
+func (r *record) filteredEvent(data interface{}, context *EventContext) {
 	if !r.active {
 		r.Start(context)
 	}
-RESTART:
 	context.clear()
 	for _, feature := range r.control {
 		feature.Event(data, context, nil) // no tree for control
 		if context.stop {
-			r.active = false
+			r.Stop(context.reason, context)
 			return
 		}
 		if context.now {
 			if context.export {
 				r.Stop(context.reason, context)
 				r.Export(context.when)
-				goto RESTART
+				r.Event(data, context)
+				return
 			}
 			if context.restart {
 				r.Start(context)
-				goto RESTART
+				r.Event(data, context)
+				return
 			}
 		}
 	}
@@ -84,6 +93,29 @@ RESTART:
 	}
 }
 
+func (r *record) Event(data interface{}, context *EventContext) {
+	nfilter := len(r.filter)
+	if nfilter == 0 {
+		r.filteredEvent(data, context)
+	} else {
+		if !r.alive {
+			for _, feature := range r.filter {
+				feature.Start(context)
+			}
+		}
+		filter := r.filter
+		context.event = func(data interface{}, context *EventContext, pos interface{}) {
+			i := pos.(int)
+			if i == nfilter {
+				r.filteredEvent(data, context)
+				return
+			}
+			filter[i].Event(data, context, i+1)
+		}
+		context.event(data, context, 0)
+	}
+}
+
 func (r *record) Export(now DateTimeNanoseconds) {
 	template := r.template
 	for _, variant := range r.variant {
@@ -95,7 +127,7 @@ func (r *record) Export(now DateTimeNanoseconds) {
 }
 
 func (r *record) Active() bool {
-	return r.active
+	return r.active || r.alive
 }
 
 type recordList []*record
@@ -202,6 +234,7 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Expor
 	}
 
 	init := make([]featureToInit, 0, len(features))
+	var tofilter []featureToInit
 
 	stack := make([]featureWithType, len(features))
 	for i := range features {
@@ -249,7 +282,13 @@ MAIN:
 								control: true,
 							})
 						} else {
-							panic(fmt.Sprintf("Feature or ControlFeature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
+							if feature, ok := getFeature(typedFeature, RawPacket, 1); ok {
+								tofilter = append(tofilter, featureToInit{
+									feature: feature,
+								})
+							} else {
+								panic(fmt.Sprintf("(Control/Filter)Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
+							}
 						}
 					} else {
 						panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
@@ -465,6 +504,7 @@ MAIN:
 			f := make([]Feature, len(init))
 			event := make([]Feature, 0, nevent)
 			control := make([]Feature, 0, ncontrol)
+			filter := make([]Feature, 0, len(tofilter))
 			variants := make([]Feature, 0, nvariants)
 			f = f[:len(init)]
 			for i, feature := range init {
@@ -478,6 +518,10 @@ MAIN:
 				if feature.variant {
 					variants = append(variants, f[i])
 				}
+			}
+			filter = filter[:len(tofilter)]
+			for i, feature := range tofilter {
+				filter[i] = feature.feature.make()
 			}
 			export := make([]Feature, 0, len(exportList))
 			export = export[:len(exportList)]
@@ -505,6 +549,7 @@ MAIN:
 			}
 			return &record{
 				startup:  f,
+				filter:   filter,
 				control:  control,
 				event:    event,
 				export:   export,

@@ -3,7 +3,10 @@ package packet
 import (
 	"encoding/binary"
 	"net"
+	"sort"
 	"strings"
+
+	"github.com/google/gopacket/tcpassembly"
 
 	"github.com/CN-TU/go-ipfix"
 
@@ -829,61 +832,68 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const invalidSequence = -1
+
 type tcpFragment struct {
-	packet   PacketBuffer
-	position uint32
+	seq    tcpassembly.Sequence
+	plen   int
+	packet PacketBuffer
 }
+
+type tcpFragments []tcpFragment
+
+func (a tcpFragments) Len() int           { return len(a) }
+func (a tcpFragments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a tcpFragments) Less(i, j int) bool { return a[i].seq.Difference(a[j].seq) < 0 }
 
 type uniTCPStreamFragments struct {
-	fragments                        []tcpFragment
-	acks                             []tcpFragment
-	firstSequence, lastSequence, pos uint32
-	seen                             bool
+	fragments tcpFragments
+	nextSeq   tcpassembly.Sequence
 }
 
-func (f *uniTCPStreamFragments) contains(position uint32, ack bool) bool {
-	if ack {
-		for _, fragment := range f.acks {
-			if fragment.position == position {
-				return true
-			}
-		}
-	} else {
-		for _, fragment := range f.fragments {
-			if fragment.position == position {
-				return true
-			}
-		}
-	}
-	return false
+func (f *uniTCPStreamFragments) push(seq tcpassembly.Sequence, plen int, packet PacketBuffer) {
+	f.fragments = append(f.fragments, tcpFragment{seq, plen, packet.Copy()})
+	sort.Stable(f.fragments)
 }
 
-func (f *uniTCPStreamFragments) pushFragment(position uint32, packet PacketBuffer) {
-	if packet.Metadata().Length-packet.Hlen() == 0 {
-		f.acks = append(f.acks, tcpFragment{packet, position})
-	} else {
-		f.fragments = append(f.fragments, tcpFragment{packet, position})
+func (f *uniTCPStreamFragments) forwardOld(context *flows.EventContext, src interface{}) {
+	if len(f.fragments) == 0 {
+		return
 	}
-}
+	deleted := -1
 
-func (f *uniTCPStreamFragments) popFragment(position uint32) (ret PacketBuffer) {
-	for i, fragment := range f.acks {
-		if fragment.position == position {
-			ret = f.acks[i].packet
-			f.acks[i] = f.acks[len(f.acks)-1]
-			f.acks = f.acks[:len(f.acks)-1]
-			return
-		}
-	}
 	for i, fragment := range f.fragments {
-		if fragment.position == position {
-			ret = f.fragments[i].packet
-			f.fragments[i] = f.fragments[len(f.fragments)-1]
-			f.fragments = f.fragments[:len(f.fragments)-1]
-			return
+		if diff := fragment.seq.Difference(f.nextSeq); diff == 0 {
+			// packet in order now
+			f.forwardPacket(fragment.seq, fragment.plen, fragment.packet, context, src)
+			fragment.packet.Recycle()
+			deleted = i
+		} else if diff == -1 {
+			if fragment.plen == 0 {
+				// valid in order keep alive (seq diff -1 && len == 0)
+				f.forwardPacket(fragment.seq, fragment.plen, fragment.packet, context, src)
+			}
+			fragment.packet.Recycle()
+			deleted = i
+		} else if diff > 0 {
+			//packet in future
+			break
 		}
 	}
-	return nil
+	if deleted == -1 {
+		return
+	}
+	f.fragments = f.fragments[deleted+1:]
+}
+
+func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int, packet PacketBuffer, context *flows.EventContext, src interface{}) {
+	add := 0
+	tcp := packet.TransportLayer().(*layers.TCP)
+	if tcp.FIN || tcp.SYN { // hmm what happens if we have SYN and FIN at the same time? (should not happen - but well internet...)
+		add = 1
+	}
+	f.nextSeq = f.nextSeq.Add(plen + add)
+	context.Event(packet, context, src)
 }
 
 type tcpReorder struct {
@@ -892,75 +902,66 @@ type tcpReorder struct {
 	backward uniTCPStreamFragments
 }
 
-func (f *tcpReorder) Type() string     { return "tcpReorder" }
-func (f *tcpReorder) BaseType() string { return "tcpReorder" }
 func (f *tcpReorder) Start(*flows.EventContext) {
-	f.forward = uniTCPStreamFragments{}
-	f.backward = uniTCPStreamFragments{}
+	f.forward = uniTCPStreamFragments{
+		nextSeq: invalidSequence,
+	}
+	f.backward = uniTCPStreamFragments{
+		nextSeq: invalidSequence,
+	}
 }
 
-func payloadLength(packet PacketBuffer) int {
-	length := packet.Metadata().Length
-	if net := packet.LinkLayer(); net != nil {
-		length -= len(net.LayerContents())
+func (f *tcpReorder) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if context.IsHard() {
+		for _, sequence := range f.forward.fragments {
+			sequence.packet.Recycle()
+		}
+		for _, sequence := range f.backward.fragments {
+			sequence.packet.Recycle()
+		}
+	} else {
+		context.Keep()
 	}
-	return length
 }
 
 func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	packet := new.(PacketBuffer)
-	tcp := getTCP(packet)
-	if tcp == nil {
+	tcp, ok := packet.TransportLayer().(*layers.TCP)
+	if !ok {
+		// not a tcp packet -> forward unchanged
+		context.Event(new, context, src)
 		return
 	}
+
 	var fragments *uniTCPStreamFragments
 	if packet.Forward() {
 		fragments = &f.forward
 	} else {
 		fragments = &f.backward
 	}
-	if !fragments.seen {
-		if !tcp.FIN && !tcp.RST && tcp.SYN { //match SYN and SYN,ACK
-			fragments.lastSequence = tcp.Seq
-			fragments.firstSequence = tcp.Seq
-			fragments.seen = true
-			f.Emit(new, context, f)
-		}
-		return
+
+	seq, plen := tcpassembly.Sequence(tcp.Seq), packet.Metadata().Length-packet.Hlen()
+
+	if fragments.nextSeq == invalidSequence {
+		// first packet; set sequence start and emit
+		fragments.nextSeq = seq
+		fragments.forwardPacket(seq, plen, packet, context, src)
+	} else if diff := fragments.nextSeq.Difference(seq); diff == 0 {
+		// packet at current position -> forward for further processing + look if we have old ones segments
+		fragments.forwardPacket(seq, plen, packet, context, src)
+		fragments.forwardOld(context, src)
+	} else if diff > 0 {
+		// packet from the future -> store fore later
+		fragments.push(seq, plen, packet)
+	} else if diff == -1 && plen == 0 {
+		// keep alive packet -> let it through
+		context.Event(packet, context, src)
 	}
-	if fragments.lastSequence == (tcp.Seq + 1) {
-		// TCP keepalive -> ignore
-		//fixme: include those?
-		return
-	}
-	fragments.lastSequence = tcp.Seq
-	position := tcp.Seq - (fragments.firstSequence + 1) // does wraparound work correctly?
-	datalen := packet.Metadata().Length - packet.Hlen()
-	if position == fragments.pos { // in order
-		f.Emit(new, context, f)
-		fragments.pos += uint32(datalen)
-		for {
-			nextpacket := fragments.popFragment(fragments.pos)
-			if nextpacket == nil {
-				return
-			}
-			f.Emit(nextpacket, context, f)
-			fragments.pos += uint32(nextpacket.Metadata().Length - nextpacket.Hlen())
-		}
-	}
-	// out of order
-	if fragments.contains(position, datalen == 0) {
-		return // ignore old or already seen packets
-	}
-	// ignore spurious fragments outside of window?
-	fragments.pushFragment(position, packet)
+	// ignore all the other packets (past, invalid keep alive)
 }
 
 func init() {
-	flows.RegisterFunction("tcpReorder", flows.RawPacket, func() flows.Feature { return &tcpReorder{} }, flows.RawPacket)
-	ieText := []byte("_tcpReorderPayload(666)<octetArray>") // FIXME get number for IE
-	ie := ipfix.MakeIEFromSpec(ieText)
-	flows.RegisterCompositeFeature(ie, "_payload", "tcpReorder")
+	flows.RegisterFilterFeature("tcpReorder", func() flows.Feature { return &tcpReorder{} })
 }
 
 ////////////////////////////////////////////////////////////////////////////////

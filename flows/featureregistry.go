@@ -92,7 +92,11 @@ func RegisterTemporaryFeature(name string, t ipfix.Type, tl uint16, ret FeatureT
 }
 
 func RegisterControlFeature(name string, make MakeFeature) {
-	RegisterFunction(name, ControlFeature, make, PacketFeature)
+	RegisterFunction(name, ControlFeature, make, RawPacket)
+}
+
+func RegisterFilterFeature(name string, make MakeFeature) {
+	RegisterFunction(name, RawPacket, make, RawPacket)
 }
 
 // RegisterCompositeFeature registers a new composite feature with the given name. Composite features are features that depend on other features and need to be

@@ -4,10 +4,13 @@ type EventContext struct {
 	when    DateTimeNanoseconds
 	flow    Flow
 	reason  FlowEndReason
+	event   func(interface{}, *EventContext, interface{})
 	now     bool
 	stop    bool
 	export  bool
 	restart bool
+	keep    bool
+	hard    bool
 }
 
 func (ec *EventContext) initFlow(flow Flow) {
@@ -19,10 +22,16 @@ func (ec *EventContext) clear() {
 	ec.stop = false
 	ec.export = false
 	ec.restart = false
+	ec.keep = false
+	ec.hard = false
 }
 
 func (ec *EventContext) When() DateTimeNanoseconds {
 	return ec.when
+}
+
+func (ec *EventContext) Event(new interface{}, context *EventContext, data interface{}) {
+	ec.event(new, context, data)
 }
 
 // Stop removes the current record and discards the current event
@@ -41,4 +50,13 @@ func (ec *EventContext) Export(now bool, reason FlowEndReason) {
 func (ec *EventContext) Restart(now bool) {
 	ec.now = now
 	ec.restart = true
+}
+
+// Keep keeps this record alive for filters
+func (ec *EventContext) Keep() {
+	ec.keep = true
+}
+
+func (ec *EventContext) IsHard() bool {
+	return ec.hard
 }

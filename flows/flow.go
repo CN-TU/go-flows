@@ -95,6 +95,7 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now Da
 	if !flow.active {
 		return //WTF, this should not happen
 	}
+	context.hard = true
 	flow.records.Stop(reason, context)
 	flow.records.Export(now)
 	flow.Stop()
