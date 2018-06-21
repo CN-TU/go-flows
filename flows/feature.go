@@ -103,7 +103,8 @@ type BaseFeature struct {
 	value interface{}
 }
 
-func (f *BaseFeature) Value() interface{} { return f.value }
+func (f *BaseFeature) Start(*EventContext) { f.value = nil }
+func (f *BaseFeature) Value() interface{}  { return f.value }
 func (f *BaseFeature) SetValue(new interface{}, context *EventContext, self interface{}) {
 	f.value = new
 	if new != nil {
