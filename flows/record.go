@@ -52,6 +52,7 @@ func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 }
 
 func (r *record) filteredEvent(data interface{}, context *EventContext) {
+RESTART:
 	if !r.active {
 		r.Start(context)
 	}
@@ -67,12 +68,12 @@ func (r *record) filteredEvent(data interface{}, context *EventContext) {
 				r.Stop(context.reason, context)
 				r.Export(context.when)
 				r.Event(data, context)
-				return
+				goto RESTART
 			}
 			if context.restart {
 				r.Start(context)
 				r.Event(data, context)
-				return
+				goto RESTART
 			}
 		}
 	}
