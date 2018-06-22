@@ -88,6 +88,8 @@ func (pe *csvExporter) Export(template flows.Template, features []flows.Feature,
 			}
 		case flows.FlowEndReason:
 			list[i] = fmt.Sprint(int(val))
+		case []byte:
+			list[i] = string(val)
 		default:
 			list[i] = fmt.Sprint(val)
 		}
