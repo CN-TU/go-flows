@@ -17,6 +17,7 @@ type DecodeStats struct {
 type EventTable interface {
 	Event(buffer *shallowMultiPacketBuffer)
 	Expire()
+	Flush()
 	EOF(flows.DateTimeNanoseconds)
 	KeyFunc() func(PacketBuffer) (flows.FlowKey, bool)
 	DecodeStats() *DecodeStats
@@ -88,9 +89,12 @@ func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	b.finalize()
 }
 
-func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
+func (sft *SingleFlowTable) Flush() {
 	close(sft.buffer.full)
 	<-sft.done
+}
+
+func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
@@ -237,11 +241,14 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	}
 }
 
-func (pft *ParallelFlowTable) EOF(now flows.DateTimeNanoseconds) {
+func (pft *ParallelFlowTable) Flush() {
 	for _, c := range pft.buffers {
 		close(c.full)
 	}
 	pft.wg.Wait()
+}
+
+func (pft *ParallelFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	for _, t := range pft.tables {
 		pft.wg.Add(1)
 		go func(table *flows.FlowTable) {

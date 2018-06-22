@@ -45,6 +45,8 @@ type PcapBuffer struct {
 	label       *labelProvider
 	filter      string
 	plen        int
+	flowtable   EventTable
+	done        chan struct{}
 }
 
 func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
@@ -53,11 +55,15 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 		prealloc = 4096
 	}
 	ret := &PcapBuffer{
-		empty:    newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
-		todecode: newShallowMultiPacketBufferRing(fullBuffers, batchSize),
-		plen:     plen}
+		empty:     newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
+		todecode:  newShallowMultiPacketBufferRing(fullBuffers, batchSize),
+		plen:      plen,
+		flowtable: flowtable,
+		done:      make(chan struct{}),
+	}
 
 	go func() {
+		defer close(ret.done)
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
 		keyFunc := flowtable.KeyFunc()
@@ -119,9 +125,9 @@ func (input *PcapBuffer) Finish() {
 		input.current.finalizeWritten()
 	}
 	input.todecode.close()
+	<-input.done
 
-	// consume empty buffers -> let every go routine finish
-	input.empty.close()
+	input.flowtable.Flush()
 }
 
 func (input *PcapBuffer) SetLabel(fnames []string) {
