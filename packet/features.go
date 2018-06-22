@@ -815,15 +815,15 @@ type _payload struct {
 }
 
 func (f *_payload) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	packet := new.(PacketBuffer)
-	if packet == nil {
-		return
-	}
-	tl := packet.TransportLayer()
+	tl := new.(PacketBuffer).TransportLayer()
 	if tl == nil {
 		return
 	}
-	f.SetValue(string(tl.LayerPayload()), context, f)
+	payload := tl.LayerPayload()
+	if len(payload) == 0 {
+		return
+	}
+	f.SetValue(payload, context, f)
 }
 
 func init() {
