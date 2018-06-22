@@ -103,6 +103,7 @@ func (r *record) Event(data interface{}, context *EventContext) {
 			for _, feature := range r.filter {
 				feature.Start(context)
 			}
+			r.alive = true
 		}
 		filter := r.filter
 		context.event = func(data interface{}, context *EventContext, pos interface{}) {
