@@ -384,7 +384,11 @@ func (f *concatenate) Start(context *EventContext) {
 }
 
 func (f *concatenate) Event(new interface{}, context *EventContext, src interface{}) {
-	fmt.Fprint(f.buffer, new)
+	if val, ok := new.([]byte); ok {
+		fmt.Fprintf(f.buffer, "%s", val)
+	} else {
+		fmt.Fprint(f.buffer, new)
+	}
 }
 
 func (f *concatenate) Stop(reason FlowEndReason, context *EventContext) {
