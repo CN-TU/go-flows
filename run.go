@@ -424,7 +424,7 @@ func parseArguments(cmd string, args []string) {
 		},
 		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector)
 
-	buffer := packet.NewPcapBuffer(int(*maxPacket), flowtable)
+	buffer := packet.NewPacketSource(int(*maxPacket), flowtable)
 	buffer.SetFilter(*bpfFilter)
 
 	var time flows.DateTimeNanoseconds

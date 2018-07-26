@@ -37,7 +37,7 @@ type labelProvider struct {
 	nextPos    int
 }
 
-type PcapBuffer struct {
+type PacketSource struct {
 	empty       *multiPacketBuffer
 	todecode    *shallowMultiPacketBufferRing
 	current     *shallowMultiPacketBuffer
@@ -49,12 +49,12 @@ type PcapBuffer struct {
 	done        chan struct{}
 }
 
-func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
+func NewPacketSource(plen int, flowtable EventTable) *PacketSource {
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
 	}
-	ret := &PcapBuffer{
+	ret := &PacketSource{
 		empty:     newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
 		todecode:  newShallowMultiPacketBufferRing(fullBuffers, batchSize),
 		plen:      plen,
@@ -106,7 +106,7 @@ func NewPcapBuffer(plen int, flowtable EventTable) *PcapBuffer {
 	return ret
 }
 
-func (input *PcapBuffer) PrintStats(w io.Writer) {
+func (input *PacketSource) PrintStats(w io.Writer) {
 	fmt.Fprintf(w,
 		`Packet statistics:
 	overall: %d
@@ -114,13 +114,13 @@ func (input *PcapBuffer) PrintStats(w io.Writer) {
 `, input.packetStats.packets, input.packetStats.filtered)
 }
 
-func (input *PcapBuffer) SetFilter(filter string) (old string) {
+func (input *PacketSource) SetFilter(filter string) (old string) {
 	old = input.filter
 	input.filter = filter
 	return
 }
 
-func (input *PcapBuffer) Finish() {
+func (input *PacketSource) Finish() {
 	if !input.current.empty() {
 		input.current.finalizeWritten()
 	}
@@ -130,11 +130,11 @@ func (input *PcapBuffer) Finish() {
 	input.flowtable.Flush()
 }
 
-func (input *PcapBuffer) SetLabel(fnames []string) {
+func (input *PacketSource) SetLabel(fnames []string) {
 	input.label = newLabelProvider(fnames)
 }
 
-func (input *PcapBuffer) ReadFile(fname string) flows.DateTimeNanoseconds {
+func (input *PacketSource) ReadFile(fname string) flows.DateTimeNanoseconds {
 	fhandle, err := pcap.OpenOffline(fname)
 	defer fhandle.Close()
 	if err != nil {
@@ -151,7 +151,7 @@ func (input *PcapBuffer) ReadFile(fname string) flows.DateTimeNanoseconds {
 	return t
 }
 
-func (input *PcapBuffer) ReadInterface(dname string) (t flows.DateTimeNanoseconds) {
+func (input *PacketSource) ReadInterface(dname string) (t flows.DateTimeNanoseconds) {
 	inactive, err := pcap.NewInactiveHandle(dname)
 	if err != nil {
 		log.Fatal(err)
@@ -258,7 +258,7 @@ func (label *labelProvider) pop() interface{} {
 	return nil
 }
 
-func (input *PcapBuffer) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.DateTimeNanoseconds, stop bool) {
+func (input *PacketSource) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.DateTimeNanoseconds, stop bool) {
 	cancel := make(chan os.Signal, 1)
 	finished := make(chan interface{}, 1)
 	signal.Notify(cancel, os.Interrupt)
