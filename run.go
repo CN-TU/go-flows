@@ -372,7 +372,7 @@ func parseArguments(cmd string, args []string) {
 				if !reflect.DeepEqual(key, feature.key) {
 					log.Fatalln("key_features of every flowspec must match")
 				}
-				if bidirectional != bidirectional {
+				if bidirectional != feature.bidirectional {
 					log.Fatalln("bidirectional of every flow must match")
 				}
 			}
