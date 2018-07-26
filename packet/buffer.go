@@ -12,18 +12,18 @@ import (
 
 type multiPacketBuffer struct {
 	numFree int32
-	buffers []*pcapPacketBuffer
+	buffers []*packetBuffer
 	cond    *sync.Cond
 }
 
 func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacketBuffer {
 	buf := &multiPacketBuffer{
 		numFree: buffers,
-		buffers: make([]*pcapPacketBuffer, buffers),
+		buffers: make([]*packetBuffer, buffers),
 	}
 	buf.cond = sync.NewCond(&sync.Mutex{})
 	for j := range buf.buffers {
-		buf.buffers[j] = &pcapPacketBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
+		buf.buffers[j] = &packetBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
 	}
 	return buf
 }
@@ -71,7 +71,7 @@ func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer) {
 }
 
 type shallowMultiPacketBuffer struct {
-	buffers []*pcapPacketBuffer
+	buffers []*packetBuffer
 	owner   *shallowMultiPacketBufferRing
 	rindex  int
 	windex  int
@@ -79,7 +79,7 @@ type shallowMultiPacketBuffer struct {
 
 func newShallowMultiPacketBuffer(size int, owner *shallowMultiPacketBufferRing) *shallowMultiPacketBuffer {
 	return &shallowMultiPacketBuffer{
-		buffers: make([]*pcapPacketBuffer, size),
+		buffers: make([]*packetBuffer, size),
 		owner:   owner,
 	}
 }
@@ -97,7 +97,7 @@ func (smpb *shallowMultiPacketBuffer) reset() {
 	smpb.windex = 0
 }
 
-func (smpb *shallowMultiPacketBuffer) push(buffer *pcapPacketBuffer) bool {
+func (smpb *shallowMultiPacketBuffer) push(buffer *packetBuffer) bool {
 	if smpb.windex >= len(smpb.buffers) || smpb.windex < 0 {
 		return false
 	}
@@ -106,7 +106,7 @@ func (smpb *shallowMultiPacketBuffer) push(buffer *pcapPacketBuffer) bool {
 	return true
 }
 
-func (smpb *shallowMultiPacketBuffer) read() (ret *pcapPacketBuffer) {
+func (smpb *shallowMultiPacketBuffer) read() (ret *packetBuffer) {
 	if smpb.rindex >= len(smpb.buffers) || smpb.rindex >= smpb.windex || smpb.rindex < 0 {
 		return nil
 	}
@@ -219,7 +219,7 @@ type PacketBuffer interface {
 	decode() bool
 }
 
-type pcapPacketBuffer struct {
+type packetBuffer struct {
 	inUse       int32
 	owner       *multiPacketBuffer
 	key         flows.FlowKey
@@ -288,8 +288,8 @@ func layerToLength(layer gopacket.SerializableLayer) int {
 	return b.len
 }
 
-func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) (pb *pcapPacketBuffer) {
-	pb = &pcapPacketBuffer{}
+func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) (pb *packetBuffer) {
+	pb = &packetBuffer{}
 	pb.time = when
 	for _, layer := range layerList {
 		switch layer.LayerType() {
@@ -401,24 +401,24 @@ func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 	return
 }
 
-func (pb *pcapPacketBuffer) Hlen() int {
+func (pb *packetBuffer) Hlen() int {
 	return pb.hlen
 }
 
-func (pb *pcapPacketBuffer) Proto() uint8 {
+func (pb *packetBuffer) Proto() uint8 {
 	return pb.proto
 }
 
-func (pb *pcapPacketBuffer) PacketNr() uint64 {
+func (pb *packetBuffer) PacketNr() uint64 {
 	return pb.packetnr
 }
 
-func (pb *pcapPacketBuffer) Copy() PacketBuffer {
+func (pb *packetBuffer) Copy() PacketBuffer {
 	pb.refcnt++
 	return pb
 }
 
-func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, packetnr uint64, label interface{}) flows.DateTimeNanoseconds {
+func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, packetnr uint64, label interface{}) flows.DateTimeNanoseconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -445,7 +445,7 @@ func (pb *pcapPacketBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopa
 	return pb.time
 }
 
-func (pb *pcapPacketBuffer) canRecycle() bool {
+func (pb *packetBuffer) canRecycle() bool {
 	pb.refcnt--
 	if pb.refcnt > 0 {
 		return false
@@ -453,7 +453,7 @@ func (pb *pcapPacketBuffer) canRecycle() bool {
 	return true
 }
 
-func (pb *pcapPacketBuffer) Recycle() {
+func (pb *packetBuffer) Recycle() {
 	if !pb.canRecycle() {
 		return
 	}
@@ -461,30 +461,30 @@ func (pb *pcapPacketBuffer) Recycle() {
 	pb.owner.free(1)
 }
 
-func (pb *pcapPacketBuffer) Key() flows.FlowKey {
+func (pb *packetBuffer) Key() flows.FlowKey {
 	return pb.key
 }
 
-func (pb *pcapPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
+func (pb *packetBuffer) Timestamp() flows.DateTimeNanoseconds {
 	return pb.time
 }
 
-func (pb *pcapPacketBuffer) Forward() bool {
+func (pb *packetBuffer) Forward() bool {
 	return pb.forward
 }
 
-func (pb *pcapPacketBuffer) setInfo(key flows.FlowKey, forward bool) {
+func (pb *packetBuffer) setInfo(key flows.FlowKey, forward bool) {
 	pb.key = key
 	pb.forward = forward
 }
 
 //DecodeFeedback
-func (pb *pcapPacketBuffer) SetTruncated() { pb.ci.Truncated = true }
+func (pb *packetBuffer) SetTruncated() { pb.ci.Truncated = true }
 
 //gopacket.Packet
-func (pb *pcapPacketBuffer) String() string { return "PacketBuffer" }
-func (pb *pcapPacketBuffer) Dump() string   { return "" }
-func (pb *pcapPacketBuffer) Layers() []gopacket.Layer {
+func (pb *packetBuffer) String() string { return "PacketBuffer" }
+func (pb *packetBuffer) Dump() string   { return "" }
+func (pb *packetBuffer) Layers() []gopacket.Layer {
 	ret := make([]gopacket.Layer, 0, 3)
 	if pb.link != nil {
 		ret = append(ret, pb.link)
@@ -497,7 +497,7 @@ func (pb *pcapPacketBuffer) Layers() []gopacket.Layer {
 	}
 	return ret
 }
-func (pb *pcapPacketBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
+func (pb *packetBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
 	if pb.link != nil && pb.link.LayerType() == lt {
 		return pb.link
 	}
@@ -509,7 +509,7 @@ func (pb *pcapPacketBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
 	}
 	return nil
 }
-func (pb *pcapPacketBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
+func (pb *packetBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 	if pb.link != nil && lc.Contains(pb.link.LayerType()) {
 		return pb.link
 	}
@@ -521,17 +521,17 @@ func (pb *pcapPacketBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 	}
 	return nil
 }
-func (pb *pcapPacketBuffer) LinkLayer() gopacket.LinkLayer               { return pb.link }
-func (pb *pcapPacketBuffer) NetworkLayer() gopacket.NetworkLayer         { return pb.network }
-func (pb *pcapPacketBuffer) TransportLayer() gopacket.TransportLayer     { return pb.transport }
-func (pb *pcapPacketBuffer) ApplicationLayer() gopacket.ApplicationLayer { return nil }
-func (pb *pcapPacketBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
-func (pb *pcapPacketBuffer) Data() []byte                                { return pb.buffer }
-func (pb *pcapPacketBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
-func (pb *pcapPacketBuffer) Label() interface{}                          { return pb.label }
+func (pb *packetBuffer) LinkLayer() gopacket.LinkLayer               { return pb.link }
+func (pb *packetBuffer) NetworkLayer() gopacket.NetworkLayer         { return pb.network }
+func (pb *packetBuffer) TransportLayer() gopacket.TransportLayer     { return pb.transport }
+func (pb *packetBuffer) ApplicationLayer() gopacket.ApplicationLayer { return nil }
+func (pb *packetBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
+func (pb *packetBuffer) Data() []byte                                { return pb.buffer }
+func (pb *packetBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
+func (pb *packetBuffer) Label() interface{}                          { return pb.label }
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
-func (pb *pcapPacketBuffer) decode() (ret bool) {
+func (pb *packetBuffer) decode() (ret bool) {
 	var ip6skipper layers.IPv6ExtensionSkipper
 	defer func(r *bool) {
 		if err := recover(); err != nil {
