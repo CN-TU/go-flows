@@ -1,8 +1,9 @@
 package main
 
 import (
-	_ "github.com/CN-TU/go-flows/exporters"
-	_ "github.com/CN-TU/go-flows/filter"
-	_ "github.com/CN-TU/go-flows/label"
-	_ "github.com/CN-TU/go-flows/source"
+	_ "github.com/CN-TU/go-flows/modules/exporters/csv"
+	_ "github.com/CN-TU/go-flows/modules/exporters/ipfix"
+	_ "github.com/CN-TU/go-flows/modules/exporters/kafka"
+	_ "github.com/CN-TU/go-flows/modules/labels/csv"
+	_ "github.com/CN-TU/go-flows/modules/sources/libpcap"
 )

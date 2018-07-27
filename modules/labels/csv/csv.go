@@ -1,4 +1,4 @@
-package label
+package csv
 
 import (
 	"encoding/csv"

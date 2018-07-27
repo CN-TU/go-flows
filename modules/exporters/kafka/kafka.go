@@ -1,4 +1,4 @@
-package exporters
+package kafka
 
 import (
 	"errors"

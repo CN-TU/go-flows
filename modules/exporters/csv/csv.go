@@ -1,4 +1,4 @@
-package exporters
+package csv
 
 import (
 	"bufio"
