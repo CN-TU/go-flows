@@ -14,7 +14,7 @@ type Record interface {
 	Start(*EventContext)
 	Event(interface{}, *EventContext)
 	Stop(FlowEndReason, *EventContext)
-	Export(DateTimeNanoseconds)
+	Export(FlowEndReason, *EventContext, DateTimeNanoseconds)
 	Active() bool
 }
 
@@ -27,6 +27,7 @@ type record struct {
 	exporter []Exporter
 	variant  []Feature
 	template Template
+	last     DateTimeNanoseconds
 	active   bool // this record forwards events to features
 	alive    bool // this record forwards events to filters
 }
@@ -61,18 +62,17 @@ RESTART:
 		feature.Event(data, context, nil) // no tree for control
 		if context.stop {
 			r.Stop(context.reason, context)
-			return
+			goto OUT
 		}
 		if context.now {
 			if context.export {
-				r.Stop(context.reason, context)
-				r.Export(context.when)
-				r.Event(data, context)
+				tmp := *context
+				tmp.when = r.last
+				r.Export(context.reason, &tmp, context.when)
 				goto RESTART
 			}
 			if context.restart {
 				r.Start(context)
-				r.Event(data, context)
 				goto RESTART
 			}
 		}
@@ -85,13 +85,14 @@ RESTART:
 	}
 	if !context.now {
 		if context.export {
-			r.Stop(context.reason, context)
-			r.Export(context.when)
+			r.Export(context.reason, context, context.when)
 		}
 		if context.restart {
 			r.Start(context)
 		}
 	}
+OUT:
+	r.last = context.when
 }
 
 func (r *record) Event(data interface{}, context *EventContext) {
@@ -118,7 +119,11 @@ func (r *record) Event(data interface{}, context *EventContext) {
 	}
 }
 
-func (r *record) Export(now DateTimeNanoseconds) {
+func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
+	if !r.active {
+		return
+	}
+	r.Stop(reason, context)
 	template := r.template
 	for _, variant := range r.variant {
 		template = template.subTemplate(variant.Variant())
@@ -152,9 +157,9 @@ func (r recordList) Event(data interface{}, context *EventContext) {
 	}
 }
 
-func (r recordList) Export(now DateTimeNanoseconds) {
+func (r recordList) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
 	for _, record := range r {
-		record.Export(now)
+		record.Export(reason, context, now)
 	}
 }
 
