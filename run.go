@@ -20,27 +20,18 @@ import (
 )
 
 func tableUsage(cmd string, tableset *flag.FlagSet) {
-	main := "features [featureargs] spec.json [features ...] [export type [exportargs]] [export ...] [...]"
+	main := "features [featureargs] spec.json [features ...] [export type [exportargs]] [filter type [filterargs]] [label type [filterargs]] input type [inputargs] [...]"
 	switch cmd {
 	case "callgraph":
 		cmdString(fmt.Sprintf("%s %s", cmd, main))
 		cmdString(fmt.Sprintf("%s [args] -spec commands.json", cmd))
 		fmt.Fprint(os.Stderr, "\nWrites the resulting callgraph in dot representation to stdout.")
-	case "offline":
+	case "run":
 		cmdString(fmt.Sprintf("%s [args] %s input inputfile [...]", cmd, main))
 		cmdString(fmt.Sprintf("%s [args] -spec commands.json inputfile [...]", cmd))
 		fmt.Fprint(os.Stderr, `
-Parse the packets from input file(s) and export the specified feature set to the specified exporters.
-
-Packet labels might be provided as csv files. These files must start with a
-header. If there is only one column in the csv file, every row is matched
-up with a packet. If there are at least two columns, the first row must be
-the packet number this label belongs to. The number of the first packet is
-1!`)
-	case "online":
-		cmdString(fmt.Sprintf("%s [args] %s input interface", cmd, main))
-		cmdString(fmt.Sprintf("%s [args] -spec commands.json interface", cmd))
-		fmt.Fprint(os.Stderr, "\nParse the packets from a network interface and export the specified feature set to the specified exporters.")
+Parse the packets from input source(s), apply filter(s) and/or label(s) and
+export the specified feature set to the specified exporters.`)
 	}
 	fmt.Fprintf(os.Stderr, `
 
@@ -48,6 +39,12 @@ Featuresets (features), outputs (export), and, optionally, sources need to
 be provided. It is possible to specify multiple feature statements and
 multiple export statements. All the specified exporters always export the
 features specified by the preceeding feature group.
+
+If multiple sources are specified, those are queried in order.
+
+If multiple filters are specified, those are tried in order.
+
+If multiple labels are specified, those are queried in order.
 
 At least one feature specification and one exporter is needed.
 
@@ -64,15 +61,15 @@ command. See also %s %s features -h.
 
 Examples:
   Export the feature set specified in example.json to example.csv
-    %s %s features example.json export csv example.csv input [input ...]
+    %s %s features example.json export csv example.csv source [sourcetype ...]
 
   Export the feature sets a.json and b.json to a.csv and b.csv
-    %s %s features a.json export csv a.csv features b.json export b.csv input [input ...]
+    %s %s features a.json export csv a.csv features b.json export b.csv source [sourcetype ...]
 
   Export the feature sets a.json and b.json to a single common.csv (this
   results in a csv with features from a in the odd lines, and features
   from b in the even lines)
-    %s %s features a.json features b.json export common.csv input [input ...]
+    %s %s features a.json features b.json export common.csv source [sourcetype ...]
 
   Execute the commands provided in commands.json
     %s %s -spec commands.json [...]
