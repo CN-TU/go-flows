@@ -940,7 +940,7 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 		fragments = &f.backward
 	}
 
-	seq, plen := tcpassembly.Sequence(tcp.Seq), packet.Metadata().Length-packet.Hlen()
+	seq, plen := tcpassembly.Sequence(tcp.Seq), int(ipTotalLength(packet))-len(packet.NetworkLayer().LayerContents())-len(tcp.LayerContents())
 
 	if fragments.nextSeq == invalidSequence {
 		// first packet; set sequence start and emit
