@@ -1,12 +1,9 @@
 package packet
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
-	"os"
-	"strconv"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket"
@@ -25,15 +22,6 @@ type Stats struct {
 	packets  uint64
 	skipped  uint64
 	filtered uint64
-}
-
-type labelProvider struct {
-	labels     []string
-	file       io.Closer
-	csv        *csv.Reader
-	nextData   interface{}
-	currentPos int
-	nextPos    int
 }
 
 // Engine holds and manages buffers, sources, filters and forwards packets to the flowtable
@@ -133,83 +121,6 @@ func (input *Engine) Finish() {
 	input.flowtable.Flush()
 }
 
-func newLabelProvider(fnames []string) *labelProvider {
-	return &labelProvider{labels: fnames}
-}
-
-func (label *labelProvider) open() {
-	if label.csv != nil {
-		label.close()
-	}
-	if len(label.labels) == 0 {
-		return
-	}
-	var f string
-	f, label.labels = label.labels[0], label.labels[1:]
-	r, err := os.Open(f)
-	if err != nil {
-		panic(err)
-	}
-	label.file = r
-	label.csv = csv.NewReader(r)
-	_, err = label.csv.Read() // Read title line
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (label *labelProvider) close() {
-	if label.csv != nil {
-		label.csv = nil
-		label.file.Close()
-	}
-}
-
-func (label *labelProvider) pop() interface{} {
-	if label == nil {
-		return nil
-	}
-	label.currentPos++
-	if label.nextPos == label.currentPos {
-		return label.nextData
-	}
-	if label.nextPos > label.currentPos {
-		return nil
-	}
-	if label.csv == nil {
-		if len(label.labels) == 0 {
-			return nil
-		}
-		label.open()
-	}
-	record, err := label.csv.Read()
-	if err == io.EOF {
-		label.open()
-		if label.csv == nil {
-			return nil
-		}
-		record, err = label.csv.Read()
-	}
-	if record == nil && err != nil {
-		panic(err)
-	}
-	if len(record) == 1 {
-		return record
-	}
-	label.nextPos, err = strconv.Atoi(record[0])
-	if err != nil {
-		panic(err)
-	}
-	if label.nextPos <= 0 {
-		panic("Label packet position must be >= 0")
-	}
-	if label.nextPos == label.currentPos {
-		return record[1:]
-	}
-	label.nextData = record[1:]
-	return nil
-}
-
 // Run reads all the packets from the sources and forwards those to the flowtable
 func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 	var npackets, nskipped, nfiltered uint64
@@ -230,14 +141,13 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 			continue
 		}
 
-		// fixme: reintroduce labels
-		// label := input.label.pop()
+		label := input.labels.GetLabel(ci, npackets, data)
 
 		if input.current.empty() {
 			input.empty.Pop(input.current)
 		}
 		buffer := input.current.read()
-		time = buffer.assign(data, ci, lt, npackets, nil /* label */)
+		time = buffer.assign(data, ci, lt, npackets, label)
 		if input.current.full() {
 			input.current.finalize()
 			var ok bool
