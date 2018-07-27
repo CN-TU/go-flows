@@ -1,65 +1,42 @@
 package flows
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
-	"io"
-	"sort"
-	"text/tabwriter"
+	"github.com/CN-TU/go-flows/util"
 )
 
-type UseStringOption struct{}
+const exporterName = "exporter"
 
-// Exporter represents a genric exporter
+// Exporter represents a generic exporter
 type Exporter interface {
+	util.Module
 	// Export gets called upon flow export with a list of features and the export time.
 	Export(Template, []Feature, DateTimeNanoseconds)
-	// Finish gets called before program exit. Eventual flushing needs to be implemented here.
+	// Fields is unused at the moment
 	Fields([]string)
+	// Finish gets called before program exit. Eventual flushing needs to be implemented here.
 	Finish()
-	ID() string
-	Init()
 }
 
-type exportModule struct {
-	name, desc string
-	new        func(string, interface{}, []string) ([]string, Exporter)
-	help       func(string)
+// RegisterExporter registers an exporter (see module system in util)
+func RegisterExporter(name, desc string, new util.ModuleCreator, help util.ModuleHelp) {
+	util.RegisterModule(exporterName, name, desc, new, help)
 }
 
-var exporters = make(map[string]exportModule)
-
-func RegisterExporter(name, desc string, new func(string, interface{}, []string) ([]string, Exporter), help func(string)) {
-	exporters[name] = exportModule{name, desc, new, help}
-}
-
+// ExporterHelp displays help for a specific exporter (see module system in util)
 func ExporterHelp(which string) error {
-	if exporter, ok := exporters[which]; ok {
-		exporter.help(which)
-		return nil
-	}
-	return errors.New("Exporter not found")
+	return util.GetModuleHelp(exporterName, which)
 }
 
-func MakeExporter(which, name string, options interface{}, args []string) ([]string, Exporter) {
-	if exporter, ok := exporters[which]; ok {
-		return exporter.new(name, options, args)
+// MakeExporter creates an exporter instance (see module system in util)
+func MakeExporter(which, name string, options interface{}, args []string) ([]string, Exporter, error) {
+	args, module, err := util.CreateModule(exporterName, which, name, options, args)
+	if err != nil {
+		return args, nil, err
 	}
-	return nil, nil
+	return args, module.(Exporter), nil
 }
 
-func ListExporters(w io.Writer) {
-	var names []string
-	t := tabwriter.NewWriter(w, 3, 4, 5, ' ', 0)
-	for exporter := range exporters {
-		names = append(names, exporter)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "%s\t%s\n", name, exporters[name].desc)
-		t.Write(line.Bytes())
-	}
-	t.Flush()
+// ListExporters returns a list of exporters (see module system in util)
+func ListExporters() ([]util.ModuleDescription, error) {
+	return util.GetModules(exporterName)
 }

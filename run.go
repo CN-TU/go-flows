@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path"
 	"reflect"
 	"runtime/debug"
@@ -13,9 +14,9 @@ import (
 	"sort"
 	"strings"
 
-	_ "github.com/CN-TU/go-flows/exporters"
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
+	"github.com/CN-TU/go-flows/util"
 )
 
 func tableUsage(cmd string, tableset *flag.FlagSet) {
@@ -83,9 +84,8 @@ Examples:
 }
 
 func init() {
+	addCommand("run", "Extract flows", parseArguments)
 	addCommand("callgraph", "Create a callgraph from a flowspecification", parseArguments)
-	addCommand("offline", "Extract flows from pcaps", parseArguments)
-	addCommand("online", "Extract flows from a network interface", parseArguments)
 }
 
 func parseFeatures(cmd string, args []string) (arguments []string, features []interface{}, key []string, bidirectional bool) {
@@ -149,7 +149,8 @@ type exportedFeatures struct {
 	featureset []featureSpec
 }
 
-func parseCommandFile(cmd string, file string) (result []exportedFeatures, exporters map[string]flows.Exporter) {
+// TODO: fix this function to the new style
+func parseCommandFile(cmd string, file string) (result []exportedFeatures, exporters map[string]flows.Exporter, filters packet.Filters, sources packet.Sources, labels packet.Labels) {
 	f, err := os.Open(file)
 	if err != nil {
 		log.Fatalln("Can't open ", file)
@@ -176,10 +177,10 @@ func parseCommandFile(cmd string, file string) (result []exportedFeatures, expor
 	exporters = make(map[string]flows.Exporter)
 
 	for name, options := range decoded.Exporters {
-		if _, exporter := flows.MakeExporter(options.Type, name, options.Options, nil); exporter != nil {
+		if _, exporter, err := flows.MakeExporter(options.Type, name, options.Options, nil); err == nil {
 			exporters[name] = exporter
 		} else {
-			log.Fatalf("Couldn't find exporter with type '%s'\n", options.Type)
+			log.Fatalf("Error initializing exporter '%s': %s\n", options.Type, err)
 		}
 	}
 
@@ -250,23 +251,17 @@ func parseCommandFile(cmd string, file string) (result []exportedFeatures, expor
 	return
 }
 
-func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exporters map[string]flows.Exporter, arguments []string) {
-	arguments = args
+func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exporters map[string]flows.Exporter, filters packet.Filters, sources packet.Sources, labels packet.Labels) {
 	var featureset []featureSpec
 	clear := false
 	var firstexporter []string
 	exporters = make(map[string]flows.Exporter)
 	var exportset []flows.Exporter
-MAIN:
-	for {
-		if len(arguments) == 0 {
-			if cmd == "callgraph" {
-				break MAIN
-			} else {
-				log.Fatalln("Command 'input' missing.")
-			}
-		}
-		switch arguments[0] {
+	var err error
+	for len(args) >= 2 {
+		typ := args[0]
+		name := args[1]
+		switch typ {
 		case "features":
 			if clear {
 				if len(featureset) == 0 {
@@ -279,19 +274,19 @@ MAIN:
 				exportset = nil
 			}
 			var f featureSpec
-			arguments, f.features, f.key, f.bidirectional = parseFeatures(cmd, arguments[1:])
+			args, f.features, f.key, f.bidirectional = parseFeatures(cmd, args[1:])
 			featureset = append(featureset, f)
 		case "export":
 			if firstexporter == nil {
-				firstexporter = arguments
+				firstexporter = args
 			}
-			if len(arguments) < 1 {
+			if len(args) < 1 {
 				log.Fatalln("Need an export type")
 			}
 			var e flows.Exporter
-			arguments, e = flows.MakeExporter(arguments[1], "", flows.UseStringOption{}, arguments[2:])
-			if e == nil {
-				log.Fatalf("Exporter %s not found\n", arguments[1])
+			args, e, err = flows.MakeExporter(name, "", util.UseStringOption{}, args[2:])
+			if err != nil {
+				log.Fatalf("Error creating exporter '%s': %s\n", name, err)
 			}
 			if existing, ok := exporters[e.ID()]; ok {
 				e = existing
@@ -300,12 +295,42 @@ MAIN:
 			}
 			exportset = append(exportset, e)
 			clear = true
-		case "input":
-			arguments = arguments[1:]
-			break MAIN
+		case "source":
+			if len(args) < 1 {
+				log.Fatalln("Need a source type")
+			}
+			var s packet.Source
+			args, s, err = packet.MakeSource(name, "", util.UseStringOption{}, args[2:])
+			if err != nil {
+				log.Fatalf("Error creating source '%s': %s\n", name, err)
+			}
+			sources.Append(s)
+		case "filter":
+			if len(args) < 1 {
+				log.Fatalln("Need a filter type")
+			}
+			var s packet.Filter
+			args, s, err = packet.MakeFilter(name, "", util.UseStringOption{}, args[2:])
+			if err != nil {
+				log.Fatalf("Error creating filter '%s': %s\n", name, err)
+			}
+			filters = append(filters, s)
+		case "label":
+			if len(args) < 1 {
+				log.Fatalln("Need a label type")
+			}
+			var s packet.Label
+			args, s, err = packet.MakeLabel(name, "", util.UseStringOption{}, args[2:])
+			if err != nil {
+				log.Fatalf("Error creating label '%s': %s\n", name, err)
+			}
+			labels = append(labels, s)
 		default:
-			log.Fatalf("Command (features, export, input) missing, instead found '%s'\n", strings.Join(arguments, " "))
+			log.Fatalf("Command (features, export, source, label, filter) missing, instead found '%s'\n", strings.Join(args, " "))
 		}
+	}
+	if len(args) > 0 {
+		log.Fatalf("Argument at end of input to '%s' is missing!\n", args[0])
 	}
 
 	if clear {
@@ -325,8 +350,7 @@ func parseArguments(cmd string, args []string) {
 	idleTimeout := set.Uint("idle", 300, "Idle timeout in seconds")
 	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
-	maxPacket := set.Uint("size", 9000, "Maximum packet size read from source. 0 = automatic")
-	bpfFilter := set.String("filter", "", "Process only packets matching specified bpf filter")
+	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
 	commands := set.String("spec", "", "Load exporters and features from specified json file")
 	printStats := set.Bool("stats", false, "Output statistics")
 
@@ -342,13 +366,14 @@ func parseArguments(cmd string, args []string) {
 
 	var result []exportedFeatures
 	var exporters map[string]flows.Exporter
-	var arguments []string
+	var filters packet.Filters
+	var sources packet.Sources
+	var labels packet.Labels
 
 	if *commands != "" {
-		result, exporters = parseCommandFile(cmd, *commands)
-		arguments = set.Args()
+		result, exporters, filters, sources, labels = parseCommandFile(cmd, *commands)
 	} else {
-		result, exporters, arguments = parseCommandLine(cmd, set.Args())
+		result, exporters, filters, sources, labels = parseCommandLine(cmd, set.Args())
 	}
 
 	if len(result) == 0 {
@@ -382,29 +407,12 @@ func parseArguments(cmd string, args []string) {
 
 	keyselector := packet.MakeDynamicKeySelector(key, bidirectional)
 
-	var labels []string
-	switch cmd {
-	case "callgraph":
+	if cmd == "callgraph" {
 		recordList.CallGraph(os.Stdout)
 		return
-	case "online":
-		if len(arguments) != 1 {
-			log.Fatalln("Online mode needs extactly one interface!")
-		}
-	case "offline":
-		var input []string
-		for _, argument := range arguments {
-			if strings.HasSuffix(argument, ".csv") {
-				labels = append(labels, argument)
-			} else {
-				input = append(input, argument)
-			}
-		}
-		if len(input) == 0 {
-			log.Fatalln("Offline mode needs one or more pcap files as input!")
-		}
-		arguments = input
 	}
+
+	//	log.Fatalln(exporters, filters, sources, labels)
 
 	for _, exporter := range exporters {
 		exporter.Init()
@@ -413,6 +421,7 @@ func parseArguments(cmd string, args []string) {
 	recordList.Init()
 
 	flows.CleanupFeatures()
+	util.CleanupModules()
 
 	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 
@@ -424,21 +433,22 @@ func parseArguments(cmd string, args []string) {
 		},
 		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector)
 
-	buffer := packet.NewPacketSource(int(*maxPacket), flowtable)
-	buffer.SetFilter(*bpfFilter)
+	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 
-	var time flows.DateTimeNanoseconds
+	cancel := make(chan os.Signal, 1)
+	signal.Notify(cancel, os.Interrupt)
 
-	if cmd == "online" {
-		time = buffer.ReadInterface(arguments[0])
-	} else {
-		buffer.SetLabel(labels)
-		for _, fname := range arguments {
-			time = buffer.ReadFile(fname)
-		}
-	}
+	go func() {
+		<-cancel
+		log.Println("Canceling...")
+		engine.Stop()
+	}()
 
-	buffer.Finish()
+	stopped := engine.Run()
+
+	signal.Stop(cancel)
+
+	engine.Finish()
 
 	if *heapprofile != "" {
 		f, err := os.Create(*heapprofile)
@@ -451,12 +461,12 @@ func parseArguments(cmd string, args []string) {
 		f.Close()
 	}
 
-	flowtable.EOF(time)
+	flowtable.EOF(stopped)
 	for _, exporter := range exporters {
 		exporter.Finish()
 	}
 	if *printStats {
-		buffer.PrintStats(os.Stderr)
+		engine.PrintStats(os.Stderr)
 		flowtable.PrintStats(os.Stderr)
 	}
 }

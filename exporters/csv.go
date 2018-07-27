@@ -3,6 +3,7 @@ package exporters
 import (
 	"bufio"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"github.com/CN-TU/go-ipfix"
 
 	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/util"
 )
 
 type csvExporter struct {
@@ -130,9 +132,9 @@ func (pe *csvExporter) Init() {
 	}()
 }
 
-func newCSVExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+func newCSVExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
 	var outfile string
-	if _, ok := opts.(flows.UseStringOption); ok {
+	if _, ok := opts.(util.UseStringOption); ok {
 		if len(args) > 0 {
 			outfile = args[0]
 			arguments = args[1:]
@@ -143,7 +145,7 @@ func newCSVExporter(name string, opts interface{}, args []string) (arguments []s
 		}
 	}
 	if outfile == "" {
-		log.Fatalln("CSV exporter needs a filename as argument")
+		return nil, nil, errors.New("CSV exporter needs a filename as argument")
 	}
 	if name == "" {
 		name = "CSV|" + outfile

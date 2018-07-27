@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -9,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/util"
 	"github.com/CN-TU/go-ipfix"
 )
 
-const PEN uint32 = 1234
-const TEMP uint16 = 0x7000
+const pen uint32 = 1234
+const tmpBase uint16 = 0x7000
 
 type ipfixExporter struct {
 	id         string
@@ -51,7 +53,7 @@ func (pe *ipfixExporter) Finish() {
 func (pe *ipfixExporter) writeSpec(w io.Writer) {
 	ies := make([]ipfix.InformationElement, len(pe.allocated))
 	for _, ie := range pe.allocated {
-		ies[ie.ID-TEMP] = ie
+		ies[ie.ID-tmpBase] = ie
 	}
 	for _, ie := range ies {
 		fmt.Fprintln(w, ie)
@@ -78,8 +80,8 @@ func (pe *ipfixExporter) AllocateIE(ies []ipfix.InformationElement) []ipfix.Info
 			name := ie.Name
 			ie = ipfix.InformationElement{
 				Name:   normalizeName(name),
-				Pen:    PEN,
-				ID:     uint16(len(pe.allocated)) + TEMP,
+				Pen:    pen,
+				ID:     uint16(len(pe.allocated)) + tmpBase,
 				Type:   ie.Type,
 				Length: ie.Length,
 			}
@@ -145,10 +147,10 @@ func (pe *ipfixExporter) Init() {
 	}()
 }
 
-func newIPFIXExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+func newIPFIXExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
 	var outfile string
 	var specfile string
-	if _, ok := opts.(flows.UseStringOption); ok {
+	if _, ok := opts.(util.UseStringOption); ok {
 		set := flag.NewFlagSet("ipfix", flag.ExitOnError)
 		set.Usage = func() { ipfixhelp("ipfix") }
 		flowSpec := set.String("spec", "", "Flowspec file")
@@ -165,7 +167,7 @@ func newIPFIXExporter(name string, opts interface{}, args []string) (arguments [
 			outfile = o
 		case []interface{}:
 			if len(o) != 2 {
-				log.Fatalln("IPFIX exporter needs outfile and specfile in list specification")
+				return nil, nil, errors.New("IPFIX exporter needs outfile and specfile in list specification")
 			}
 			outfile = o[0].(string)
 			specfile = o[1].(string)
@@ -179,7 +181,7 @@ func newIPFIXExporter(name string, opts interface{}, args []string) (arguments [
 		}
 	}
 	if outfile == "" {
-		log.Fatalln("IPFIX exporter needs a filename as argument")
+		return nil, nil, errors.New("IPFIX exporter needs a filename as argument")
 	}
 	if name == "" {
 		name = "IPFIX|" + outfile

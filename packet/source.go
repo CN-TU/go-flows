@@ -6,25 +6,24 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"strconv"
-	"time"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 )
 
-var layerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
+// LayerTypeIPv46 holds either a raw IPv4 or raw IPv6 packet
+var LayerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
 
 const (
 	batchSize   = 1000
 	fullBuffers = 10
 )
 
-type PacketStats struct {
+// Stats holds number of packets, skipped packets, and filtered packets
+type Stats struct {
 	packets  uint64
+	skipped  uint64
 	filtered uint64
 }
 
@@ -37,29 +36,36 @@ type labelProvider struct {
 	nextPos    int
 }
 
-type PacketSource struct {
+// Engine holds and manages buffers, sources, filters and forwards packets to the flowtable
+type Engine struct {
 	empty       *multiPacketBuffer
 	todecode    *shallowMultiPacketBufferRing
 	current     *shallowMultiPacketBuffer
-	packetStats PacketStats
-	label       *labelProvider
-	filter      string
+	packetStats Stats
 	plen        int
 	flowtable   EventTable
 	done        chan struct{}
+	sources     Sources
+	filters     Filters
+	labels      Labels
 }
 
-func NewPacketSource(plen int, flowtable EventTable) *PacketSource {
+// NewEngine initializes a new packet handling engine.
+// Packets of plen size are handled (0 means automatic). Packets are read from sources, filtered with filter, and forwarded to flowtable. Labels are assigned to the packets from the labels provider.
+func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources, labels Labels) *Engine {
 	prealloc := plen
 	if plen == 0 {
 		prealloc = 4096
 	}
-	ret := &PacketSource{
+	ret := &Engine{
 		empty:     newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
 		todecode:  newShallowMultiPacketBufferRing(fullBuffers, batchSize),
 		plen:      plen,
 		flowtable: flowtable,
 		done:      make(chan struct{}),
+		sources:   sources,
+		filters:   filters,
+		labels:    labels,
 	}
 
 	go func() {
@@ -106,21 +112,18 @@ func NewPacketSource(plen int, flowtable EventTable) *PacketSource {
 	return ret
 }
 
-func (input *PacketSource) PrintStats(w io.Writer) {
+// PrintStats writes the packet statistics to w
+func (input *Engine) PrintStats(w io.Writer) {
 	fmt.Fprintf(w,
 		`Packet statistics:
 	overall: %d
+	skipped: %d
 	filtered: %d
-`, input.packetStats.packets, input.packetStats.filtered)
+`, input.packetStats.packets, input.packetStats.skipped, input.packetStats.filtered)
 }
 
-func (input *PacketSource) SetFilter(filter string) (old string) {
-	old = input.filter
-	input.filter = filter
-	return
-}
-
-func (input *PacketSource) Finish() {
+// Finish submits eventual partially filled buffers, flushes the packet handling pipeline and waits for everything to finish.
+func (input *Engine) Finish() {
 	if !input.current.empty() {
 		input.current.finalizeWritten()
 	}
@@ -128,57 +131,6 @@ func (input *PacketSource) Finish() {
 	<-input.done
 
 	input.flowtable.Flush()
-}
-
-func (input *PacketSource) SetLabel(fnames []string) {
-	input.label = newLabelProvider(fnames)
-}
-
-func (input *PacketSource) ReadFile(fname string) flows.DateTimeNanoseconds {
-	fhandle, err := pcap.OpenOffline(fname)
-	defer fhandle.Close()
-	if err != nil {
-		log.Fatalf("Couldn't open file %s", fname)
-	}
-	var filter *pcap.BPF
-	if input.filter != "" {
-		filter, err = fhandle.NewBPF(input.filter)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	t, _ := input.readHandle(fhandle, filter)
-	return t
-}
-
-func (input *PacketSource) ReadInterface(dname string) (t flows.DateTimeNanoseconds) {
-	inactive, err := pcap.NewInactiveHandle(dname)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err = inactive.SetTimeout(100 * time.Millisecond); err != nil {
-		log.Fatal(err)
-	}
-	// FIXME: set other options here
-
-	handle, err := inactive.Activate()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err = handle.SetBPFFilter(input.filter); err != nil {
-		log.Fatal(err)
-	}
-
-	t, stop := input.readHandle(handle, nil)
-
-	if !stop {
-		inactive.CleanUp()
-		handle.Close()
-	}
-
-	return
 }
 
 func newLabelProvider(fnames []string) *labelProvider {
@@ -258,70 +210,49 @@ func (label *labelProvider) pop() interface{} {
 	return nil
 }
 
-func (input *PacketSource) readHandle(fhandle *pcap.Handle, filter *pcap.BPF) (time flows.DateTimeNanoseconds, stop bool) {
-	cancel := make(chan os.Signal, 1)
-	finished := make(chan interface{}, 1)
-	signal.Notify(cancel, os.Interrupt)
-	defer func() {
-		signal.Stop(cancel)
-	}()
-
-	var lt gopacket.LayerType
-	switch fhandle.LinkType() {
-	case layers.LinkTypeEthernet:
-		lt = layers.LayerTypeEthernet
-	case layers.LinkTypeRaw, layers.LinkType(12):
-		lt = layerTypeIPv46
-	case layers.LinkTypeLinuxSLL:
-		lt = layers.LayerTypeLinuxSLL
-
-	default:
-		log.Fatalf("File format not implemented")
-	}
-	go func(time *flows.DateTimeNanoseconds, stop *bool) {
-		npackets := input.packetStats.packets - 1
-		nfiltered := input.packetStats.filtered
-		defer func() {
-			input.packetStats.packets = npackets + 1
-			input.packetStats.filtered = nfiltered
-		}()
-		for {
-			data, ci, err := fhandle.ZeroCopyReadPacketData()
+// Run reads all the packets from the sources and forwards those to the flowtable
+func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
+	var npackets, nskipped, nfiltered uint64
+	for {
+		lt, data, ci, skipped, filtered, err := input.sources.ReadPacket()
+		if err != nil {
 			if err == io.EOF {
 				break
-			} else if err != nil {
-				log.Println("Read error in pcap file:", err)
+			}
+			log.Fatal("Error reading packet: ", err)
+		}
+		npackets += skipped + filtered + 1
+		nskipped += skipped
+		nfiltered += filtered
+
+		if input.filters.Matches(ci, data) {
+			nfiltered++
+			continue
+		}
+
+		// fixme: reintroduce labels
+		// label := input.label.pop()
+
+		if input.current.empty() {
+			input.empty.Pop(input.current)
+		}
+		buffer := input.current.read()
+		time = buffer.assign(data, ci, lt, npackets, nil /* label */)
+		if input.current.full() {
+			input.current.finalize()
+			var ok bool
+			if input.current, ok = input.todecode.popEmpty(); !ok {
 				break
 			}
-			npackets++
-			label := input.label.pop()
-			if filter != nil && !filter.Matches(ci, data) {
-				nfiltered++
-				continue
-			}
-			if *stop {
-				return
-			}
-			if input.current.empty() {
-				input.empty.Pop(input.current)
-			}
-			buffer := input.current.read()
-			*time = buffer.assign(data, ci, lt, npackets, label)
-			if input.current.full() {
-				input.current.finalize()
-				var ok bool
-				if input.current, ok = input.todecode.popEmpty(); !ok {
-					return
-				}
-			}
 		}
-		finished <- nil
-	}(&time, &stop)
-	select {
-	case <-finished:
-		stop = false
-	case <-cancel:
-		stop = true
 	}
+	input.packetStats.packets = npackets
+	input.packetStats.filtered = nfiltered
+	input.packetStats.skipped = nskipped
 	return
+}
+
+// Stop cancels the whole process and stops packet input
+func (input *Engine) Stop() {
+	input.sources.Stop()
 }

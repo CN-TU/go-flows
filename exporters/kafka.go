@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"labix.org/v2/mgo/bson"
 
 	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/util"
 )
 
 type kafkaExporter struct {
@@ -121,11 +123,11 @@ func (pe *kafkaExporter) Init() {
 	}()
 }
 
-func newKafkaExporter(name string, opts interface{}, args []string) (arguments []string, ret flows.Exporter) {
+func newKafkaExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
 	var kafka string
 	var zookeeper string
 	var topic string
-	if _, ok := opts.(flows.UseStringOption); ok {
+	if _, ok := opts.(util.UseStringOption); ok {
 		if len(args) > 2 {
 			kafka = args[0]
 			zookeeper = args[1]
@@ -136,7 +138,7 @@ func newKafkaExporter(name string, opts interface{}, args []string) (arguments [
 		switch o := opts.(type) {
 		case []interface{}:
 			if len(o) != 3 {
-				log.Fatalln("Kafka needs at least kafka address, zookeeper address, and topic in list specification")
+				return nil, nil, errors.New("Kafka needs at least kafka address, zookeeper address, and topic in list specification")
 			}
 			kafka = o[0].(string)
 			zookeeper = o[1].(string)
@@ -154,13 +156,13 @@ func newKafkaExporter(name string, opts interface{}, args []string) (arguments [
 		}
 	}
 	if kafka == "" {
-		log.Fatalln("Kafka exporter needs a kafka address as argument")
+		return nil, nil, errors.New("Kafka exporter needs a kafka address as argument")
 	}
 	if zookeeper == "" {
-		log.Fatalln("Kafka exporter needs a zookeeper address as argument")
+		return nil, nil, errors.New("Kafka exporter needs a zookeeper address as argument")
 	} // TODO: Do we really need zookeeper address?
 	if topic == "" {
-		log.Fatalln("Kafka exporter needs a topic as argument")
+		return nil, nil, errors.New("Kafka exporter needs a topic as argument")
 	}
 	if name == "" {
 		name = "Kafka|" + zookeeper + "|" + topic

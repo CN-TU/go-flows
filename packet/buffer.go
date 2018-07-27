@@ -369,7 +369,7 @@ func (pb *packetBuffer) decode() (ret bool) {
 			decoder = &pb.icmpv4
 		case layers.LayerTypeICMPv6:
 			decoder = &pb.icmpv6
-		case layerTypeIPv46:
+		case LayerTypeIPv46:
 			version := data[0] >> 4
 			switch version {
 			case 4:

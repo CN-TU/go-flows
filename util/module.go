@@ -99,3 +99,8 @@ func CreateModule(typ, which, name string, options interface{}, args []string) (
 	}
 	return nil, nil, fmt.Errorf("couldn't find module of type %s with name %s", typ, which)
 }
+
+// CleanupModules removes all module registrations
+func CleanupModules() {
+	modules = nil
+}
