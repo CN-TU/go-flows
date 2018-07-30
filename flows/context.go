@@ -1,5 +1,6 @@
 package flows
 
+// EventContext holds additional data for an event (e.g. time) and allows features to modify flow behaviour
 type EventContext struct {
 	when    DateTimeNanoseconds
 	flow    Flow
@@ -26,10 +27,12 @@ func (ec *EventContext) clear() {
 	ec.hard = false
 }
 
+// When returns the time, the event happened
 func (ec *EventContext) When() DateTimeNanoseconds {
 	return ec.when
 }
 
+// Event must be called by filter-features to forward an Event down the processing chain
 func (ec *EventContext) Event(new interface{}, context *EventContext, data interface{}) {
 	ec.event(new, context, data)
 }
@@ -57,6 +60,7 @@ func (ec *EventContext) Keep() {
 	ec.keep = true
 }
 
+// IsHard returns true, if the current Stop event is non-cancelable (e.g. EOF)
 func (ec *EventContext) IsHard() bool {
 	return ec.hard
 }
