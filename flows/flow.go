@@ -125,9 +125,6 @@ func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	context.initFlow(flow)
 	if !flow.table.PerPacket {
 		flow.AddTimer(timerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
-		if !flow.HasTimer(timerActive) {
-			flow.AddTimer(timerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
-		}
 	}
 	flow.records.Event(event, context)
 	if !flow.records.Active() {
@@ -147,4 +144,7 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext)
 	flow.active = true
 	flow.records = table.records.make()
 	context.initFlow(flow)
+	if !flow.table.PerPacket {
+		flow.AddTimer(timerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
+	}
 }
