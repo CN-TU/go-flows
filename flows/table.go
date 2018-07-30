@@ -1,7 +1,7 @@
 package flows
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
-type FlowCreator func(Event, *FlowTable, FlowKey, *EventContext) Flow
+type FlowCreator func(Event, *FlowTable, FlowKey, *EventContext, uint64) Flow
 
 type TableStats struct {
 	Packets  uint64
@@ -19,12 +19,14 @@ type FlowTable struct {
 	records   RecordListMaker
 	Stats     TableStats
 	context   *EventContext
+	flowID    uint64
+	id        uint8
 	fivetuple bool
 	eof       bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
-func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool) *FlowTable {
+func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
 	return &FlowTable{
 		flows:       make(map[FlowKey]int, 1000000),
 		flowlist:    make([]Flow, 0, 1000000),
@@ -34,6 +36,7 @@ func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOpti
 		records:     records,
 		fivetuple:   fivetuple,
 		context:     &EventContext{},
+		id:          id,
 	}
 }
 
@@ -72,7 +75,8 @@ func (tab *FlowTable) Event(event Event) {
 		}
 	}
 	if !ok {
-		elem := tab.newflow(event, tab, key, tab.context)
+		elem := tab.newflow(event, tab, key, tab.context, tab.flowID)
+		tab.flowID++
 		tab.Stats.Flows++
 		var new int
 		freelen := len(tab.freelist)
@@ -122,6 +126,12 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.eof = false
 }
 
+// FiveTuple returns true if the key function is the fivetuple key
 func (tab *FlowTable) FiveTuple() bool {
 	return tab.fivetuple
+}
+
+// ID returns the table id
+func (tab *FlowTable) ID() uint8 {
+	return tab.id
 }

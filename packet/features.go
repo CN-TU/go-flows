@@ -1125,3 +1125,23 @@ func (f *flowDirection) Event(new interface{}, context *flows.EventContext, src 
 func init() {
 	flows.RegisterStandardFeature("flowDirection", flows.FlowFeature, func() flows.Feature { return &flowDirection{} }, flows.RawPacket)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type flowID struct {
+	flows.BaseFeature
+}
+
+func (f *flowID) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		// flowId is a per table flow counter ored with the tableId in the highest byte
+		flow := context.Flow()
+		flowid := flow.ID() & 0x00FFFFFFFFFFFFFF
+		flowid |= uint64(flow.Table().ID()) << 56
+		f.SetValue(flowid, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("flowId", flows.FlowFeature, func() flows.Feature { return &flowID{} }, flows.RawPacket)
+}

@@ -31,7 +31,8 @@ type Flow interface {
 	EOF(*EventContext)
 	Active() bool
 	Key() FlowKey
-	Init(*FlowTable, FlowKey, *EventContext)
+	Init(*FlowTable, FlowKey, *EventContext, uint64)
+	ID() uint64
 	Table() *FlowTable
 	nextEvent() DateTimeNanoseconds
 	expire(*EventContext)
@@ -51,6 +52,7 @@ type BaseFlow struct {
 	timers     funcEntries
 	expireNext DateTimeNanoseconds
 	records    Record
+	id         uint64
 	active     bool
 }
 
@@ -143,13 +145,19 @@ func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	}
 }
 
+// ID returns the flow ID within the flow table
+func (flow *BaseFlow) ID() uint64 {
+	return flow.id
+}
+
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
-func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext) {
+func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext, id uint64) {
 	flow.key = key
 	flow.table = table
 	flow.timers = makeFuncEntries()
 	flow.active = true
 	flow.records = table.records.make()
+	flow.id = id
 	context.initFlow(flow)
 	if !flow.table.PerPacket {
 		flow.AddTimer(TimerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)

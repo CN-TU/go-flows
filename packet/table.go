@@ -114,7 +114,7 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 	if num == 1 {
 		ret := &SingleFlowTable{
 			baseTable:  bt,
-			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple),
+			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple, 0),
 			expireTime: expire,
 		}
 		ret.buffer = newShallowMultiPacketBufferRing(fullBuffers, batchSize)
@@ -144,6 +144,9 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 		}()
 		return ret
 	}
+	if num > 256 {
+		panic("Maximum of 256 tables allowed")
+	}
 	ret := &ParallelFlowTable{
 		baseTable:  bt,
 		tables:     make([]*flows.FlowTable, num),
@@ -157,7 +160,7 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 		expire := make(chan struct{}, 1)
 		ret.expire[i] = expire
 		ret.buffers[i] = c
-		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple)
+		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple, uint8(i))
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {

@@ -14,17 +14,17 @@ type UniFlow struct {
 	flows.BaseFlow
 }
 
-func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, context *flows.EventContext) flows.Flow {
+func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, context *flows.EventContext, id uint64) flows.Flow {
 	if table.FiveTuple() {
 		tp := event.(PacketBuffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 			ret := new(TCPFlow)
-			ret.Init(table, key, context)
+			ret.Init(table, key, context, id)
 			return ret
 		}
 	}
 	ret := new(UniFlow)
-	ret.Init(table, key, context)
+	ret.Init(table, key, context, id)
 	return ret
 }
 
