@@ -100,6 +100,7 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now Da
 	flow.Stop()
 }
 
+// ExportWithoutContext exports the features of the flow (see Export). This function can be used, when no context is available.
 func (flow *BaseFlow) ExportWithoutContext(reason FlowEndReason, expire, now DateTimeNanoseconds) {
 	context := &EventContext{
 		when: expire,
