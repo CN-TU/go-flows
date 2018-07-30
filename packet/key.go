@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/google/gopacket"
+
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/google/gopacket/layers"
 )
@@ -29,50 +31,67 @@ func (t fiveTuple6) DstPort() []byte { return t[35:37] }
 func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
 
 var emptyPort = make([]byte, 2)
+var emptyIP = make([]byte, 4)
 
-func fivetuple(packet PacketBuffer) (flows.FlowKey, bool) {
+func fivetuple(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
+	var srcIP, dstIP, srcPort, dstPort gopacket.Endpoint
+	var srcPortR, dstPortR, srcIPR, dstIPR []byte
+	var proto gopacket.LayerType
+	var protoB byte
+	forward := true
+
 	network := packet.NetworkLayer()
 	if network == nil {
-		return nil, false
+		if !allowZero {
+			return nil, false
+		}
+		srcIPR = emptyIP
+		dstIPR = emptyIP
+	} else {
+		srcIP, dstIP = network.NetworkFlow().Endpoints()
 	}
+
 	transport := packet.TransportLayer()
 	if transport == nil {
-		return nil, false
-	}
-	srcPort, dstPort := transport.TransportFlow().Endpoints()
-	srcPortR := srcPort.Raw()
-	dstPortR := dstPort.Raw()
-	proto := transport.LayerType()
-	srcIP, dstIP := network.NetworkFlow().Endpoints()
-	forward := true
-	if dstIP.LessThan(srcIP) {
-		forward = false
-		srcIP, dstIP = dstIP, srcIP
-		if !layers.LayerClassIPControl.Contains(proto) {
-			srcPortR, dstPortR = dstPortR, srcPortR
+		if !allowZero {
+			return nil, false
 		}
-	} else if bytes.Compare(srcIP.Raw(), dstIP.Raw()) == 0 {
-		if srcPort.LessThan(dstPort) {
+		srcPortR = emptyPort
+		dstPortR = emptyPort
+	} else {
+		srcPort, dstPort = transport.TransportFlow().Endpoints()
+		srcPortR = srcPort.Raw()
+		dstPortR = dstPort.Raw()
+		proto = transport.LayerType()
+
+		if dstIP.LessThan(srcIP) {
 			forward = false
 			srcIP, dstIP = dstIP, srcIP
 			if !layers.LayerClassIPControl.Contains(proto) {
 				srcPortR, dstPortR = dstPortR, srcPortR
 			}
+		} else if bytes.Compare(srcIP.Raw(), dstIP.Raw()) == 0 {
+			if srcPort.LessThan(dstPort) {
+				forward = false
+				srcIP, dstIP = dstIP, srcIP
+				if !layers.LayerClassIPControl.Contains(proto) {
+					srcPortR, dstPortR = dstPortR, srcPortR
+				}
+			}
 		}
+		switch proto {
+		case layers.LayerTypeTCP:
+			protoB = byte(layers.IPProtocolTCP)
+		case layers.LayerTypeUDP:
+			protoB = byte(layers.IPProtocolUDP)
+		case layers.LayerTypeICMPv4:
+			protoB = byte(layers.IPProtocolICMPv4)
+		case layers.LayerTypeICMPv6:
+			protoB = byte(layers.IPProtocolICMPv6)
+		}
+		srcIPR = srcIP.Raw()
+		dstIPR = dstIP.Raw()
 	}
-	var protoB byte
-	switch proto {
-	case layers.LayerTypeTCP:
-		protoB = byte(layers.IPProtocolTCP)
-	case layers.LayerTypeUDP:
-		protoB = byte(layers.IPProtocolUDP)
-	case layers.LayerTypeICMPv4:
-		protoB = byte(layers.IPProtocolICMPv4)
-	case layers.LayerTypeICMPv6:
-		protoB = byte(layers.IPProtocolICMPv6)
-	}
-	srcIPR := srcIP.Raw()
-	dstIPR := dstIP.Raw()
 
 	if len(srcIPR) == 4 {
 		ret := fiveTuple4{}
@@ -108,6 +127,7 @@ func fivetuple(packet PacketBuffer) (flows.FlowKey, bool) {
 - flowStartSeconds <- this does not make sense
 */
 
+// MakeDynamicKeySelector creates a selector function from a dynamic key definition
 func MakeDynamicKeySelector(key []string, bidirectional bool) (ret DynamicKeySelector) {
 	for _, key := range key {
 		switch key {
@@ -149,6 +169,7 @@ func (k dynamicKey) Hash() (h uint64) {
 	return fnvHash(k[:])
 }
 
+// DynamicKeySelector holds the definition for a flow key function
 type DynamicKeySelector struct {
 	network,
 	transport,
@@ -162,35 +183,41 @@ type DynamicKeySelector struct {
 	empty bool
 }
 
-func (selector *DynamicKeySelector) makeDynamicKey(packet PacketBuffer) (flows.FlowKey, bool) {
+func (selector *DynamicKeySelector) makeDynamicKey(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
 	ret := dynamicKey{}
 	if selector.network {
 		network := packet.NetworkLayer()
 		if network == nil {
-			return nil, false
-		}
-		flow := network.NetworkFlow()
-		if selector.srcIP {
-			copy(ret[0:16], flow.Src().Raw())
-		}
-		if selector.dstIP {
-			copy(ret[18:34], flow.Dst().Raw())
-		}
-		if selector.protocolIdentifier {
-			ret[36] = byte(packet.Proto())
+			if !allowZero {
+				return nil, false
+			}
+		} else {
+			flow := network.NetworkFlow()
+			if selector.srcIP {
+				copy(ret[0:16], flow.Src().Raw())
+			}
+			if selector.dstIP {
+				copy(ret[18:34], flow.Dst().Raw())
+			}
+			if selector.protocolIdentifier {
+				ret[36] = byte(packet.Proto())
+			}
 		}
 	}
 	if selector.transport {
 		transport := packet.TransportLayer()
 		if transport == nil {
-			return nil, false
-		}
-		flow := transport.TransportFlow()
-		if selector.srcPort {
-			copy(ret[16:18], flow.Src().Raw())
-		}
-		if selector.dstPort {
-			copy(ret[34:36], flow.Dst().Raw())
+			if !allowZero {
+				return nil, false
+			}
+		} else {
+			flow := transport.TransportFlow()
+			if selector.srcPort {
+				copy(ret[16:18], flow.Src().Raw())
+			}
+			if selector.dstPort {
+				copy(ret[34:36], flow.Dst().Raw())
+			}
 		}
 	}
 	forward := true
@@ -224,6 +251,6 @@ func (k emptyKey) Hash() (h uint64) {
 	return 0
 }
 
-func makeEmptyKey(packet PacketBuffer) (flows.FlowKey, bool) {
+func makeEmptyKey(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
 	return emptyKey{}, false
 }

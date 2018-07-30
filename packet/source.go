@@ -60,7 +60,6 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 		defer close(ret.done)
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
-		keyFunc := flowtable.KeyFunc()
 		stats := flowtable.DecodeStats()
 		for {
 			multibuffer, ok := ret.todecode.popFull()
@@ -76,7 +75,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 					stats.decodeError++
 					discard.push(buffer)
 				} else {
-					key, fw := keyFunc(buffer)
+					key, fw := flowtable.Key(buffer)
 					if key != nil {
 						buffer.setInfo(key, fw)
 						forward.push(buffer)

@@ -19,17 +19,18 @@ type EventTable interface {
 	Expire()
 	Flush()
 	EOF(flows.DateTimeNanoseconds)
-	KeyFunc() func(PacketBuffer) (flows.FlowKey, bool)
+	Key(PacketBuffer) (flows.FlowKey, bool)
 	DecodeStats() *DecodeStats
 	PrintStats(io.Writer)
 }
 
 type baseTable struct {
-	key func(PacketBuffer) (flows.FlowKey, bool)
+	key       func(PacketBuffer, bool) (flows.FlowKey, bool)
+	allowZero bool
 }
 
-func (bt *baseTable) KeyFunc() func(PacketBuffer) (flows.FlowKey, bool) {
-	return bt.key
+func (bt baseTable) Key(pb PacketBuffer) (flows.FlowKey, bool) {
+	return bt.key(pb, bt.allowZero)
 }
 
 type ParallelFlowTable struct {
@@ -98,8 +99,10 @@ func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector) EventTable {
-	bt := baseTable{}
+func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool) EventTable {
+	bt := baseTable{
+		allowZero: allowZero,
+	}
 	switch {
 	case selector.fivetuple:
 		bt.key = fivetuple

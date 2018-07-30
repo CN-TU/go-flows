@@ -350,6 +350,7 @@ func parseArguments(cmd string, args []string) {
 	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
 	commands := set.String("spec", "", "Load exporters and features from specified json file")
 	printStats := set.Bool("stats", false, "Output statistics")
+	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 
 	set.Parse(args)
 	if set.NArg() == 0 {
@@ -428,7 +429,7 @@ func parseArguments(cmd string, args []string) {
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,
 			PerPacket:     *perPacket,
 		},
-		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector)
+		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *allowZero)
 
 	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 
