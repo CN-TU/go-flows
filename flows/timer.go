@@ -16,8 +16,10 @@ func RegisterTimer() TimerID {
 }
 
 var (
-	timerIdle   = RegisterTimer()
-	timerActive = RegisterTimer()
+	// TimerIdle is the idle timer of every flow
+	TimerIdle = RegisterTimer()
+	// TimerActive is the active timer of every flow
+	TimerActive = RegisterTimer()
 )
 
 type funcEntry struct {
@@ -66,4 +68,12 @@ func (fe *funcEntries) hasTimer(id TimerID) bool {
 		return false
 	}
 	return true
+}
+
+func (fe *funcEntries) removeTimer(id TimerID) {
+	fep := *fe
+	if int(id) >= len(fep) || id < 0 {
+		return
+	}
+	fep[id].expires = 0
 }

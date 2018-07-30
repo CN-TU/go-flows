@@ -27,6 +27,7 @@ type Flow interface {
 	Event(Event, *EventContext)
 	AddTimer(TimerID, TimerCallback, DateTimeNanoseconds)
 	HasTimer(TimerID) bool
+	RemoveTimer(TimerID)
 	EOF(*EventContext)
 	Active() bool
 	Key() FlowKey
@@ -90,6 +91,11 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 	return flow.timers.hasTimer(id)
 }
 
+// RemoveTimer deletes the timer with the given id.
+func (flow *BaseFlow) RemoveTimer(id TimerID) {
+	flow.timers.removeTimer(id)
+}
+
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
 func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
 	if !flow.active {
@@ -125,7 +131,7 @@ func (flow *BaseFlow) EOF(context *EventContext) {
 func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	context.initFlow(flow)
 	if !flow.table.PerPacket {
-		flow.AddTimer(timerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
+		flow.AddTimer(TimerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 	}
 	flow.records.Event(event, context)
 	if !flow.records.Active() {
@@ -146,6 +152,6 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext)
 	flow.records = table.records.make()
 	context.initFlow(flow)
 	if !flow.table.PerPacket {
-		flow.AddTimer(timerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
+		flow.AddTimer(TimerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
 	}
 }
