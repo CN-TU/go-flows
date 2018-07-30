@@ -64,3 +64,8 @@ func (ec *EventContext) Keep() {
 func (ec *EventContext) IsHard() bool {
 	return ec.hard
 }
+
+// Flow returns the current flow
+func (ec *EventContext) Flow() Flow {
+	return ec.flow
+}
