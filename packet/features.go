@@ -863,30 +863,31 @@ func (f *uniTCPStreamFragments) forwardOld(context *flows.EventContext, src inte
 	if len(f.fragments) == 0 {
 		return
 	}
-	deleted := -1
+	deleted := 0
 
-	for i, fragment := range f.fragments {
+	for i := len(f.fragments) - 1; i >= 0; i-- {
+		fragment := f.fragments[i]
 		if diff := fragment.seq.Difference(f.nextSeq); diff == 0 {
 			// packet in order now
 			f.forwardPacket(fragment.seq, fragment.plen, fragment.packet, context, src)
 			fragment.packet.Recycle()
-			deleted = i
+			deleted++
 		} else if diff == -1 {
 			if fragment.plen == 0 {
 				// valid in order keep alive (seq diff -1 && len == 0)
 				f.forwardPacket(fragment.seq, fragment.plen, fragment.packet, context, src)
 			}
 			fragment.packet.Recycle()
-			deleted = i
+			deleted++
 		} else if diff > 0 {
 			//packet in future
 			break
 		}
 	}
-	if deleted == -1 {
+	if deleted == 0 {
 		return
 	}
-	f.fragments = f.fragments[deleted+1:]
+	f.fragments = f.fragments[:len(f.fragments)-deleted]
 }
 
 func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int, packet PacketBuffer, context *flows.EventContext, src interface{}) {
@@ -897,6 +898,21 @@ func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int
 	}
 	f.nextSeq = f.nextSeq.Add(plen + add)
 	context.Event(packet, context, src)
+}
+
+func (f *uniTCPStreamFragments) maybeForwardOld(ack tcpassembly.Sequence, context *flows.EventContext, src interface{}) {
+	if len(f.fragments) == 0 {
+		return
+	}
+	zero := f.fragments[len(f.fragments)-1]
+	if zero.seq.Difference(ack) < 0 {
+		return
+	}
+	f.nextSeq = zero.seq
+	f.forwardPacket(zero.seq, zero.plen, zero.packet, context, src)
+	zero.packet.Recycle()
+	f.fragments = f.fragments[:len(f.fragments)-1]
+	f.forwardOld(context, src)
 }
 
 type tcpReorder struct {
@@ -936,12 +952,16 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 		return
 	}
 
-	var fragments *uniTCPStreamFragments
+	var fragments, back *uniTCPStreamFragments
 	if packet.Forward() {
 		fragments = &f.forward
+		back = &f.backward
 	} else {
 		fragments = &f.backward
+		back = &f.forward
 	}
+
+	back.maybeForwardOld(tcpassembly.Sequence(tcp.Ack), context, src)
 
 	seq, plen := tcpassembly.Sequence(tcp.Seq), packet.PayloadLength()
 
