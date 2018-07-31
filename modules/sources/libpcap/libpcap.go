@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -18,6 +19,7 @@ import (
 )
 
 type libpcapSource struct {
+	stopped       uint64
 	id            string
 	files         []string
 	filter        string
@@ -130,6 +132,11 @@ func (ps *libpcapSource) ReadPacket() (lt gopacket.LayerType, data []byte, ci go
 RETRY:
 	data, ci, err = ps.currentHandle.ZeroCopyReadPacketData()
 
+	if atomic.LoadUint64(&ps.stopped) == 1 {
+		err = io.EOF
+		return
+	}
+
 	if err != nil {
 		// report non-eof errors, but treat them as non-fatal
 		if err != io.EOF {
@@ -156,6 +163,7 @@ RETRY:
 func (ps *libpcapSource) Stop() {
 	if ps.currentHandle != nil {
 		ps.currentHandle.Close()
+		atomic.StoreUint64(&ps.stopped, 1)
 	}
 }
 
