@@ -195,16 +195,8 @@ type octetTotalCountPacket struct {
 	flows.BaseFeature
 }
 
-func octetCount(packet PacketBuffer) uint64 {
-	length := packet.Metadata().Length
-	if net := packet.LinkLayer(); net != nil {
-		length -= len(net.LayerContents())
-	}
-	return uint64(length)
-}
-
 func (f *octetTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(octetCount(new.(PacketBuffer)), context, f)
+	f.SetValue(new.(PacketBuffer).NetworkLayerLength(), context, f)
 }
 
 func init() {
@@ -223,7 +215,7 @@ func (f *octetTotalCountFlow) Start(context *flows.EventContext) {
 }
 
 func (f *octetTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += octetCount(new.(PacketBuffer))
+	f.total += uint64(new.(PacketBuffer).NetworkLayerLength())
 }
 
 func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -236,38 +228,12 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func ipTotalLength(packet PacketBuffer) uint64 {
-	network := packet.NetworkLayer()
-	if ip, ok := network.(*layers.IPv4); ok {
-		return uint64(ip.Length)
-	}
-	if ip, ok := network.(*layers.IPv6); ok {
-		if ip.HopByHop != nil {
-			var tlv *layers.IPv6HopByHopOption
-			for _, t := range ip.HopByHop.Options {
-				if t.OptionType == layers.IPv6HopByHopOptionJumbogram {
-					tlv = t
-					break
-				}
-			}
-			if tlv != nil && len(tlv.OptionData) == 4 {
-				l := binary.BigEndian.Uint32(tlv.OptionData)
-				if l > 65535 {
-					return uint64(l)
-				}
-			}
-		}
-		return uint64(ip.Length)
-	}
-	return 0
-}
-
 type ipTotalLengthPacket struct {
 	flows.BaseFeature
 }
 
 func (f *ipTotalLengthPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(ipTotalLength(new.(PacketBuffer)), context, f)
+	f.SetValue(new.(PacketBuffer).NetworkLayerLength(), context, f)
 }
 
 func init() {
@@ -284,7 +250,7 @@ func (f *ipTotalLengthFlow) Start(context *flows.EventContext) {
 }
 
 func (f *ipTotalLengthFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += ipTotalLength(new.(PacketBuffer))
+	f.total += uint64(new.(PacketBuffer).NetworkLayerLength())
 }
 
 func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -295,6 +261,43 @@ func init() {
 	flows.RegisterStandardFeature("ipTotalLength", flows.FlowFeature, func() flows.Feature { return &ipTotalLengthFlow{} }, flows.RawPacket)
 	flows.RegisterStandardCompositeFeature("minimumIpTotalLength", "min", "ipTotalLength")
 	flows.RegisterStandardCompositeFeature("maximumIpTotalLength", "max", "ipTotalLength")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type layer2OctetTotalCountPacket struct {
+	flows.BaseFeature
+}
+
+func (f *layer2OctetTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.SetValue(new.(PacketBuffer).LinkLayerLength(), context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("layer2OctetTotalCount", flows.PacketFeature, func() flows.Feature { return &layer2OctetTotalCountPacket{} }, flows.RawPacket)
+}
+
+type layer2OctetTotalCountFlow struct {
+	flows.BaseFeature
+	total uint64
+}
+
+func (f *layer2OctetTotalCountFlow) Start(context *flows.EventContext) {
+	f.total = 0
+}
+
+func (f *layer2OctetTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.total += uint64(new.(PacketBuffer).LinkLayerLength())
+}
+
+func (f *layer2OctetTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.total, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("layer2OctetTotalCount", flows.FlowFeature, func() flows.Feature { return &layer2OctetTotalCountFlow{} }, flows.RawPacket)
+	flows.RegisterStandardCompositeFeature("minimumLayer2TotalLength", "min", "layer2OctetTotalCount")
+	flows.RegisterStandardCompositeFeature("maximumLayer2TotalLength", "max", "layer2OctetTotalCount")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -940,7 +943,7 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 		fragments = &f.backward
 	}
 
-	seq, plen := tcpassembly.Sequence(tcp.Seq), int(ipTotalLength(packet))-len(packet.NetworkLayer().LayerContents())-len(tcp.LayerContents())
+	seq, plen := tcpassembly.Sequence(tcp.Seq), packet.PayloadLength()
 
 	if fragments.nextSeq == invalidSequence {
 		// first packet; set sequence start and emit

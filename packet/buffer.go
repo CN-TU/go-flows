@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"encoding/binary"
 	"log"
 	"sync/atomic"
 
@@ -15,12 +16,14 @@ type PacketBuffer interface {
 	Timestamp() flows.DateTimeNanoseconds
 	Key() flows.FlowKey
 	Copy() PacketBuffer
-	Hlen() int
 	Proto() uint8
 	Label() interface{}
 	setInfo(flows.FlowKey, bool)
 	Recycle()
 	PacketNr() uint64
+	LinkLayerLength() int
+	NetworkLayerLength() int
+	PayloadLength() int
 	decode() bool
 }
 
@@ -46,7 +49,7 @@ type packetBuffer struct {
 	failure     gopacket.ErrorLayer
 	ci          gopacket.PacketMetadata
 	label       interface{}
-	hlen        int
+	ip6headers  int
 	refcnt      int
 	packetnr    uint64
 	proto       uint8
@@ -82,15 +85,6 @@ func (w *layerSerializeLengthBuffer) AppendBytes(num int) ([]byte, error) {
 func (w *layerSerializeLengthBuffer) Clear() error {
 	w.len = 0
 	return nil
-}
-
-func layerToLength(layer gopacket.SerializableLayer) int {
-	if len(layerSerializeLengthBufferScratch) == 0 {
-		layerSerializeLengthBufferScratch = make([]byte, 4096)
-	}
-	var b layerSerializeLengthBuffer
-	layer.SerializeTo(&b, gopacket.SerializeOptions{})
-	return b.len
 }
 
 func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) (pb *packetBuffer) {
@@ -178,13 +172,14 @@ func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 			switch ip6e := layer.(type) {
 			case *layers.IPv6Destination:
 				pb.proto = uint8(ip6e.NextHeader)
+				pb.ip6headers += len(layer.LayerContents())
 			case *layers.IPv6HopByHop:
 				pb.proto = uint8(ip6e.NextHeader)
+				pb.ip6headers += len(layer.LayerContents())
 			default:
 				log.Panic("Protocol not supported")
 			}
 		}
-		pb.hlen += layerToLength(layer)
 	}
 	if pb.network == nil {
 		//add empty network layer (IPv4)
@@ -194,20 +189,14 @@ func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 		pb.ip4.SrcIP = []byte{0, 0, 0, 1}
 		pb.ip4.DstIP = []byte{0, 0, 0, 2}
 		pb.network = &pb.ip4
-		pb.hlen += layerToLength(&pb.ip4)
 	}
 	if pb.transport == nil {
 		pb.transport = &pb.udp
 		if pb.proto == 0 {
 			pb.proto = uint8(layers.IPProtocolUDP)
 		}
-		pb.hlen += layerToLength(&pb.ip4)
 	}
 	return
-}
-
-func (pb *packetBuffer) Hlen() int {
-	return pb.hlen
 }
 
 func (pb *packetBuffer) Proto() uint8 {
@@ -230,7 +219,7 @@ func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket
 	pb.application = nil
 	pb.failure = nil
 	pb.tcp.Payload = nil
-	pb.hlen = 0
+	pb.ip6headers = 0
 	pb.refcnt = 1
 	dlen := len(data)
 	if pb.resize && cap(pb.buffer) < dlen {
@@ -335,6 +324,50 @@ func (pb *packetBuffer) Data() []byte                                { return pb
 func (pb *packetBuffer) Metadata() *gopacket.PacketMetadata          { return &pb.ci }
 func (pb *packetBuffer) Label() interface{}                          { return pb.label }
 
+func (pb *packetBuffer) LinkLayerLength() int {
+	if eth, ok := pb.link.(*layers.Ethernet); ok && eth.Length != 0 {
+		return int(eth.Length)
+	}
+	return pb.ci.CaptureLength
+}
+
+func (pb *packetBuffer) NetworkLayerLength() int {
+	if ip, ok := pb.network.(*layers.IPv4); ok {
+		return int(ip.Length)
+	}
+	if ip, ok := pb.network.(*layers.IPv6); ok {
+		if ip.HopByHop != nil {
+			var tlv *layers.IPv6HopByHopOption
+			for _, t := range ip.HopByHop.Options {
+				if t.OptionType == layers.IPv6HopByHopOptionJumbogram {
+					tlv = t
+					break
+				}
+			}
+			if tlv != nil && len(tlv.OptionData) == 4 {
+				l := binary.BigEndian.Uint32(tlv.OptionData)
+				if l > 65535 {
+					return int(l)
+				}
+			}
+		}
+		return int(ip.Length)
+	}
+	if pb.link != nil {
+		return pb.LinkLayerLength() - len(pb.link.LayerContents())
+	}
+	return 0 // we don't know
+}
+
+func (pb *packetBuffer) PayloadLength() int {
+	if pb.transport != nil {
+		if pb.network != nil {
+			return pb.NetworkLayerLength() - len(pb.network.LayerContents()) - len(pb.transport.LayerContents()) - pb.ip6headers
+		}
+	}
+	return 0
+}
+
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *packetBuffer) decode() (ret bool) {
 	var ip6skipper layers.IPv6ExtensionSkipper
@@ -345,7 +378,6 @@ func (pb *packetBuffer) decode() (ret bool) {
 			} else {
 				*r = false
 			}
-			//count decoding errors?
 		}
 	}(&ret)
 	typ := pb.first
@@ -394,40 +426,42 @@ func (pb *packetBuffer) decode() (ret bool) {
 		switch typ {
 		case layers.LayerTypeEthernet:
 			pb.link = &pb.eth
-			pb.hlen += len(pb.eth.Contents)
 		case layers.LayerTypeLinuxSLL:
 			pb.link = &pb.sll
 		case layers.LayerTypeIPv4:
 			pb.network = &pb.ip4
 			pb.proto = uint8(pb.ip4.Protocol)
-			pb.hlen += len(pb.ip4.Contents)
+			if data[3] == 0 && data[2] == 0 && pb.ci.Truncated {
+				// ip.Length == 0; e.g. windows TSO
+				// fix length if packet is truncated...
+				newlen := pb.ci.CaptureLength
+				if pb.link != nil {
+					newlen -= len(pb.link.LayerContents())
+				}
+				pb.ip4.Length = uint16(newlen)
+			}
 		case layers.LayerTypeIPv6:
 			pb.network = &pb.ip6
 			pb.proto = uint8(pb.ip6.NextHeader)
 			if pb.proto == 0 { //fix hopbyhop
 				pb.proto = uint8(pb.ip6.HopByHop.NextHeader)
 			}
-			pb.hlen += len(pb.ip6.Contents)
 		case layers.LayerTypeUDP:
 			pb.transport = &pb.udp
-			pb.hlen += len(pb.udp.Contents)
 			return true
 		case layers.LayerTypeTCP:
 			pb.transport = &pb.tcp
-			pb.hlen += len(pb.tcp.Contents)
 			return true
 		case layers.LayerTypeICMPv4:
 			pb.transport = &pb.icmpv4
-			pb.hlen += len(pb.icmpv4.Contents)
 			return true
 		case layers.LayerTypeICMPv6:
 			pb.transport = &pb.icmpv6
-			pb.hlen += len(pb.icmpv6.Contents)
 			return true
 		default:
 			if layers.LayerClassIPv6Extension.Contains(typ) {
 				pb.proto = uint8(ip6skipper.NextHeader)
-				pb.hlen += len(ip6skipper.Contents)
+				pb.ip6headers += len(ip6skipper.Contents)
 			}
 		}
 		typ = decoder.NextLayerType()
