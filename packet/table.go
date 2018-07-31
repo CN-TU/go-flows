@@ -27,6 +27,7 @@ type EventTable interface {
 type baseTable struct {
 	key       func(PacketBuffer, bool) (flows.FlowKey, bool)
 	allowZero bool
+	autoGC    bool
 }
 
 func (bt baseTable) Key(pb PacketBuffer) (flows.FlowKey, bool) {
@@ -76,7 +77,9 @@ func (sft *SingleFlowTable) DecodeStats() *DecodeStats {
 
 func (sft *SingleFlowTable) Expire() {
 	sft.expire <- struct{}{}
-	go runtime.GC()
+	if !sft.autoGC {
+		go runtime.GC()
+	}
 }
 
 func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
@@ -99,9 +102,10 @@ func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool) EventTable {
+func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool, autoGC bool) EventTable {
 	bt := baseTable{
 		allowZero: allowZero,
+		autoGC:    autoGC,
 	}
 	switch {
 	case selector.fivetuple:
@@ -220,7 +224,9 @@ func (pft *ParallelFlowTable) Expire() {
 		e <- struct{}{}
 	}
 	pft.expirewg.Wait()
-	go runtime.GC()
+	if !pft.autoGC {
+		go runtime.GC()
+	}
 }
 
 func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {

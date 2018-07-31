@@ -351,6 +351,7 @@ func parseArguments(cmd string, args []string) {
 	commands := set.String("spec", "", "Load exporters and features from specified json file")
 	printStats := set.Bool("stats", false, "Output statistics")
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
+	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
 
 	set.Parse(args)
 	if set.NArg() == 0 {
@@ -410,8 +411,6 @@ func parseArguments(cmd string, args []string) {
 		return
 	}
 
-	//	log.Fatalln(exporters, filters, sources, labels)
-
 	for _, exporter := range exporters {
 		exporter.Init()
 	}
@@ -421,7 +420,9 @@ func parseArguments(cmd string, args []string) {
 	flows.CleanupFeatures()
 	util.CleanupModules()
 
-	debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
+	if !*autoGC {
+		debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
+	}
 
 	flowtable := packet.NewParallelFlowTable(int(*numProcessing), recordList, packet.NewFlow,
 		flows.FlowOptions{
@@ -429,7 +430,7 @@ func parseArguments(cmd string, args []string) {
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,
 			PerPacket:     *perPacket,
 		},
-		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *allowZero)
+		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *allowZero, *autoGC)
 
 	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 
