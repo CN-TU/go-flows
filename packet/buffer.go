@@ -212,7 +212,7 @@ func (pb *packetBuffer) Copy() PacketBuffer {
 	return pb
 }
 
-func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, packetnr uint64, label interface{}) flows.DateTimeNanoseconds {
+func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket.LayerType, packetnr uint64) flows.DateTimeNanoseconds {
 	pb.link = nil
 	pb.network = nil
 	pb.transport = nil
@@ -234,7 +234,6 @@ func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket
 	pb.ci.CaptureInfo = ci
 	pb.ci.Truncated = ci.CaptureLength < ci.Length || clen < dlen
 	pb.first = lt
-	pb.label = label
 	pb.packetnr = packetnr
 	return pb.time
 }

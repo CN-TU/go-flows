@@ -4,7 +4,6 @@ import (
 	"io"
 
 	"github.com/CN-TU/go-flows/util"
-	"github.com/google/gopacket"
 )
 
 const labelName = "label"
@@ -13,19 +12,19 @@ const labelName = "label"
 type Label interface {
 	util.Module
 	// GetLabel returns the label for the provided packet
-	GetLabel(ci gopacket.CaptureInfo, packetnr uint64, data []byte) (interface{}, error)
+	GetLabel(packet PacketBuffer) (interface{}, error)
 }
 
 // Labels holds a collection of labels that are tried one after another
 type Labels []Label
 
 // GetLabel returns the label of the provided packet
-func (l *Labels) GetLabel(ci gopacket.CaptureInfo, packetnr uint64, data []byte) interface{} {
+func (l *Labels) GetLabel(packet PacketBuffer) interface{} {
 RETRY:
 	if len(*l) == 0 {
 		return nil
 	}
-	ret, err := (*l)[0].GetLabel(ci, packetnr, data)
+	ret, err := (*l)[0].GetLabel(packet)
 	if err != io.EOF {
 		return ret
 	}

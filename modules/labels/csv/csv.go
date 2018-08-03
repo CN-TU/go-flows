@@ -11,7 +11,6 @@ import (
 
 	"github.com/CN-TU/go-flows/packet"
 	"github.com/CN-TU/go-flows/util"
-	"github.com/google/gopacket"
 )
 
 type csvLabels struct {
@@ -58,7 +57,8 @@ func (cl *csvLabels) close() {
 	}
 }
 
-func (cl *csvLabels) GetLabel(ci gopacket.CaptureInfo, packetnr uint64, data []byte) (interface{}, error) {
+func (cl *csvLabels) GetLabel(packet packet.PacketBuffer) (interface{}, error) {
+	packetnr := packet.PacketNr()
 	if cl.nextPos == packetnr {
 		return cl.nextData, nil
 	}

@@ -61,6 +61,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
 		stats := flowtable.DecodeStats()
+		labels := ret.labels
 		for {
 			multibuffer, ok := ret.todecode.popFull()
 			if !ok {
@@ -75,6 +76,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 					stats.decodeError++
 					discard.push(buffer)
 				} else {
+					buffer.label = labels.GetLabel(buffer)
 					key, fw := flowtable.Key(buffer)
 					if key != nil {
 						buffer.setInfo(key, fw)
@@ -140,13 +142,11 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 			continue
 		}
 
-		label := input.labels.GetLabel(ci, npackets, data)
-
 		if input.current.empty() {
 			input.empty.Pop(input.current)
 		}
 		buffer := input.current.read()
-		time = buffer.assign(data, ci, lt, npackets, label)
+		time = buffer.assign(data, ci, lt, npackets)
 		if input.current.full() {
 			input.current.finalize()
 			var ok bool
