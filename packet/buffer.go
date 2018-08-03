@@ -371,15 +371,11 @@ func (pb *packetBuffer) PayloadLength() int {
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *packetBuffer) decode() (ret bool) {
 	var ip6skipper layers.IPv6ExtensionSkipper
-	defer func(r *bool) {
+	defer func() {
 		if err := recover(); err != nil {
-			if pb.tcp.Payload != nil {
-				*r = true //fully decoded tcp packet except for options; should we count that as valid?
-			} else {
-				*r = false
-			}
+			ret = false
 		}
-	}(&ret)
+	}()
 	typ := pb.first
 	var decoder gopacket.DecodingLayer
 	data := pb.buffer
