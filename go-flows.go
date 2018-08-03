@@ -24,8 +24,6 @@ var (
 	blockprofile   = flag.String("blockprofile", "", "Write goroutine blocking profile")
 	mutexprofile   = flag.String("mutexprofile", "", "Write mutex blocking profile")
 	tracefile      = flag.String("trace", "", "Turn on tracing")
-
-	defs = flag.String("defs", "", "Load definitions from directory. Definition files must follow the name scheme go-flows*.defs.so.")
 )
 
 func flags() {
@@ -68,11 +66,24 @@ func addCommand(cmd, desc string, run func(string, []string)) {
 	commands = append(commands, &command{cmd, desc, run})
 }
 
+type plugins []string
+
+func (p *plugins) String() string {
+	return "plugins"
+}
+
+func (p *plugins) Set(a string) error {
+	(*p) = append(*p, a)
+	return nil
+}
+
 func main() {
 	sort.Slice(commands, func(i, j int) bool {
 		return strings.Compare(commands[i].cmd, commands[j].cmd) < 0
 	})
 	flag.CommandLine.Usage = usage
+	var defs plugins
+	flag.Var(&defs, "defs", "Load definitions from directory. Definition files must follow the name scheme go-flows*.defs.so.")
 	flag.Parse()
 	if *memprofilerate != 0 {
 		runtime.MemProfileRate = *memprofilerate
@@ -124,13 +135,15 @@ func main() {
 		defer trace.Stop()
 	}
 
-	if *defs != "" {
-		if defs, err := filepath.Glob(filepath.Join(*defs, "go-flows*.defs.so")); err != nil {
-			log.Fatalf("Couldn't find definitions: %s\n", err)
-		} else {
-			for _, def := range defs {
-				if _, err := plugin.Open(def); err != nil {
-					log.Fatalf("Couldn't load '%s' because of: %s", def, err)
+	if len(defs) != 0 {
+		for _, def := range defs {
+			if defs, err := filepath.Glob(filepath.Join(def, "go-flows*.defs.so")); err != nil {
+				log.Fatalf("Couldn't find definitions: %s\n", err)
+			} else {
+				for _, def := range defs {
+					if _, err := plugin.Open(def); err != nil {
+						log.Fatalf("Couldn't load '%s' because of: %s", def, err)
+					}
 				}
 			}
 		}
