@@ -71,7 +71,7 @@ func makeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt 
 	}
 	var f flows.RecordListMaker
 	f.AppendRecord(featuresI, []flows.Exporter{ret.exporter}, ft)
-	ret.table = flows.NewFlowTable(f, NewFlow, opt, true)
+	ret.table = flows.NewFlowTable(f, NewFlow, opt, true, 0)
 	return
 }
 
@@ -85,7 +85,7 @@ func makePacketFeatureTest(t *testing.T, feature string) testTable {
 
 func (t *testTable) EventLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) {
 	data := bufferFromLayers(when, layerList...)
-	key, fw := fivetuple(data)
+	key, fw := fivetuple(data, false)
 	data.setInfo(key, fw)
 	t.table.Event(data)
 }
