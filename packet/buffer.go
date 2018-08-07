@@ -10,21 +10,44 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// Buffer provides the packet interface from gopacket and some additional utility functions
+//
+// Never hold references to this buffer or modify it, since it will be reused!
+// If you need to keep a packet around for a short time, it must be copied with Copy() and this
+// copy later destroyed with Recycle()
 type Buffer interface {
 	gopacket.Packet
+	//// Functions for querying additional packet attributes
+	//// ------------------------------------------------------------------
+	// Forward returns true if this packet is in the forward direction
 	Forward() bool
+	// Timestamp returns the point in time this packet was captured
 	Timestamp() flows.DateTimeNanoseconds
+	// Key returns the flow key of this packet
 	Key() flows.FlowKey
-	Copy() Buffer
+	// Proto returns the protocol field
 	Proto() uint8
+	// Label returns the label of this packet, if one ones set
 	Label() interface{}
-	setInfo(flows.FlowKey, bool)
-	Recycle()
+	// PacketNr returns the the number of this packet
 	PacketNr() uint64
+	//// Convenience functions for packet size calculations
+	//// ------------------------------------------------------------------
+	// LinkLayerLength returns the length of the link layer (=header + payload) or 0 if there is no link layer
 	LinkLayerLength() int
+	// NetworkLayerLength returns the length of the network layer (=header + payload) or 0 if there is no network layer
 	NetworkLayerLength() int
+	// PayloadLength returns the length of the payload or 0 if there is no application layer
 	PayloadLength() int
+	//// Functions for holding on to packets
+	//// ------------------------------------------------------------------
+	// Copy reserves the buffer, creates a reference, and returns it. Use this if you need to hold on to a packet.
+	Copy() Buffer
+	// Recycle frees this buffer
+	Recycle()
+
 	decode() bool
+	setInfo(flows.FlowKey, bool)
 }
 
 type packetBuffer struct {
@@ -57,6 +80,7 @@ type packetBuffer struct {
 	resize      bool
 }
 
+// SerializableLayerType holds a packet layer, which can be serialized. This is needed for feature testing
 type SerializableLayerType interface {
 	gopacket.SerializableLayer
 	gopacket.Layer

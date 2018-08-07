@@ -14,8 +14,11 @@ type decodeStats struct {
 	keyError    uint64
 }
 
+// EventTable represents a flow table that can handle multiple events in one go
 type EventTable interface {
+	// EOF expires all the flows in the table at the given point in time with EOF as end reason
 	EOF(flows.DateTimeNanoseconds)
+	// Print table statistics to the given writer
 	PrintStats(io.Writer)
 	event(buffer *shallowMultiPacketBuffer)
 	flush()
@@ -101,6 +104,10 @@ func (sft *singleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
+// NewFlowTable creates a new flowtable with the given record list, a flow creator, flow options,
+// expire time, a key selector, if empty values in the key are allowed and if automatic gc should be used.
+//
+// num specifies the number of parallel flow tables.
 func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool, autoGC bool) EventTable {
 	bt := baseTable{
 		allowZero: allowZero,

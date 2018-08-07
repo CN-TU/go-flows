@@ -14,6 +14,9 @@ type uniFlow struct {
 	flows.BaseFlow
 }
 
+// NewFlow creates a new flow based on a given event, table, key, context, and flow-id
+//
+// Depending on the event this will either be a tcp flow, or a standard flow
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, context *flows.EventContext, id uint64) flows.Flow {
 	if table.FiveTuple() {
 		tp := event.(Buffer).TransportLayer()
