@@ -40,8 +40,8 @@ type packetBuffer struct {
 	ip6         layers.IPv6
 	tcp         layers.TCP
 	udp         layers.UDP
-	icmpv4      ICMPv4Flow
-	icmpv6      ICMPv6Flow
+	icmpv4      icmpv4Flow
+	icmpv6      icmpv6Flow
 	link        gopacket.LinkLayer
 	network     gopacket.NetworkLayer
 	transport   gopacket.TransportLayer
