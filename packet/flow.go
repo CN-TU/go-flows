@@ -5,12 +5,12 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-type TCPFlow struct {
+type tcpFlow struct {
 	flows.BaseFlow
 	srcFIN, dstFIN, dstACK, srcACK bool
 }
 
-type UniFlow struct {
+type uniFlow struct {
 	flows.BaseFlow
 }
 
@@ -18,17 +18,17 @@ func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, conte
 	if table.FiveTuple() {
 		tp := event.(Buffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
-			ret := new(TCPFlow)
+			ret := new(tcpFlow)
 			ret.Init(table, key, context, id)
 			return ret
 		}
 	}
-	ret := new(UniFlow)
+	ret := new(uniFlow)
 	ret.Init(table, key, context, id)
 	return ret
 }
 
-func (flow *TCPFlow) Event(event flows.Event, context *flows.EventContext) {
+func (flow *tcpFlow) Event(event flows.Event, context *flows.EventContext) {
 	flow.BaseFlow.Event(event, context)
 	if !flow.Active() {
 		return
