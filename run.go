@@ -424,7 +424,7 @@ func parseArguments(cmd string, args []string) {
 		debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 	}
 
-	flowtable := packet.NewParallelFlowTable(int(*numProcessing), recordList, packet.NewFlow,
+	flowtable := packet.NewFlowTable(int(*numProcessing), recordList, packet.NewFlow,
 		flows.FlowOptions{
 			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout) * flows.SecondsInNanoseconds,
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,

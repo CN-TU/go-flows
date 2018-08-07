@@ -9,32 +9,31 @@ import (
 	"github.com/CN-TU/go-flows/flows"
 )
 
-type DecodeStats struct {
+type decodeStats struct {
 	decodeError uint64
 	keyError    uint64
 }
 
 type EventTable interface {
-	Event(buffer *shallowMultiPacketBuffer)
-	Expire()
-	Flush()
 	EOF(flows.DateTimeNanoseconds)
-	Key(Buffer) (flows.FlowKey, bool)
-	DecodeStats() *DecodeStats
 	PrintStats(io.Writer)
+	event(buffer *shallowMultiPacketBuffer)
+	flush()
+	key(Buffer) (flows.FlowKey, bool)
+	getDecodeStats() *decodeStats
 }
 
 type baseTable struct {
-	key       func(Buffer, bool) (flows.FlowKey, bool)
+	keyFun    func(Buffer, bool) (flows.FlowKey, bool)
 	allowZero bool
 	autoGC    bool
 }
 
-func (bt baseTable) Key(pb Buffer) (flows.FlowKey, bool) {
-	return bt.key(pb, bt.allowZero)
+func (bt baseTable) key(pb Buffer) (flows.FlowKey, bool) {
+	return bt.keyFun(pb, bt.allowZero)
 }
 
-type ParallelFlowTable struct {
+type parallelFlowTable struct {
 	baseTable
 	tables      []*flows.FlowTable
 	expire      []chan struct{}
@@ -42,23 +41,23 @@ type ParallelFlowTable struct {
 	buffers     []*shallowMultiPacketBufferRing
 	tmp         []*shallowMultiPacketBuffer
 	wg          sync.WaitGroup
-	decodeStats DecodeStats
+	decodeStats decodeStats
 	expireTime  flows.DateTimeNanoseconds
 	nextExpire  flows.DateTimeNanoseconds
 }
 
-type SingleFlowTable struct {
+type singleFlowTable struct {
 	baseTable
 	table       *flows.FlowTable
 	buffer      *shallowMultiPacketBufferRing
 	expire      chan struct{}
 	done        chan struct{}
-	decodeStats DecodeStats
+	decodeStats decodeStats
 	expireTime  flows.DateTimeNanoseconds
 	nextExpire  flows.DateTimeNanoseconds
 }
 
-func (sft *SingleFlowTable) PrintStats(w io.Writer) {
+func (sft *singleFlowTable) PrintStats(w io.Writer) {
 	fmt.Fprintf(w,
 		`Decode statistics:
 	decode errors: %d
@@ -71,18 +70,18 @@ func (sft *SingleFlowTable) PrintStats(w io.Writer) {
 `, sft.table.Stats.Flows, sft.table.Stats.Maxflows)
 }
 
-func (sft *SingleFlowTable) DecodeStats() *DecodeStats {
+func (sft *singleFlowTable) getDecodeStats() *decodeStats {
 	return &sft.decodeStats
 }
 
-func (sft *SingleFlowTable) Expire() {
+func (sft *singleFlowTable) Expire() {
 	sft.expire <- struct{}{}
 	if !sft.autoGC {
 		go runtime.GC()
 	}
 }
 
-func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
+func (sft *singleFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	current := buffer.Timestamp()
 	if current > sft.nextExpire {
 		sft.Expire()
@@ -93,30 +92,30 @@ func (sft *SingleFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	b.finalize()
 }
 
-func (sft *SingleFlowTable) Flush() {
+func (sft *singleFlowTable) flush() {
 	close(sft.buffer.full)
 	<-sft.done
 }
 
-func (sft *SingleFlowTable) EOF(now flows.DateTimeNanoseconds) {
+func (sft *singleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
-func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool, autoGC bool) EventTable {
+func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool, autoGC bool) EventTable {
 	bt := baseTable{
 		allowZero: allowZero,
 		autoGC:    autoGC,
 	}
 	switch {
 	case selector.fivetuple:
-		bt.key = fivetuple
+		bt.keyFun = fivetuple
 	case selector.empty:
-		bt.key = makeEmptyKey
+		bt.keyFun = makeEmptyKey
 	default:
-		bt.key = selector.makeDynamicKey
+		bt.keyFun = selector.makeDynamicKey
 	}
 	if num == 1 {
-		ret := &SingleFlowTable{
+		ret := &singleFlowTable{
 			baseTable:  bt,
 			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple, 0),
 			expireTime: expire,
@@ -151,7 +150,7 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 	if num > 256 {
 		panic("Maximum of 256 tables allowed")
 	}
-	ret := &ParallelFlowTable{
+	ret := &parallelFlowTable{
 		baseTable:  bt,
 		tables:     make([]*flows.FlowTable, num),
 		buffers:    make([]*shallowMultiPacketBufferRing, num),
@@ -193,7 +192,7 @@ func NewParallelFlowTable(num int, features flows.RecordListMaker, newflow flows
 	return ret
 }
 
-func (pft *ParallelFlowTable) PrintStats(w io.Writer) {
+func (pft *parallelFlowTable) PrintStats(w io.Writer) {
 	fmt.Fprintf(w,
 		`Decode statistics:
 	decode errors: %d
@@ -214,11 +213,11 @@ func (pft *ParallelFlowTable) PrintStats(w io.Writer) {
 	}
 }
 
-func (pft *ParallelFlowTable) DecodeStats() *DecodeStats {
+func (pft *parallelFlowTable) getDecodeStats() *decodeStats {
 	return &pft.decodeStats
 }
 
-func (pft *ParallelFlowTable) Expire() {
+func (pft *parallelFlowTable) Expire() {
 	for _, e := range pft.expire {
 		pft.expirewg.Add(1)
 		e <- struct{}{}
@@ -229,7 +228,7 @@ func (pft *ParallelFlowTable) Expire() {
 	}
 }
 
-func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
+func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	current := buffer.Timestamp()
 	if current > pft.nextExpire {
 		pft.Expire()
@@ -253,14 +252,14 @@ func (pft *ParallelFlowTable) Event(buffer *shallowMultiPacketBuffer) {
 	}
 }
 
-func (pft *ParallelFlowTable) Flush() {
+func (pft *parallelFlowTable) flush() {
 	for _, c := range pft.buffers {
 		close(c.full)
 	}
 	pft.wg.Wait()
 }
 
-func (pft *ParallelFlowTable) EOF(now flows.DateTimeNanoseconds) {
+func (pft *parallelFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	for _, t := range pft.tables {
 		pft.wg.Add(1)
 		go func(table *flows.FlowTable) {

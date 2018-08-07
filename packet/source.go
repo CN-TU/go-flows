@@ -60,7 +60,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 		defer close(ret.done)
 		discard := newShallowMultiPacketBuffer(batchSize, nil)
 		forward := newShallowMultiPacketBuffer(batchSize, nil)
-		stats := flowtable.DecodeStats()
+		stats := flowtable.getDecodeStats()
 		labels := ret.labels
 		for {
 			multibuffer, ok := ret.todecode.popFull()
@@ -77,7 +77,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 					discard.push(buffer)
 				} else {
 					buffer.label = labels.GetLabel(buffer)
-					key, fw := flowtable.Key(buffer)
+					key, fw := flowtable.key(buffer)
 					if key != nil {
 						buffer.setInfo(key, fw)
 						forward.push(buffer)
@@ -89,7 +89,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 			}
 			multibuffer.recycleEmpty()
 			if !forward.empty() {
-				flowtable.Event(forward)
+				flowtable.event(forward)
 			}
 			forward.reset()
 			discard.recycle()
@@ -119,7 +119,7 @@ func (input *Engine) Finish() {
 	input.todecode.close()
 	<-input.done
 
-	input.flowtable.Flush()
+	input.flowtable.flush()
 }
 
 // Run reads all the packets from the sources and forwards those to the flowtable
