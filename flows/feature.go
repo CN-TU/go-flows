@@ -3,8 +3,6 @@ package flows
 import (
 	"fmt"
 	"strings"
-
-	"github.com/CN-TU/go-ipfix"
 )
 
 // generates a textual representation of a feature usable for comparison loosely based on <type>name
@@ -257,53 +255,3 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	}
 }
 
-type TypeResolver func([]ipfix.InformationElement) ipfix.InformationElement
-
-type featureMaker struct {
-	ret       FeatureType
-	make      func() Feature
-	arguments []FeatureType
-	ie        ipfix.InformationElement
-	variants  []ipfix.InformationElement
-	resolver  TypeResolver
-	function  bool
-}
-
-func (f featureMaker) String() string {
-	return fmt.Sprintf("<%s>%s(%s)", f.ret, f.ie, f.arguments)
-}
-
-func (f featureMaker) getArguments(ret FeatureType, nargs int) []FeatureType {
-	if f.arguments[len(f.arguments)-1] == Ellipsis {
-		r := make([]FeatureType, nargs)
-		last := len(f.arguments) - 2
-		variadic := f.arguments[last]
-		if variadic == MatchType {
-			variadic = ret
-		}
-		for i := 0; i < nargs; i++ {
-			if i > last {
-				r[i] = variadic
-			} else {
-				if f.arguments[i] == MatchType {
-					r[i] = ret
-				} else {
-					r[i] = f.arguments[i]
-				}
-			}
-		}
-		return r
-	}
-	if f.ret == MatchType {
-		r := make([]FeatureType, nargs)
-		for i := range r {
-			if f.arguments[i] == MatchType {
-				r[i] = ret
-			} else {
-				r[i] = f.arguments[i]
-			}
-		}
-		return r
-	}
-	return f.arguments
-}
