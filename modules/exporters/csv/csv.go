@@ -22,7 +22,6 @@ type csvExporter struct {
 	finished   chan struct{}
 }
 
-//FIXME: remove
 func (pe *csvExporter) Fields(fields []string) {
 	pe.exportlist <- fields
 }
