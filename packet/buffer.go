@@ -10,12 +10,12 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-type PacketBuffer interface {
+type Buffer interface {
 	gopacket.Packet
 	Forward() bool
 	Timestamp() flows.DateTimeNanoseconds
 	Key() flows.FlowKey
-	Copy() PacketBuffer
+	Copy() Buffer
 	Proto() uint8
 	Label() interface{}
 	setInfo(flows.FlowKey, bool)
@@ -207,7 +207,7 @@ func (pb *packetBuffer) PacketNr() uint64 {
 	return pb.packetnr
 }
 
-func (pb *packetBuffer) Copy() PacketBuffer {
+func (pb *packetBuffer) Copy() Buffer {
 	pb.refcnt++
 	return pb
 }

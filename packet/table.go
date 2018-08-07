@@ -19,18 +19,18 @@ type EventTable interface {
 	Expire()
 	Flush()
 	EOF(flows.DateTimeNanoseconds)
-	Key(PacketBuffer) (flows.FlowKey, bool)
+	Key(Buffer) (flows.FlowKey, bool)
 	DecodeStats() *DecodeStats
 	PrintStats(io.Writer)
 }
 
 type baseTable struct {
-	key       func(PacketBuffer, bool) (flows.FlowKey, bool)
+	key       func(Buffer, bool) (flows.FlowKey, bool)
 	allowZero bool
 	autoGC    bool
 }
 
-func (bt baseTable) Key(pb PacketBuffer) (flows.FlowKey, bool) {
+func (bt baseTable) Key(pb Buffer) (flows.FlowKey, bool) {
 	return bt.key(pb, bt.allowZero)
 }
 

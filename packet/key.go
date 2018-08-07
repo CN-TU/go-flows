@@ -33,7 +33,7 @@ func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
 var emptyPort = make([]byte, 2)
 var emptyIP = make([]byte, 4)
 
-func fivetuple(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
+func fivetuple(packet Buffer, allowZero bool) (flows.FlowKey, bool) {
 	var srcIP, dstIP, srcPort, dstPort gopacket.Endpoint
 	var srcPortR, dstPortR, srcIPR, dstIPR []byte
 	var proto gopacket.LayerType
@@ -183,7 +183,7 @@ type DynamicKeySelector struct {
 	empty bool
 }
 
-func (selector *DynamicKeySelector) makeDynamicKey(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
+func (selector *DynamicKeySelector) makeDynamicKey(packet Buffer, allowZero bool) (flows.FlowKey, bool) {
 	ret := dynamicKey{}
 	if selector.network {
 		network := packet.NetworkLayer()
@@ -251,6 +251,6 @@ func (k emptyKey) Hash() (h uint64) {
 	return 0
 }
 
-func makeEmptyKey(packet PacketBuffer, allowZero bool) (flows.FlowKey, bool) {
+func makeEmptyKey(packet Buffer, allowZero bool) (flows.FlowKey, bool) {
 	return emptyKey{}, false
 }

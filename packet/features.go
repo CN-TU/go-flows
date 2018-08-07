@@ -22,7 +22,7 @@ type sourceIPAddress struct {
 
 func (f *sourceIPAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		network := new.(PacketBuffer).NetworkLayer()
+		network := new.(Buffer).NetworkLayer()
 		if network != nil {
 			ipaddr := network.NetworkFlow().Src().Raw()
 			if ipaddr != nil {
@@ -56,7 +56,7 @@ type sourceTransportPort struct {
 
 func (f *sourceTransportPort) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		transport := new.(PacketBuffer).TransportLayer()
+		transport := new.(Buffer).TransportLayer()
 		if transport != nil {
 			srcp := transport.TransportFlow().Src().Raw()
 			if srcp != nil {
@@ -79,7 +79,7 @@ type destinationTransportPort struct {
 
 func (f *destinationTransportPort) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		transport := new.(PacketBuffer).TransportLayer()
+		transport := new.(Buffer).TransportLayer()
 		if transport != nil {
 			dstp := transport.TransportFlow().Dst().Raw()
 			if dstp != nil {
@@ -102,7 +102,7 @@ type destinationIPAddress struct {
 
 func (f *destinationIPAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		network := new.(PacketBuffer).NetworkLayer()
+		network := new.(Buffer).NetworkLayer()
 		if network != nil {
 			ipaddr := network.NetworkFlow().Dst().Raw()
 			if ipaddr != nil {
@@ -136,7 +136,7 @@ type protocolIdentifier struct {
 
 func (f *protocolIdentifier) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(new.(PacketBuffer).Proto(), context, f)
+		f.SetValue(new.(Buffer).Proto(), context, f)
 	}
 }
 
@@ -197,7 +197,7 @@ type octetTotalCountPacket struct {
 }
 
 func (f *octetTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(new.(PacketBuffer).NetworkLayerLength(), context, f)
+	f.SetValue(new.(Buffer).NetworkLayerLength(), context, f)
 }
 
 func init() {
@@ -217,7 +217,7 @@ func (f *octetTotalCountFlow) Start(context *flows.EventContext) {
 }
 
 func (f *octetTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += uint64(new.(PacketBuffer).NetworkLayerLength())
+	f.total += uint64(new.(Buffer).NetworkLayerLength())
 }
 
 func (f *octetTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -235,7 +235,7 @@ type ipTotalLengthPacket struct {
 }
 
 func (f *ipTotalLengthPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(new.(PacketBuffer).NetworkLayerLength(), context, f)
+	f.SetValue(new.(Buffer).NetworkLayerLength(), context, f)
 }
 
 func init() {
@@ -253,7 +253,7 @@ func (f *ipTotalLengthFlow) Start(context *flows.EventContext) {
 }
 
 func (f *ipTotalLengthFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += uint64(new.(PacketBuffer).NetworkLayerLength())
+	f.total += uint64(new.(Buffer).NetworkLayerLength())
 }
 
 func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -273,7 +273,7 @@ type layer2OctetTotalCountPacket struct {
 }
 
 func (f *layer2OctetTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(new.(PacketBuffer).LinkLayerLength(), context, f)
+	f.SetValue(new.(Buffer).LinkLayerLength(), context, f)
 }
 
 func init() {
@@ -291,7 +291,7 @@ func (f *layer2OctetTotalCountFlow) Start(context *flows.EventContext) {
 }
 
 func (f *layer2OctetTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += uint64(new.(PacketBuffer).LinkLayerLength())
+	f.total += uint64(new.(Buffer).LinkLayerLength())
 }
 
 func (f *layer2OctetTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -310,7 +310,7 @@ type tcpControlBits struct {
 	flows.BaseFeature
 }
 
-func getTCP(packet PacketBuffer) *layers.TCP {
+func getTCP(packet Buffer) *layers.TCP {
 	tcp := packet.Layer(layers.LayerTypeTCP)
 	if tcp == nil {
 		return nil
@@ -321,7 +321,7 @@ func getTCP(packet PacketBuffer) *layers.TCP {
 
 func (f *tcpControlBits) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var value uint16
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -429,7 +429,7 @@ func boolInt(b bool) uint64 {
 }
 
 func (f *tcpSynTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -447,7 +447,7 @@ type tcpSynTotalCountPacket struct {
 }
 
 func (f *tcpSynTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -475,7 +475,7 @@ func (f *tcpFinTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *tcpFinTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -493,7 +493,7 @@ type tcpFinTotalCountPacket struct {
 }
 
 func (f *tcpFinTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -521,7 +521,7 @@ func (f *tcpRstTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *tcpRstTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -539,7 +539,7 @@ type tcpRstTotalCountPacket struct {
 }
 
 func (f *tcpRstTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -567,7 +567,7 @@ func (f *tcpPshTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *tcpPshTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -585,7 +585,7 @@ type tcpPshTotalCountPacket struct {
 }
 
 func (f *tcpPshTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -613,7 +613,7 @@ func (f *tcpAckTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *tcpAckTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -630,7 +630,7 @@ type tcpAckTotalCountPacket struct {
 }
 
 func (f *tcpAckTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -658,7 +658,7 @@ func (f *tcpUrgTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *tcpUrgTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -676,7 +676,7 @@ type tcpUrgTotalCountPacket struct {
 }
 
 func (f *tcpUrgTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -704,7 +704,7 @@ func (f *_tcpEceTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.
 }
 
 func (f *_tcpEceTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -722,7 +722,7 @@ type _tcpEceTotalCountPacket struct {
 }
 
 func (f *_tcpEceTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -750,7 +750,7 @@ func (f *_tcpCwrTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.
 }
 
 func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -768,7 +768,7 @@ type _tcpCwrTotalCountPacket struct {
 }
 
 func (f *_tcpCwrTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -796,7 +796,7 @@ func (f *_tcpNsTotalCountFlow) Stop(reason flows.FlowEndReason, context *flows.E
 }
 
 func (f *_tcpNsTotalCountFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -814,7 +814,7 @@ type _tcpNsTotalCountPacket struct {
 }
 
 func (f *_tcpNsTotalCountPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(PacketBuffer))
+	tcp := getTCP(new.(Buffer))
 	if tcp == nil {
 		return
 	}
@@ -832,7 +832,7 @@ type _payload struct {
 }
 
 func (f *_payload) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tl := new.(PacketBuffer).TransportLayer()
+	tl := new.(Buffer).TransportLayer()
 	if tl == nil {
 		return
 	}
@@ -854,7 +854,7 @@ const invalidSequence = -1
 type tcpFragment struct {
 	seq    tcpassembly.Sequence
 	plen   int
-	packet PacketBuffer
+	packet Buffer
 }
 
 type tcpFragments []tcpFragment
@@ -868,7 +868,7 @@ type uniTCPStreamFragments struct {
 	nextSeq   tcpassembly.Sequence
 }
 
-func (f *uniTCPStreamFragments) push(seq tcpassembly.Sequence, plen int, packet PacketBuffer) {
+func (f *uniTCPStreamFragments) push(seq tcpassembly.Sequence, plen int, packet Buffer) {
 	f.fragments = append(f.fragments, tcpFragment{seq, plen, packet.Copy()})
 	sort.Stable(f.fragments)
 }
@@ -904,7 +904,7 @@ func (f *uniTCPStreamFragments) forwardOld(context *flows.EventContext, src inte
 	f.fragments = f.fragments[:len(f.fragments)-deleted]
 }
 
-func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int, packet PacketBuffer, context *flows.EventContext, src interface{}) {
+func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int, packet Buffer, context *flows.EventContext, src interface{}) {
 	add := 0
 	tcp := packet.TransportLayer().(*layers.TCP)
 	if tcp.FIN || tcp.SYN { // hmm what happens if we have SYN and FIN at the same time? (should not happen - but well internet...)
@@ -958,7 +958,7 @@ func (f *tcpReorder) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	packet := new.(PacketBuffer)
+	packet := new.(Buffer)
 	tcp, ok := packet.TransportLayer().(*layers.TCP)
 	if !ok {
 		// not a tcp packet -> forward unchanged
@@ -1008,7 +1008,7 @@ type ipTTL struct {
 }
 
 func (f *ipTTL) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	network := new.(PacketBuffer).NetworkLayer()
+	network := new.(Buffer).NetworkLayer()
 	if ip, ok := network.(*layers.IPv4); ok {
 		f.SetValue(uint64(ip.TTL), context, f)
 	}
@@ -1030,7 +1030,7 @@ type ipClassOfService struct {
 }
 
 func (f *ipClassOfService) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	network := new.(PacketBuffer).NetworkLayer()
+	network := new.(Buffer).NetworkLayer()
 	if ip, ok := network.(*layers.IPv4); ok {
 		f.SetValue(ip.TOS, context, f)
 	}
@@ -1156,7 +1156,7 @@ type flowDirection struct {
 
 func (f *flowDirection) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(new.(PacketBuffer).Forward(), context, f)
+		f.SetValue(new.(Buffer).Forward(), context, f)
 	}
 }
 

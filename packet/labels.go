@@ -12,14 +12,14 @@ const labelName = "label"
 type Label interface {
 	util.Module
 	// GetLabel returns the label for the provided packet
-	GetLabel(packet PacketBuffer) (interface{}, error)
+	GetLabel(packet Buffer) (interface{}, error)
 }
 
 // Labels holds a collection of labels that are tried one after another
 type Labels []Label
 
 // GetLabel returns the label of the provided packet
-func (l *Labels) GetLabel(packet PacketBuffer) interface{} {
+func (l *Labels) GetLabel(packet Buffer) interface{} {
 RETRY:
 	if len(*l) == 0 {
 		return nil

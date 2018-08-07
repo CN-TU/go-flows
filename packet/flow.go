@@ -16,7 +16,7 @@ type UniFlow struct {
 
 func NewFlow(event flows.Event, table *flows.FlowTable, key flows.FlowKey, context *flows.EventContext, id uint64) flows.Flow {
 	if table.FiveTuple() {
-		tp := event.(PacketBuffer).TransportLayer()
+		tp := event.(Buffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 			ret := new(TCPFlow)
 			ret.Init(table, key, context, id)
@@ -33,7 +33,7 @@ func (flow *TCPFlow) Event(event flows.Event, context *flows.EventContext) {
 	if !flow.Active() {
 		return
 	}
-	buffer := event.(PacketBuffer)
+	buffer := event.(Buffer)
 	tcp := buffer.TransportLayer().(*layers.TCP)
 	if tcp.RST {
 		flow.Export(flows.FlowEndReasonEnd, context, context.When())

@@ -57,7 +57,7 @@ func (cl *csvLabels) close() {
 	}
 }
 
-func (cl *csvLabels) GetLabel(packet packet.PacketBuffer) (interface{}, error) {
+func (cl *csvLabels) GetLabel(packet packet.Buffer) (interface{}, error) {
 	packetnr := packet.PacketNr()
 	if cl.nextPos == packetnr {
 		return cl.nextData, nil
