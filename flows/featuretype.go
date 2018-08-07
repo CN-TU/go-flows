@@ -1,6 +1,6 @@
 package flows
 
-// FeatureType represents if the feature is a flow or packet feature.
+// FeatureType represents if the feature is a flow or packet feature. This is used for argument and return type specification.
 type FeatureType int
 
 const (

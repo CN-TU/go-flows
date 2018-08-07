@@ -22,27 +22,56 @@ type FlowKey interface {
 	Hash() uint64
 }
 
-// Flow interface which needs to be implemented by every flow.
+// Flow interface is the primary object for flows. This gets created in the flow table for non-existing
+// flows and lives until forced end (EOF), timer expiry (active/idle timeout), or derived from the data
+// (e.g. tcp fin/rst)
 type Flow interface {
-	Event(Event, *EventContext)
+	//// Functions for timer handling
+	//// ------------------------------------------------------------------
+	// AddTimer adds a timer with the specific id and callback, which will be called at the given point in time
 	AddTimer(TimerID, TimerCallback, DateTimeNanoseconds)
+	// HasTimer returns true, if an active timer exists for the given timer id
 	HasTimer(TimerID) bool
+	// RemoveTimer cancels the timer with the given id
 	RemoveTimer(TimerID)
+
+	//// Functions for event handling
+	//// ------------------------------------------------------------------
+	// Event gets called by the flow table for every event that belongs to this flow
+	Event(Event, *EventContext)
+	// EOF gets called from the main program after the last event was read from the input
 	EOF(*EventContext)
+
+	//// Functions for querying flow status
+	//// ------------------------------------------------------------------
+	// Active returns true if this flow is still active
 	Active() bool
+	// Key returns the flow key
 	Key() FlowKey
-	Init(*FlowTable, FlowKey, *EventContext, uint64)
+	// ID returns the flow id
 	ID() uint64
+	// Table returns the flow table this flow belongs to
 	Table() *FlowTable
+
+	//// Functions for flow initialization
+	//// ------------------------------------------------------------------
+	// Init gets called by the flow table to provide the flow table, a key, and a flow id
+	Init(*FlowTable, FlowKey, *EventContext, uint64)
+
+	// internal function which returns the point in time the next event will happen
 	nextEvent() DateTimeNanoseconds
+	// expire gets called by the flow table for handling timer expiry
 	expire(*EventContext)
 }
 
 //FlowOptions applying to each flow
 type FlowOptions struct {
+	// ActiveTimeout is the active timeout in nanoseconds
 	ActiveTimeout DateTimeNanoseconds
-	IdleTimeout   DateTimeNanoseconds
-	PerPacket     bool
+	// IdleTimeout is the idle timeout in nanoseconds
+	IdleTimeout DateTimeNanoseconds
+	// PerPacket is true if one flow per packet is exported
+	PerPacket bool
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.

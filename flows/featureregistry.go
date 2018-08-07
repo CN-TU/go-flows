@@ -11,9 +11,13 @@ import (
 	"github.com/CN-TU/go-ipfix"
 )
 
+// TypeResolver is a resolution function. It must return an ipfix information element for a givent list of feature argument types.
 type TypeResolver func([]ipfix.InformationElement) ipfix.InformationElement
+
+// MakeFeature is a function that returns an instantiated Feature
 type MakeFeature func() Feature
 
+// featureMake is used internally to hold information about how to create a specific feature and the needed metadata
 type featureMaker struct {
 	ret       FeatureType
 	make      MakeFeature
@@ -28,6 +32,7 @@ func (f featureMaker) String() string {
 	return fmt.Sprintf("<%s>%s(%s)", f.ret, f.ie, f.arguments)
 }
 
+// getArguments returns the argument types needed for a given return type and number of arguments of a single feature
 func (f featureMaker) getArguments(ret FeatureType, nargs int) []FeatureType {
 	if f.arguments[len(f.arguments)-1] == Ellipsis {
 		r := make([]FeatureType, nargs)
@@ -63,8 +68,8 @@ func (f featureMaker) getArguments(ret FeatureType, nargs int) []FeatureType {
 	return f.arguments
 }
 
-var featureRegistry = make([]map[string][]featureMaker, featureTypeMax)
-var compositeFeatures = make(map[string]compositeFeatureMaker)
+var featureRegistry = make([]map[string][]featureMaker, featureTypeMax) // variable holding all registered features
+var compositeFeatures = make(map[string]compositeFeatureMaker)          // variable holding all registered composite features
 
 func init() {
 	for i := range featureRegistry {
@@ -84,6 +89,12 @@ func RegisterFeature(ie ipfix.InformationElement, ret FeatureType, make MakeFeat
 		})
 }
 
+// RegisterFunction registers a function (feature with arguments - e.g. min()), which data type can
+// be resolved from the arguments
+//
+// This is the case for one-argument functions, where return type (e.g. min()) is the same as argument
+// type, and n-argument functions, where the return type is the maximum numeric type resolved from the
+// arguments (e.g. add)
 func RegisterFunction(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
@@ -96,6 +107,7 @@ func RegisterFunction(name string, ret FeatureType, make MakeFeature, arguments 
 		})
 }
 
+// RegisterTypedFunction registers a function that has a specific return type.
 func RegisterTypedFunction(name string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
@@ -108,6 +120,7 @@ func RegisterTypedFunction(name string, t ipfix.Type, tl uint16, ret FeatureType
 		})
 }
 
+// RegisterCustomFunction registers a function that needs custom type resolution to get the return type
 func RegisterCustomFunction(name string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
@@ -119,6 +132,7 @@ func RegisterCustomFunction(name string, resolver TypeResolver, ret FeatureType,
 		})
 }
 
+// RegisterVariantFeature registers a feature that represents more than one information element depending on the data (e.g. sourceIpv4Address/sourceIpv6Address)
 func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
@@ -131,20 +145,24 @@ func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret Fea
 		})
 }
 
+// RegisterStandardFeature registers a feature from the iana ipfix list
 func RegisterStandardFeature(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.GetInformationElement(name)
 	RegisterFeature(ie, ret, make, arguments...)
 }
 
+// RegisterTemporaryFeature registers a feature that is not part of the iana ipfix list. It gets assigned a number upon exporting.
 func RegisterTemporaryFeature(name string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
 	RegisterFeature(ie, ret, make, arguments...)
 }
 
+// RegisterControlFeature registers a control feature (i.e. a feature that can manipulate flow behaviour)
 func RegisterControlFeature(name string, make MakeFeature) {
 	RegisterFunction(name, ControlFeature, make, RawPacket)
 }
 
+// RegisterFilterFeature registers a filter feature (i.e. a feature that can skip events for a flow)
 func RegisterFilterFeature(name string, make MakeFeature) {
 	RegisterFunction(name, RawPacket, make, RawPacket)
 }
@@ -161,16 +179,19 @@ func RegisterCompositeFeature(ie ipfix.InformationElement, definition ...interfa
 	}
 }
 
+// RegisterStandardCompositeFeature registers a composite feature (see RegisterCompositeFeature) that is part of the iana ipfix list
 func RegisterStandardCompositeFeature(name string, definition ...interface{}) {
 	ie := ipfix.GetInformationElement(name)
 	RegisterCompositeFeature(ie, definition...)
 }
 
+// RegisterTemporaryCompositeFeature registers a composite feature (see RegisterCompositeFeature) that is not part of the iana ipfix list
 func RegisterTemporaryCompositeFeature(name string, t ipfix.Type, tl uint16, definition ...interface{}) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
 	RegisterCompositeFeature(ie, definition...)
 }
 
+// getFeature returns the feature metadata for a feature with the given name, return type, and number of arguments, and true if such a feature exists
 func getFeature(feature string, ret FeatureType, nargs int) (featureMaker, bool) {
 	variadicFound := false
 	var variadic featureMaker

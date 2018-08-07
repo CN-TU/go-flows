@@ -14,10 +14,12 @@ type EventContext struct {
 	hard    bool
 }
 
+// initFlow sets the flow. This must be called in a flow before passing the context to features.
 func (ec *EventContext) initFlow(flow Flow) {
 	ec.flow = flow
 }
 
+// clear resets all state variables. Must be called before using this context with a new event.
 func (ec *EventContext) clear() {
 	ec.now = false
 	ec.stop = false
@@ -27,7 +29,7 @@ func (ec *EventContext) clear() {
 	ec.hard = false
 }
 
-// When returns the time, the event happened
+// When returns the time, the event happened, or the current time
 func (ec *EventContext) When() DateTimeNanoseconds {
 	return ec.when
 }

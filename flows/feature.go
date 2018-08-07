@@ -31,9 +31,9 @@ func feature2id(feature interface{}, ret FeatureType) string {
 
 // Feature interfaces, which all features need to implement
 type Feature interface {
-	// Event gets called for every event. Data is provided via the first argument and current time via the second.
+	// Event gets called for every event. Data is provided via the first argument and a context providing addional information/control via the second argument.
 	Event(interface{}, *EventContext, interface{})
-	// FinishEvent gets called after every Event happened
+	// FinishEvent gets called after every Feature was processed for the current event.
 	FinishEvent()
 	// Value provides the current stored value.
 	Value() interface{}
@@ -43,66 +43,128 @@ type Feature interface {
 	Start(*EventContext)
 	// Stop gets called with an end reason and time when a flow stops
 	Stop(FlowEndReason, *EventContext)
-	// Type returns the InformationElement
+	// Variant must return the current variant id, if the Feature can represent multiple types (e.g. ipv4Address vs ipv6Address). Must be NoVariant otherwise.
 	Variant() int
 	// Emit sends value new, with time when, and source self to the dependent Features
 	Emit(new interface{}, when *EventContext, self interface{})
-	setDependent([]Feature)
+	// SetArguments gets called during Feature initialization if const-arguments are in the argument list
 	SetArguments([]Feature)
+	// IsConstant must return true, if this feature is a constant
 	IsConstant() bool
+	// setDependent is used internally for setting features that depend on this features' value.
+	setDependent([]Feature)
 }
 
+// NoVariant represents the value returned from Variant if this Feature has only a single type.
 const NoVariant = -1
 
+// NoopFeature implements the feature interface and represents a feature without built in functionality.
+//
+// Use this as a base for features that don't hold values and only emit them. Good examples are filter or control features.
 type NoopFeature struct{}
 
-func (f *NoopFeature) Event(interface{}, *EventContext, interface{})                  {}
-func (f *NoopFeature) FinishEvent()                                                   {}
-func (f *NoopFeature) Value() interface{}                                             { return nil }
-func (f *NoopFeature) SetValue(new interface{}, when *EventContext, self interface{}) {}
-func (f *NoopFeature) Start(*EventContext)                                            {}
-func (f *NoopFeature) Stop(FlowEndReason, *EventContext)                              {}
-func (f *NoopFeature) Variant() int                                                   { return NoVariant }
-func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interface{})  {}
-func (f *NoopFeature) setDependent(dep []Feature)                                     {}
-func (f *NoopFeature) SetArguments([]Feature)                                         {}
-func (f *NoopFeature) IsConstant() bool                                               { return false }
+// Event is an empty function to ignore every event. Overload this if you need events.
+func (f *NoopFeature) Event(interface{}, *EventContext, interface{}) {}
 
+// FinishEvent is an empty function to ignore end of event-processing. Overload this if you need such events.
+func (f *NoopFeature) FinishEvent() {}
+
+// Value returns the empty value (nil). Overload this if you need to return a value.
+func (f *NoopFeature) Value() interface{} { return nil }
+
+// SetValue is an empty function to ignore constant arguments. Overload this if you need this data.
+func (f *NoopFeature) SetValue(new interface{}, when *EventContext, self interface{}) {}
+
+// Start is an empty function to ignore start events. Overload this if you need start events.
+func (f *NoopFeature) Start(*EventContext) {}
+
+// Stop is an empty function to ignore stop events. Overload this if you need stop events.
+func (f *NoopFeature) Stop(FlowEndReason, *EventContext) {}
+
+// Variant returns NoVariant. Overload this if your feature has multiple types.
+func (f *NoopFeature) Variant() int { return NoVariant }
+
+// Emit is an empty function to ignore emitted values. Overload this if you need to emit values.
+func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interface{}) {}
+
+// setDependent is an empty function to adding dependent features. Overload this if you need to support dependent features.
+func (f *NoopFeature) setDependent(dep []Feature) {}
+
+// SetArguments is an empty function to ignore const-arguments. Overload this if you need to support const-arguments.
+func (f *NoopFeature) SetArguments([]Feature) {}
+
+// IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
+func (f *NoopFeature) IsConstant() bool { return false }
+
+// check if EmptyBaseFeature fulfills Feature interface
+var _ Feature = (*NoopFeature)(nil)
+
+// EmptyBaseFeature implements the feature interface with some added functionality to support the most basic operation (e.g. value passing to dependent features).
+//
+// Use this as a base for features that don't need to hold values.
 type EmptyBaseFeature struct {
 	dependent []Feature
 }
 
+// Event is an empty function to ignore every event. Overload this if you need events.
 func (f *EmptyBaseFeature) Event(interface{}, *EventContext, interface{}) {}
+
+// FinishEvent propagates this event to all dependent features. Do not overload unless you know what you're doing!
 func (f *EmptyBaseFeature) FinishEvent() {
 	for _, v := range f.dependent {
 		v.FinishEvent()
 	}
 }
-func (f *EmptyBaseFeature) Value() interface{}                                             { return nil }
+
+// Value returns the empty value (nil). Overload this if you need to return a value.
+func (f *EmptyBaseFeature) Value() interface{} { return nil }
+
+// SetValue is an empty function to ignore constant arguments. Overload this if you need this data.
 func (f *EmptyBaseFeature) SetValue(new interface{}, when *EventContext, self interface{}) {}
-func (f *EmptyBaseFeature) Start(*EventContext)                                            {}
-func (f *EmptyBaseFeature) Stop(FlowEndReason, *EventContext)                              {}
-func (f *EmptyBaseFeature) Variant() int                                                   { return NoVariant }
+
+// Start is an empty function to ignore start events. Overload this if you need start events.
+func (f *EmptyBaseFeature) Start(*EventContext) {}
+
+// Stop is an empty function to ignore stop events. Overload this if you need stop events.
+func (f *EmptyBaseFeature) Stop(FlowEndReason, *EventContext) {}
+
+// Variant returns NoVariant. Overload this if your feature has multiple types.
+func (f *EmptyBaseFeature) Variant() int { return NoVariant }
+
+// Emit propagates the new value to all dependent features. Do not overload unless you know what you're doing!
 func (f *EmptyBaseFeature) Emit(new interface{}, context *EventContext, self interface{}) {
 	for _, v := range f.dependent {
 		v.Event(new, context, self)
 	}
 }
-func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
-func (f *EmptyBaseFeature) SetArguments([]Feature)     {}
-func (f *EmptyBaseFeature) IsConstant() bool           { return false }
 
+// setDependent sets the given list of features for forwarding events to
+func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
+
+// SetArguments is an empty function to ignore const-arguments. Overload this if you need to support const-arguments.
+func (f *EmptyBaseFeature) SetArguments([]Feature) {}
+
+// IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
+func (f *EmptyBaseFeature) IsConstant() bool { return false }
+
+// check if EmptyBaseFeature fulfills Feature interface
 var _ Feature = (*EmptyBaseFeature)(nil)
 
 // BaseFeature includes all the basic functionality to fulfill the Feature interface.
-// Embedd this struct for creating new features.
+//
+// In most cases you need this as the base for implementing feature
 type BaseFeature struct {
 	EmptyBaseFeature
 	value interface{}
 }
 
+// Start clears the held value. You must all this in your feature if you override Start!
 func (f *BaseFeature) Start(*EventContext) { f.value = nil }
-func (f *BaseFeature) Value() interface{}  { return f.value }
+
+// Value returns the current value. Do not overload unless you know what you're doing!
+func (f *BaseFeature) Value() interface{} { return f.value }
+
+// SetValue sets a new value and forwards it to the dependent features. Do not overload unless you know what you're doing!
 func (f *BaseFeature) SetValue(new interface{}, context *EventContext, self interface{}) {
 	f.value = new
 	if new != nil {
@@ -110,8 +172,15 @@ func (f *BaseFeature) SetValue(new interface{}, context *EventContext, self inte
 	}
 }
 
+// For speed purposes, features with multiple arguments are split into 3 cathegories:
+// - singleMultiEvent: one non const argument
+// - dualMultiEvent: two non const arguments
+// - genericMultiEvent: more than two non const arguments
+
 type multiEvent interface {
+	// Either returns all the argument-values as a list in argument order, or nil if not every argument emitted a value
 	CheckAll(interface{}, interface{}) []interface{}
+	// Resets event tracking - must be called from FinishEvent
 	Reset()
 }
 
@@ -205,7 +274,8 @@ func (m *genericMultiEvent) Reset() {
 }
 
 // MultiBaseFeature extends BaseFeature with event tracking.
-// Embedd this struct for creating new features with multiple arguments.
+//
+// Use this as base for creating new features with multiple arguments.
 type MultiBaseFeature struct {
 	BaseFeature
 	eventReady multiEvent
@@ -216,12 +286,13 @@ func (f *MultiBaseFeature) EventResult(new interface{}, which interface{}) []int
 	return f.eventReady.CheckAll(new, which)
 }
 
-// FinishEvent gets called after every Event happened
+// FinishEvent resets event tracking for all the arguments. Do not overload unless you know what you're doing!
 func (f *MultiBaseFeature) FinishEvent() {
 	f.eventReady.Reset()
 	f.BaseFeature.FinishEvent()
 }
 
+// SetArguments preparese the internal argument list for event tracking. Do not overload unless you know what you're doing!
 func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	featurelist := make([]interface{}, len(args))
 	featurelist = featurelist[:len(args)]
@@ -254,4 +325,3 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))} //FIXME preallocate ret
 	}
 }
-

@@ -11,6 +11,7 @@ type compositeFeatureMaker struct {
 	ie         ipfix.InformationElement
 }
 
+// compositeToCall generates a textual representation of a composite feature (e.g. fun(arg1,arg2,..))
 func compositeToCall(features []interface{}) (ret []string) {
 	flen := len(features) - 1
 	for i, feature := range features {

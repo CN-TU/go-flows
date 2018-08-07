@@ -9,9 +9,9 @@ const exporterName = "exporter"
 // Exporter represents a generic exporter
 type Exporter interface {
 	util.Module
-	// Export gets called upon flow export with a list of features and the export time.
+	// Export gets called upon record export with a list of features and the export time.
 	Export(Template, []Feature, DateTimeNanoseconds)
-	// Fields is unused at the moment
+	// Fields gets called during flow-exporter initialization with the list of fieldnames as argument
 	Fields([]string)
 	// Finish gets called before program exit. Eventual flushing needs to be implemented here.
 	Finish()

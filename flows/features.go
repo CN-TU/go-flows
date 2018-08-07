@@ -28,6 +28,7 @@ func (f *constantFeature) setRecord(*record)                                {}
 
 var _ Feature = (*constantFeature)(nil)
 
+// newConstantMetaFeature creates a new constant feature, which holds the given value
 func newConstantMetaFeature(value interface{}) featureMaker {
 	var t ipfix.Type
 	switch cv := value.(type) {

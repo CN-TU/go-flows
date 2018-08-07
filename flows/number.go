@@ -18,6 +18,7 @@ type DateTimeMicroseconds = ipfix.DateTimeMicroseconds
 // DateTimeNanoseconds represents time in units of nanoseconds from 00:00 UTC, Januray 1, 1970 according to RFC5102.
 type DateTimeNanoseconds = ipfix.DateTimeNanoseconds
 
+// ToFloat converts the given value to a float64
 func ToFloat(a interface{}) float64 {
 	switch i := a.(type) {
 	case float64:
@@ -63,6 +64,7 @@ func ToFloat(a interface{}) float64 {
 	panic(fmt.Sprintf("Can't convert %v to float", a))
 }
 
+// ToInt converts the given value to a float64
 func ToInt(a interface{}) int64 {
 	switch i := a.(type) {
 	case float64:
@@ -108,6 +110,7 @@ func ToInt(a interface{}) int64 {
 	panic(fmt.Sprintf("Can't convert %v to int", a))
 }
 
+// ToUInt converts the given value to an uint64
 func ToUInt(a interface{}) uint64 {
 	switch i := a.(type) {
 	case float64:
@@ -153,15 +156,23 @@ func ToUInt(a interface{}) uint64 {
 	panic(fmt.Sprintf("Can't convert %v to int", a))
 }
 
+// NumberType is used for differentiating between int uint float and different time types
 type NumberType int
 
 const (
+	// IntType represents int64
 	IntType NumberType = iota
+	// UIntType represents uint64
 	UIntType
+	// FloatType represents float64
 	FloatType
+	// SecondsType represents DateTimeSeconds
 	SecondsType
+	// MillisecondsType represents DateTimeMilliseconds
 	MillisecondsType
+	// MicrosecondsType represents DateTimeMicroseconds
 	MicrosecondsType
+	// NanosecondsType represents DateTimeNanoseconds
 	NanosecondsType
 )
 
@@ -280,7 +291,26 @@ func scaleTimetoNano(from NumberType, val interface{}) interface{} {
 	panic("This should never happen")
 }
 
-// UpConvert returns either two Signed64 or two Float64 depending on the numbers
+// UpConvert returns either two Signed64 or two Float64 depending on the numbers.
+// Returned are dst, which is the type the final value must be converted to after the operation,
+// the family this value can be operated on and the two values possibly converted to a different type.
+//
+// Use FixType to convert the result to the final data type
+//
+// Example:
+//   // valueA, valueB contain data to be multiplied
+//   dst, fl, a, b := UpConvert(valueA, valueB)
+//   var result interface{}
+//   switch fl {
+//   case UIntType:
+//   	result = a.(uint64) * b.(uint64)
+//   case IntType:
+//   	result = a.(int64) * b.(int64)
+//   case FloatType:
+//   	result = a.(float64) * b.(float64)
+//   }
+//   result := FixType(result, dst)
+//
 func UpConvert(a, b interface{}) (dst NumberType, family NumberType, ai, bi interface{}) {
 	var tA, tB, fA, fB NumberType
 	tA, fA, ai = cleanUp(a)
@@ -368,6 +398,7 @@ func unfixType(val interface{}, t NumberType) interface{} {
 	panic("Should never happen")
 }
 
+// FixType casts the value to the final type. See UpConvert for usage.
 func FixType(val interface{}, t NumberType) interface{} {
 	switch t {
 	case SecondsType:
@@ -428,6 +459,7 @@ func cleanUpType(a ipfix.Type) ipfix.Type {
 	panic(fmt.Sprintf("Can't upconvert %s", a))
 }
 
+// UpConvertTypes returns the shared type of two types to which data must be converted to for operations.
 func UpConvertTypes(a, b ipfix.Type) ipfix.Type {
 	tA := cleanUpType(a)
 	tB := cleanUpType(b)
@@ -461,6 +493,6 @@ func UpConvertTypes(a, b ipfix.Type) ipfix.Type {
 		}
 		return tB
 	}
-	// both types are time - but differen timebases
+	// both types are time - but different timebases
 	return ipfix.DateTimeNanosecondsType
 }

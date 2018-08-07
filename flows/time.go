@@ -7,7 +7,7 @@ const (
 	MicrosecondsInNanoseconds DateTimeNanoseconds = 1000 * NanosecondsInNanoseconds
 	// MillisecondsInNanoseconds holds the time value of one millisecond.
 	MillisecondsInNanoseconds DateTimeNanoseconds = 1000 * MicrosecondsInNanoseconds
-	// secondsInNanoseconds holds the time value of one second.
+	// SecondsInNanoseconds holds the time value of one second.
 	SecondsInNanoseconds DateTimeNanoseconds = 1000 * MillisecondsInNanoseconds
 	// MinutesInNanoseconds holds the time value of one minute.
 	MinutesInNanoseconds DateTimeNanoseconds = 60 * SecondsInNanoseconds

@@ -3,9 +3,13 @@ package flows
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, FlowKey, *EventContext, uint64) Flow
 
+// TableStats holds statistics for this table
 type TableStats struct {
-	Packets  uint64
-	Flows    uint64
+	// Packets is the number of packets processed
+	Packets uint64
+	// Flows is the number of flows processed
+	Flows uint64
+	// Maxflows is the maximum number of concurrent flows processed
 	Maxflows uint64
 }
 

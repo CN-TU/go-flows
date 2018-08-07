@@ -10,11 +10,17 @@ import (
 	"github.com/CN-TU/go-ipfix"
 )
 
+// Record holds multiple features that belong to a single record
 type Record interface {
+	// Start gets called after flow initialisation
 	Start(*EventContext)
+	// Event gets called for every event
 	Event(interface{}, *EventContext)
+	// Stop gets called before export
 	Stop(FlowEndReason, *EventContext)
+	// Export exports this record
 	Export(FlowEndReason, *EventContext, DateTimeNanoseconds)
+	// Returns true if this record is still active
 	Active() bool
 }
 
@@ -172,6 +178,7 @@ func (r recordList) Active() bool {
 	return false
 }
 
+// RecordListMaker holds metadata for instantiating a list of records with included features
 type RecordListMaker struct {
 	list      []RecordMaker
 	templates int
@@ -190,12 +197,14 @@ func (rl RecordListMaker) make() Record {
 	return ret
 }
 
+// Init must be called after instantiating a record list
 func (rl RecordListMaker) Init() {
 	for _, record := range rl.list {
 		record.Init()
 	}
 }
 
+// RecordMaker holds metadata for instantiating a record
 type RecordMaker struct {
 	init       []featureToInit
 	exportList []int
@@ -204,6 +213,7 @@ type RecordMaker struct {
 	make       func() *record
 }
 
+// Init must be called after a Record was instantiated
 func (rm RecordMaker) Init() {
 	for _, exporter := range rm.exporter {
 		exporter.Fields(rm.fields)
@@ -228,6 +238,8 @@ type featureToInit struct {
 	variant   bool
 }
 
+// AppendRecord creates a internal representation needed for instantiating records from a feature
+// specification, a list of exporters and a needed base (only FlowFeature supported so far)
 func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Exporter, base FeatureType) {
 	type featureWithType struct {
 		feature     interface{}
