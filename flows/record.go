@@ -599,8 +599,8 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 `))
 
 // CallGraph generates a call graph in the graphviz language and writes the result to w.
-func (r RecordListMaker) CallGraph(w io.Writer) {
-	toId := func(id, i int) string {
+func (rl RecordListMaker) CallGraph(w io.Writer) {
+	toID := func(id, i int) string {
 		return fmt.Sprintf("%d,%d", id, i)
 	}
 	styles := map[FeatureType][][]string{
@@ -635,7 +635,7 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		Nodes []Subgraph
 		Edges []Edge
 	}{}
-	for listID, fl := range r.list {
+	for listID, fl := range rl.list {
 		var nodes []Node
 		export := make([]Node, len(fl.exporter))
 		for i, exporter := range fl.exporter {
@@ -650,7 +650,7 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 			if feature.info.apply != "" {
 				node.Label = fmt.Sprintf("%s\\n%s", feature.info.apply, node.Label)
 			}
-			node.Name = toId(listID, i)
+			node.Name = toID(listID, i)
 			if feature.info.data == nil {
 				if len(feature.arguments) == 0 {
 					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
@@ -678,18 +678,18 @@ func (r RecordListMaker) CallGraph(w io.Writer) {
 		}
 		for i, feature := range fl.init {
 			if feature.event {
-				data.Edges = append(data.Edges, Edge{"event", "", toId(listID, i), ""})
+				data.Edges = append(data.Edges, Edge{"event", "", toID(listID, i), ""})
 			}
 			for index, j := range feature.arguments {
 				index := strconv.Itoa(index)
 				if len(feature.arguments) <= 1 {
 					index = ""
 				}
-				data.Edges = append(data.Edges, Edge{toId(listID, j), "", toId(listID, i), index})
+				data.Edges = append(data.Edges, Edge{toID(listID, j), "", toID(listID, i), index})
 			}
 		}
 		for _, i := range fl.exportList {
-			data.Edges = append(data.Edges, Edge{toId(listID, i), "", fmt.Sprintf("export%d", listID), ""})
+			data.Edges = append(data.Edges, Edge{toID(listID, i), "", fmt.Sprintf("export%d", listID), ""})
 		}
 		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
 	}
