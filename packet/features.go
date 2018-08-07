@@ -179,6 +179,7 @@ type flowStartNanoseconds struct {
 }
 
 func (f *flowStartNanoseconds) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.SetValue(context.When(), context, f)
 }
 
@@ -211,6 +212,7 @@ type octetTotalCountFlow struct {
 }
 
 func (f *octetTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.total = 0
 }
 
@@ -246,6 +248,7 @@ type ipTotalLengthFlow struct {
 }
 
 func (f *ipTotalLengthFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.total = 0
 }
 
@@ -283,6 +286,7 @@ type layer2OctetTotalCountFlow struct {
 }
 
 func (f *layer2OctetTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.total = 0
 }
 
@@ -363,6 +367,7 @@ type _interPacketTimeNanoseconds struct {
 }
 
 func (f *_interPacketTimeNanoseconds) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.time = 0
 }
 
@@ -408,6 +413,7 @@ type tcpSynTotalCountFlow struct {
 }
 
 func (f *tcpSynTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -460,6 +466,7 @@ type tcpFinTotalCountFlow struct {
 }
 
 func (f *tcpFinTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -505,6 +512,7 @@ type tcpRstTotalCountFlow struct {
 }
 
 func (f *tcpRstTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -550,6 +558,7 @@ type tcpPshTotalCountFlow struct {
 }
 
 func (f *tcpPshTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -595,6 +604,7 @@ type tcpAckTotalCountFlow struct {
 }
 
 func (f *tcpAckTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -639,6 +649,7 @@ type tcpUrgTotalCountFlow struct {
 }
 
 func (f *tcpUrgTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -684,6 +695,7 @@ type _tcpEceTotalCountFlow struct {
 }
 
 func (f *_tcpEceTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -729,6 +741,7 @@ type _tcpCwrTotalCountFlow struct {
 }
 
 func (f *_tcpCwrTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -774,6 +787,7 @@ type _tcpNsTotalCountFlow struct {
 }
 
 func (f *_tcpNsTotalCountFlow) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -1048,6 +1062,7 @@ const _Body uint8 = 4
 const _Error string = "-1"
 
 func (f *_HTTPLines) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.status = _Request
 	f.statusNext = _None
 }

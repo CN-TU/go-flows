@@ -114,7 +114,10 @@ func (f *slice) SetArguments(arguments []Feature) {
 	f.start = ToInt(arguments[0].Value())
 	f.stop = ToInt(arguments[1].Value())
 }
-func (f *slice) Start(*EventContext) { f.current = 0 }
+func (f *slice) Start(ec *EventContext) {
+	f.BaseFeature.Start(ec)
+	f.current = 0
+}
 
 func (f *slice) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.current >= f.start && f.current < f.stop {
@@ -141,7 +144,10 @@ type get struct {
 func (f *get) SetArguments(arguments []Feature) {
 	f.index = ToInt(arguments[0].Value())
 }
-func (f *get) Start(*EventContext) { f.current = 0 }
+func (f *get) Start(ec *EventContext) {
+	f.BaseFeature.Start(ec)
+	f.current = 0
+}
 
 func (f *get) Event(new interface{}, context *EventContext, src interface{}) {
 	if f.current == f.index {
@@ -174,6 +180,7 @@ type count struct {
 }
 
 func (f *count) Start(context *EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 
@@ -198,6 +205,7 @@ type mean struct {
 }
 
 func (f *mean) Start(context *EventContext) {
+	f.BaseFeature.Start(context)
 	f.total = 0
 	f.count = 0
 }
@@ -350,6 +358,7 @@ type accumulate struct {
 }
 
 func (f *accumulate) Start(context *EventContext) {
+	f.BaseFeature.Start(context)
 	f.vector = make([]interface{}, 0)
 }
 
@@ -380,6 +389,7 @@ type concatenate struct {
 }
 
 func (f *concatenate) Start(context *EventContext) {
+	f.BaseFeature.Start(context)
 	f.buffer = new(bytes.Buffer)
 }
 
@@ -489,6 +499,7 @@ type packetTotalCount struct {
 }
 
 func (f *packetTotalCount) Start(context *EventContext) {
+	f.BaseFeature.Start(context)
 	f.count = 0
 }
 

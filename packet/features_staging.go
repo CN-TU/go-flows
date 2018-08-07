@@ -154,6 +154,7 @@ type __consecutiveSeconds struct {
 }
 
 func (f *__consecutiveSeconds) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.lastTime = 0
 	f.count = 0
 }
@@ -262,6 +263,7 @@ type _tcpTimestampFirstPacket struct {
 }
 
 func (f *_tcpTimestampFirstPacket) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.done = false
 }
 
@@ -294,6 +296,7 @@ type _tcpOptionDataFirstPacket struct {
 }
 
 func (f *_tcpOptionDataFirstPacket) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.done = false
 }
 
@@ -326,9 +329,6 @@ type _tcpTimestampsPerSeconds struct {
 	flows.BaseFeature
 	timestamps []uint32
 	times      []uint32
-}
-
-func (f *_tcpTimestampsPerSeconds) Start(context *flows.EventContext) {
 }
 
 func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
