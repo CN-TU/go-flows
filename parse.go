@@ -74,7 +74,7 @@ func fetchToken(dec *json.Decoder, fun string) json.Token {
 	return t
 }
 
-func decodeV1(decoded FeatureJSONv1, id int) (features []interface{}, key []string, bidirectional bool) {
+func decodeV1(decoded featureJSONv1, id int) (features []interface{}, key []string, bidirectional bool) {
 	flows := decoded.Flows
 	if id < 0 || id >= len(flows) {
 		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
@@ -86,7 +86,7 @@ func decodeV1(decoded FeatureJSONv1, id int) (features []interface{}, key []stri
 	return
 }
 
-func decodeV2(decoded FeatureJSONv2, id int) (features []interface{}, key []string, bidirectional bool) {
+func decodeV2(decoded featureJSONv2, id int) (features []interface{}, key []string, bidirectional bool) {
 	flows := decoded.Preprocessing.Flows
 	if id < 0 || id >= len(flows) {
 		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
@@ -94,7 +94,7 @@ func decodeV2(decoded FeatureJSONv2, id int) (features []interface{}, key []stri
 	return decodeSimple(flows[id], id)
 }
 
-func decodeSimple(decoded FeatureJSONsimple, _ int) (features []interface{}, key []string, bidirectional bool) {
+func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, key []string, bidirectional bool) {
 	features = decodeFeatures(decoded.Features)
 	key = decoded.Key
 	bidirectional = decoded.Bidirectional
@@ -109,7 +109,7 @@ func decodeSimple(decoded FeatureJSONsimple, _ int) (features []interface{}, key
 	}
 */
 
-type FeatureJSONsimple struct {
+type featureJSONsimple struct {
 	Features      interface{}
 	Bidirectional bool
 	Key           []string `json:"key_features"`
@@ -129,7 +129,7 @@ type FeatureJSONsimple struct {
 	}
 */
 
-type FeatureJSONv1 struct {
+type featureJSONv1 struct {
 	Flows []struct {
 		Features interface{}
 		Key      struct {
@@ -150,10 +150,10 @@ type FeatureJSONv1 struct {
 	}
 */
 
-type FeatureJSONv2 struct {
+type featureJSONv2 struct {
 	Version       string
 	Preprocessing struct {
-		Flows []FeatureJSONsimple
+		Flows []featureJSONsimple
 	}
 }
 
@@ -167,9 +167,9 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 	dec.UseNumber()
 
 	var decoded struct {
-		FeatureJSONv1
-		FeatureJSONv2
-		FeatureJSONsimple
+		featureJSONv1
+		featureJSONv2
+		featureJSONsimple
 	}
 
 	if err := dec.Decode(&decoded); err != nil {
@@ -178,25 +178,25 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 
 	switch format {
 	case jsonV1:
-		return decodeV1(decoded.FeatureJSONv1, id)
+		return decodeV1(decoded.featureJSONv1, id)
 	case jsonV2:
-		return decodeV2(decoded.FeatureJSONv2, id)
+		return decodeV2(decoded.featureJSONv2, id)
 	case jsonSimple:
-		return decodeSimple(decoded.FeatureJSONsimple, id)
+		return decodeSimple(decoded.featureJSONsimple, id)
 	case jsonAuto:
 		//first see if we have a version in the file
 		if decoded.Version != "" {
 			if decoded.Version == "v2" {
-				return decodeV2(decoded.FeatureJSONv2, id)
+				return decodeV2(decoded.featureJSONv2, id)
 			}
 			log.Fatalf("Unknown file format version '%s'\n", decoded.Version)
 		}
 		//no :( -> could be v1 or simple
 		if decoded.Flows != nil {
-			return decodeV1(decoded.FeatureJSONv1, id)
+			return decodeV1(decoded.featureJSONv1, id)
 		}
 		//should be simple - or something we don't know
-		return decodeSimple(decoded.FeatureJSONsimple, id)
+		return decodeSimple(decoded.featureJSONsimple, id)
 	}
 	panic("Unknown format specification")
 }
