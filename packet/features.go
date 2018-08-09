@@ -930,7 +930,7 @@ func (f *uniTCPStreamFragments) maybeForwardOld(ack tcpassembly.Sequence, contex
 }
 
 type tcpReorder struct {
-	flows.EmptyBaseFeature
+	flows.NoopFeature
 	forward  uniTCPStreamFragments
 	backward uniTCPStreamFragments
 }
