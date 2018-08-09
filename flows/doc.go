@@ -9,9 +9,12 @@ Features
 
 Features are basic structs that receive events and might forward events to dependent features.
 This implies that features need at least an argument and return a value. Arguments
-and return values have two kinds of types: FeatureTypes and a data type. FeatureTypes
-are needed to check which kind of events a feature emits or consumes, which is used during
-feature instantiation. The data type is the concrete type of the data attached to an event.
+and return values have three kinds of types: FeatureTypes, internal data type, and export data type.
+FeatureTypes are needed to check which kind of events a feature emits or consumes, which is used
+during record/feature instantiation. The internal data type is the concrete type of the data
+attached to an event and can be any of the builtin golang types or one of the DateTime-types from
+number.go/ipfix package. The export data type is the information element type registered with the
+feature. Upon export the internal data type will be converted to the ie-type.
 
 The following FeatureTypes can be used:
 
