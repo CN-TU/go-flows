@@ -7,3 +7,8 @@ go-flows
 tmp
 *.csv
 .vscode
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
