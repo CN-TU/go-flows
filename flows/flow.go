@@ -70,8 +70,6 @@ type FlowOptions struct {
 	ActiveTimeout DateTimeNanoseconds
 	// IdleTimeout is the idle timeout in nanoseconds
 	IdleTimeout DateTimeNanoseconds
-	// PerPacket is true if one flow per packet is exported
-	PerPacket bool
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
@@ -161,7 +159,7 @@ func (flow *BaseFlow) EOF(context *EventContext) {
 // Event handles the given event and the active and idle timers.
 func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	context.initFlow(flow)
-	if !flow.table.PerPacket {
+	if flow.table.ActiveTimeout != 0 {
 		flow.AddTimer(TimerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 	}
 	flow.records.Event(event, context)
@@ -169,7 +167,7 @@ func (flow *BaseFlow) Event(event Event, context *EventContext) {
 		flow.Stop()
 		return
 	}
-	if flow.table.PerPacket {
+	if flow.table.ActiveTimeout == 0 {
 		flow.Export(FlowEndReasonEnd, context, context.when)
 	}
 }
@@ -188,7 +186,7 @@ func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext,
 	flow.records = table.records.make()
 	flow.id = id
 	context.initFlow(flow)
-	if !flow.table.PerPacket {
+	if flow.table.ActiveTimeout != 0 {
 		flow.AddTimer(TimerActive, flow.activeEvent, context.when+flow.table.ActiveTimeout)
 	}
 }

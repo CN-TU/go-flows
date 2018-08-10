@@ -81,7 +81,7 @@ func MakeFlowFeatureTest(t *testing.T, feature string) TestTable {
 }
 
 func MakePacketFeatureTest(t *testing.T, feature string) TestTable {
-	return MakeFeatureTest(t, []string{feature}, flows.PacketFeature, flows.FlowOptions{PerPacket: true})
+	return MakeFeatureTest(t, []string{feature}, flows.PacketFeature, flows.FlowOptions{ActiveTimeout: 0})
 }
 
 func (t *TestTable) EventLayers(when flows.DateTimeNanoseconds, layerList ...packet.SerializableLayerType) {
