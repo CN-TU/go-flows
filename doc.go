@@ -191,5 +191,87 @@ flow - a FlowFeature. The third argument must be a function that returns a new f
 features, which is a raw packet. The flows package contains a list of implemented types and Register functions.
 
 For more examples have a look at the provided features.
+
+Common part of sources/filters/labels/exporters
+
+Sources, filters, labels, and exportes must register themselves with the matching Register* function:
+
+	func init() {
+		packet.RegisterX("name", "short description", newX, helpX)
+	}
+
+where a name and a short description have to be provideded. The helpX function gets called if the help
+for this module is invoked and must write the help to os.Stderr. The newX function must parse the given
+arguments and return a new X. This function must have the following signature:
+
+	func newXThing(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error)
+
+name can be a provided name for the id, but can be empty. opts holds the parameters from a JSON specification or
+util.UseStringOption if args need to be parsed. args holds the rest of the arguments in case it is a command line
+invocation. Needed arguments must be parsed from this array and the remaining ones returned (arguments).
+If successful the created module must be returned as ret - otherwise an error. This function must only parse arguments
+and prepare the state of the module. Opening files etc. must happen in Init()
+
+All modules must fulfill the util.Module interface which contains an Init and an ID function. ID must return a string
+for the callgraph representation (most of the time a combination of modulename|parameter). Init will be called
+during intialization. Side effects like creating files must happen in Init and not during the new function!
+
+Examples of the different modules can be found in the modules directory.
+
+Implementing sources
+
+Sources must implement the packet.Source interface:
+
+	ReadPacket() (lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, skipped uint64, filtered uint64, err error)
+	Stop()
+
+ReadPacket gets called for reading the next packet. This function must return the layer type, the raw data of a single packet,
+capture information, how many packets have been skipped and filtered since the last invocation, or an error.
+
+Stop might be called asynchronously (be careful with races) to stop an ongoing capture. After or during this happening ReadPacket must
+return io.EOF as error. This function is only called to stop the flow exporter early (e.g. ctrl+c).
+
+data is not kept around by the flow exported which means, the source an reuse the same data buffer for every ReadPacket.
+
+Implementing filters
+
+Filters must implement the packet.Filter interface:
+
+	Matches(ci gopacket.CaptureInfo, data []byte) bool
+
+Matches will be called for every packet with the capture info and the raw data as argument.
+If this function returns true, then the current packet gets filtered out (i.e. processing of this packet stops and the next one is used).
+
+Don't hold on to data! This will be reused for the next packet.
+
+Implementing labels
+
+Labels must implement the packet.Label interface:
+
+	GetLabel(packet Buffer) (interface{}, error)
+
+This function can return an arbitrary value as label for the packet (can also be nil for no label). If the label source is empty io.EOF must be returned.
+
+Implementing exporters
+
+Exporters must implement the flow.Exporter interface:
+
+	Fields([]string)
+	Export(Template, []Feature, DateTimeNanoseconds)
+	Finish()
+
+Exporters should start up a goroutine for the heavy lifting during Init.
+
+The Fields function gets called before processing starts and provides a list of feature names that
+will be exported (e.g. the csv exporter uses this to create the csv header).
+
+Export gets called for every record that must be exported. Arguments are a template for this list of features,
+the actual features, and an export time. Don't hold on to the features! Those might be reused, which means internal
+values of the features can change! Use this function to convert/copy the values and then send those to the spawned
+goroutine in init for further processing.
+
+Finish will be called after all packets and flows have been processed. This function must flush data and wait for
+the exporting goroutine to finish writing out everything and possibly closing files.
+
 */
 package main
