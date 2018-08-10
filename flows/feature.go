@@ -292,7 +292,7 @@ func (f *MultiBaseFeature) FinishEvent() {
 	f.BaseFeature.FinishEvent()
 }
 
-// SetArguments preparese the internal argument list for event tracking. Do not overload unless you know what you're doing!
+// SetArguments prepares the internal argument list for event tracking. Do not overload unless you know what you're doing!
 func (f *MultiBaseFeature) SetArguments(args []Feature) {
 	featurelist := make([]interface{}, len(args))
 	featurelist = featurelist[:len(args)]
