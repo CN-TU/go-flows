@@ -60,6 +60,8 @@ The whole pipeline is executed concurrently with the following four subpipelines
 The "table"-pipeline exists n times, where n can be configured on the command line. Packets are divided
 onto the different "table"-pipelines according to flow-key.
 
+WARNING: Due to this concurrent processing flow output is neither order nor deterministic!
+
 Specification
 
 Specification files are JSON files based on the NTARC format (https://nta-meta-analysis.readthedocs.io/en/latest/).
