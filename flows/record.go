@@ -43,6 +43,9 @@ func (r *record) Start(context *EventContext) {
 	for _, feature := range r.startup {
 		feature.Start(context)
 	}
+	for _, feature := range r.event {
+		feature.FinishEvent() //Same for finishevents
+	}
 }
 
 func (r *record) Stop(reason FlowEndReason, context *EventContext) {
@@ -55,6 +58,9 @@ func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 	for _, feature := range r.filter {
 		feature.Stop(reason, context)
 		r.alive = (context.keep || r.alive) && !context.hard
+	}
+	for _, feature := range r.event {
+		feature.FinishEvent() //Same for finishevents
 	}
 }
 
