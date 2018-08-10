@@ -1,3 +1,4 @@
+// Package packet_test contains some utility functions for creating feature tests.
 package packet_test
 
 import (
