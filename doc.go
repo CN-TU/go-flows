@@ -60,6 +60,56 @@ The whole pipeline is executed concurrently with the following four subpipelines
 The "table"-pipeline exists n times, where n can be configured on the command line. Packets are divided
 onto the different "table"-pipelines according to flow-key.
 
+Specification
+
+Specification files are JSON files based on the NTARC format (https://nta-meta-analysis.readthedocs.io/en/latest/).
+Both version 1 and version 2 files can be used. It is also possible to use a simpler format, if a paper specification
+is not needed.
+
+V1-formated file:
+
+	{
+	  "flows": [
+	    {
+	      "features": [...],
+	      "key": {
+	        "bidirectional": <bool>|"string",
+	        "key_features": [...]
+	      }
+	    }
+	  ]
+	}
+
+Simpleformat specification:
+
+	{
+	  "features": [...],
+	  "key_features": [...],
+	  "bidirectional": <bool>
+	}
+
+V2-formated file:
+
+	{
+	  "version": "v2",
+	  "preprocessing": {
+	    "flows": [
+	      <simpleformat>
+	    ]
+	  }
+	}
+
+key featurs give a list of features, which are used to compute a flow key. features is a formated list
+of features to export. This list can also contain combinations of features and operations
+(https://nta-meta-analysis.readthedocs.io/en/latest/features.html).
+Only single pass operations can ever be supported due to design restrictions in the flow exporter.
+
+In addition to the features specified in the nta-meta-analysis, two addional types of features are present:
+Filter features which can exclude packets from a whole flow, and control features which can change flow
+behaviour like exporting the flow before the end, restarting the flow, or discarding the flow.
+
+A list of supported features can be queried with "./go-flows features"
+
 Example usage
 
 The examples directory contains several example flow specifications that can be used. The general
