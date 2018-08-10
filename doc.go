@@ -135,7 +135,61 @@ The following list describes all the different things contained in the subdirect
 
 Implementing Features
 
-Todo; For now have a look at the currently implemented features and descriptions in packet and flow
-packages.
+Features most follow the conventions in https://nta-meta-analysis.readthedocs.io/en/latest/features.html,
+which states that names must follow the ipfix iana assignments (https://www.iana.org/assignments/ipfix/ipfix.xhtml),
+or start with an _ for common features or __ for uncommon ones. Feature names must be camelCase. The flow exporter
+has the full list of ipfix iana assignments already builtin which means that for these features one needs to only
+specifiy the name - all type information is automatically added by the flow extractor.
+
+For implementing features most of the time flows.BaseFeature is a good start point. Features need to override
+the needed methods:
+
+  * Start(*EventContext) gets called when a flow starts. Do cleanup here (features might be reused!). MUST call flows.BaseFeature.Start from this function!
+  * Event(interface{}, *EventContext, interface{}) gets called for every packet belonging to the current flow
+  * Stop(FlowEndReason, *EventContext) gets called when a flow finishes (before export)
+
+  * SetValue(new interface{}, when *EventContext, self interface{}) Call this one for setting a value. It stores the new value and forwards it to all dependent features.
+
+Less commonly used functions
+
+  * Variant() gets called to determine which variant to use, if a feature can different types depending on data (see sourceIPAddress for an example)
+  * SetArguments([]Feature) gets called during instantiation if a feature expects constand arguments (see select_slice for an example)
+
+
+
+A simple example is the protocolIdentifier:
+
+	type protocolIdentifier struct {
+		flows.BaseFeature
+	}
+
+	func (f *protocolIdentifier) Event(new interface{}, context *flows.EventContext, src interface{}) {
+		if f.Value() == nil {
+			f.SetValue(new.(packet.Buffer).Proto(), context, f)
+		}
+	}
+
+This feature doesn't need a Start or Stop (since both functions don't provide a packet).
+For every packet, it checks, if the protocolIdentifier has already been set, and if it hasn't been, it sets a new value.
+The new value provided to Event will always be a packet.Buffer for features that expect a raw packet.
+For other features, this will be the actual value emitted from other features. E.g. for the specification
+
+	{"eq": ["protocolIdentifier", 17]}
+
+the minfeature will receive the uint8 emitted by this feature.
+
+The final component missing from the code is the feature registration. This has to be done in init with one of the
+Register* functions from the flows packet. For the protocolIdentifier this looks like the following:
+
+	func init() {
+		flows.RegisterStandardFeature("protocolIdentifier", flows.FlowFeature, func() flows.Feature { return &protocolIdentifier{} }, flows.RawPacket)
+	}
+
+Since protocolIdentifier is one of the iana assigned ipfix features, RegisterStandardFeature can be used, which automatically adds the rest of the
+ipfix information element specification. The second argument is what this feature implementation returns which in this case is a single value per
+flow - a FlowFeature. The third argument must be a function that returns a new feature instance. The last argument specifies the input to this
+features, which is a raw packet. The flows package contains a list of implemented types and Register functions.
+
+For more examples have a look at the provided features.
 */
 package main
