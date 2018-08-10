@@ -1,2 +1,2 @@
-// Package custom contains custom features
+// Package custom contains custom features.
 package custom

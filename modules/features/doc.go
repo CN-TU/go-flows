@@ -1,6 +1,5 @@
 /*
-
-Package features contains feature implementations and utility functions
+Package features contains feature implementations and utility functions.
 
 Features are split according to
 
@@ -8,6 +7,8 @@ Features are split according to
  * operations: features that carry out operations (https://nta-meta-analysis.readthedocs.io/en/latest/features.html)
  * custom: features that don't fit the above categories
  * staging: experimental features
+
+And inside those directories into the layer or general.
 
 */
 package features
