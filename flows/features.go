@@ -60,3 +60,50 @@ func init() {
 	RegisterFunction("apply", FlowFeature, nil, FlowFeature, Selection)
 	RegisterFunction("map", PacketFeature, nil, PacketFeature, Selection)
 }
+
+// select and select_slice features; needed by the base implementation
+
+type selectF struct {
+	EmptyBaseFeature
+	sel bool
+}
+
+func (f *selectF) Start(*EventContext) { f.sel = false }
+
+func (f *selectF) Event(new interface{}, context *EventContext, src interface{}) {
+	/* If src is not nil we got an event from the argument -> Store the boolean value (This always happens before events from the flow)
+	   otherwise we have an event from the flow -> forward it in case we should and reset sel
+	*/
+	if src != nil {
+		f.sel = new.(bool)
+	} else {
+		if f.sel {
+			f.Emit(new, context, nil)
+			f.sel = false
+		}
+	}
+}
+
+type selectS struct {
+	EmptyBaseFeature
+	start, stop, current int64
+}
+
+func (f *selectS) SetArguments(arguments []Feature) {
+	f.start = ToInt(arguments[0].Value())
+	f.stop = ToInt(arguments[1].Value())
+}
+func (f *selectS) Start(*EventContext) { f.current = 0 }
+
+func (f *selectS) Event(new interface{}, context *EventContext, src interface{}) {
+	if f.current >= f.start && f.current < f.stop {
+		f.Emit(new, context, nil)
+	}
+	f.current++
+}
+
+func init() {
+	RegisterFunction("select", Selection, func() Feature { return &selectF{} }, PacketFeature)
+	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const)
+	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const, Selection)
+}
