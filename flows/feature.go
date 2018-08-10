@@ -47,7 +47,7 @@ type Feature interface {
 	Variant() int
 	// Emit sends value new, with time when, and source self to the dependent Features
 	Emit(new interface{}, when *EventContext, self interface{})
-	// SetArguments gets called during Feature initialization if const-arguments are in the argument list
+	// SetArguments gets called during Feature initialization with the arguments of the features (needed for operations)
 	SetArguments([]Feature)
 	// IsConstant must return true, if this feature is a constant
 	IsConstant() bool
@@ -90,7 +90,7 @@ func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interfac
 // setDependent is an empty function to adding dependent features. Overload this if you need to support dependent features.
 func (f *NoopFeature) setDependent(dep []Feature) {}
 
-// SetArguments is an empty function to ignore const-arguments. Overload this if you need to support const-arguments.
+// SetArguments is an empty function to ignore arguments. Overload this if you need to support arguments.
 func (f *NoopFeature) SetArguments([]Feature) {}
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
@@ -141,7 +141,7 @@ func (f *EmptyBaseFeature) Emit(new interface{}, context *EventContext, self int
 // setDependent sets the given list of features for forwarding events to
 func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
 
-// SetArguments is an empty function to ignore const-arguments. Overload this if you need to support const-arguments.
+// SetArguments is an empty function to ignore arguments. Overload this if you need to support arguments.
 func (f *EmptyBaseFeature) SetArguments([]Feature) {}
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
