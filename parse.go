@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
 
 func decodeOneFeature(feature interface{}) interface{} {
@@ -186,7 +187,7 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 	case jsonAuto:
 		//first see if we have a version in the file
 		if decoded.Version != "" {
-			if decoded.Version == "v2" {
+			if strings.HasPrefix(decoded.Version, "v2") {
 				return decodeV2(decoded.featureJSONv2, id)
 			}
 			log.Fatalf("Unknown file format version '%s'\n", decoded.Version)
