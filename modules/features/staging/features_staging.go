@@ -149,19 +149,19 @@ func init() {
 
 // outputs number of consecutive seconds in which there was at least one packet
 // seconds are counted from the first packet
-type __consecutiveSeconds struct {
+type _consecutiveSeconds struct {
 	flows.BaseFeature
 	count    uint64
 	lastTime flows.DateTimeNanoseconds
 }
 
-func (f *__consecutiveSeconds) Start(context *flows.EventContext) {
+func (f *_consecutiveSeconds) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.lastTime = 0
 	f.count = 0
 }
 
-func (f *__consecutiveSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *_consecutiveSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	time := context.When()
 	if f.lastTime == 0 {
 		f.lastTime = time
@@ -179,14 +179,14 @@ func (f *__consecutiveSeconds) Event(new interface{}, context *flows.EventContex
 	}
 }
 
-func (f *__consecutiveSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+func (f *_consecutiveSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	f.SetValue(f.count, context, f)
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &__consecutiveSeconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "maximum", "__consecutiveSeconds")
-	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "minimum", "__consecutiveSeconds")
+	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &_consecutiveSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "maximum", "_consecutiveSeconds")
+	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "minimum", "_consecutiveSeconds")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +352,7 @@ func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context *flows.EventCo
 func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	var buffer []float64
 	if len(f.timestamps) > 1 {
-		for i, _ := range f.timestamps[0 : len(f.timestamps)-1] {
+		for i := range f.timestamps[0 : len(f.timestamps)-1] {
 			tcpStampDif := f.timestamps[i+1] - f.timestamps[i]
 			stampDif := f.times[i+1] - f.times[i]
 
@@ -376,11 +376,11 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type __label struct {
+type _label struct {
 	flows.BaseFeature
 }
 
-func (f *__label) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *_label) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	label := new.(packet.Buffer).Label()
 	if label != nil {
 		f.SetValue(label, context, f)
@@ -388,5 +388,5 @@ func (f *__label) Event(new interface{}, context *flows.EventContext, src interf
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__label", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &__label{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__label", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_label{} }, flows.RawPacket)
 }
