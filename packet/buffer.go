@@ -45,9 +45,12 @@ type Buffer interface {
 	Copy() Buffer
 	// Recycle frees this buffer
 	Recycle()
+	//// Internal interface - don't use (necessa)
+	//// ------------------------------------------------------------------
+	// SetInfo sets the flowkey and the packet direction
+	SetInfo(flows.FlowKey, bool)
 
 	decode() bool
-	setInfo(flows.FlowKey, bool)
 }
 
 type packetBuffer struct {
@@ -111,8 +114,9 @@ func (w *layerSerializeLengthBuffer) Clear() error {
 	return nil
 }
 
-func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) (pb *packetBuffer) {
-	pb = &packetBuffer{}
+// BufferFromLayers creates a new Buffer for the given time and layers. Used for testing.
+func BufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) Buffer {
+	pb := &packetBuffer{}
 	pb.time = when
 	for _, layer := range layerList {
 		switch layer.LayerType() {
@@ -220,7 +224,7 @@ func bufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 			pb.proto = uint8(layers.IPProtocolUDP)
 		}
 	}
-	return
+	return pb
 }
 
 func (pb *packetBuffer) Proto() uint8 {
@@ -290,7 +294,7 @@ func (pb *packetBuffer) Forward() bool {
 	return pb.forward
 }
 
-func (pb *packetBuffer) setInfo(key flows.FlowKey, forward bool) {
+func (pb *packetBuffer) SetInfo(key flows.FlowKey, forward bool) {
 	pb.key = key
 	pb.forward = forward
 }

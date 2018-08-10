@@ -1,4 +1,4 @@
-package packet
+package staging
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"github.com/CN-TU/go-ipfix"
 
 	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/modules/features"
+	"github.com/CN-TU/go-flows/packet"
 )
 
 /*
@@ -31,13 +33,13 @@ func (f *_characters) Event(new interface{}, context *flows.EventContext, src in
 		time = context.When() - f.time
 	}
 	if len(f.src) == 0 {
-		tmpSrc, _ := new.(Buffer).NetworkLayer().NetworkFlow().Endpoints()
+		tmpSrc, _ := new.(packet.Buffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmpSrc.Raw()
 	}
 	f.time = context.When()
 	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
-	srcIP, _ := new.(Buffer).NetworkLayer().NetworkFlow().Endpoints()
+	srcIP, _ := new.(packet.Buffer).NetworkLayer().NetworkFlow().Endpoints()
 
 	var buffer bytes.Buffer
 	if bytes.Equal(f.src, srcIP.Raw()) {
@@ -69,14 +71,14 @@ func (f *_characters2) Event(new interface{}, context *flows.EventContext, src i
 		time = context.When() - f.time
 	}
 	if len(f.src) == 0 {
-		tmpSrc, _ := new.(Buffer).NetworkLayer().NetworkFlow().Endpoints()
+		tmpSrc, _ := new.(packet.Buffer).NetworkLayer().NetworkFlow().Endpoints()
 		f.src = tmpSrc.Raw()
 	}
 	f.time = context.When()
 	newTime := int(time / (100 * flows.MillisecondsInNanoseconds)) // time is now in deciseconds
 
-	srcIP, _ := new.(Buffer).NetworkLayer().NetworkFlow().Endpoints()
-	tcp := getTCP(new.(Buffer))
+	srcIP, _ := new.(packet.Buffer).NetworkLayer().NetworkFlow().Endpoints()
+	tcp := features.GetTCP(new)
 	if tcp == nil {
 		return
 	}
@@ -238,7 +240,7 @@ func (f *_tcpOptionsFirstPacket) Start(context *flows.EventContext) {
 func (f *_tcpOptionsFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var buffer bytes.Buffer
 	if !f.done {
-		tcp := getTCP(new.(Buffer))
+		tcp := features.GetTCP(new)
 		if tcp != nil {
 			opts := tcp.Options
 			for _, o := range opts {
@@ -269,7 +271,7 @@ func (f *_tcpTimestampFirstPacket) Start(context *flows.EventContext) {
 
 func (f *_tcpTimestampFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if !f.done {
-		tcp := getTCP(new.(Buffer))
+		tcp := features.GetTCP(new)
 		if tcp != nil {
 			opts := tcp.Options
 			for _, o := range opts {
@@ -303,7 +305,7 @@ func (f *_tcpOptionDataFirstPacket) Start(context *flows.EventContext) {
 func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	var buffer bytes.Buffer
 	if !f.done {
-		tcp := getTCP(new.(Buffer))
+		tcp := features.GetTCP(new)
 		if tcp != nil {
 			opts := tcp.Options
 			for _, o := range opts {
@@ -332,7 +334,7 @@ type _tcpTimestampsPerSeconds struct {
 }
 
 func (f *_tcpTimestampsPerSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tcp := getTCP(new.(Buffer))
+	tcp := features.GetTCP(new)
 	if tcp != nil {
 		opts := tcp.Options
 		for _, o := range opts {
@@ -379,7 +381,7 @@ type __label struct {
 }
 
 func (f *__label) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	label := new.(Buffer).Label()
+	label := new.(packet.Buffer).Label()
 	if label != nil {
 		f.SetValue(label, context, f)
 	}

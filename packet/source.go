@@ -79,7 +79,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 					buffer.label = labels.GetLabel(buffer)
 					key, fw := flowtable.key(buffer)
 					if key != nil {
-						buffer.setInfo(key, fw)
+						buffer.SetInfo(key, fw)
 						forward.push(buffer)
 					} else {
 						stats.keyError++

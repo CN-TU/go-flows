@@ -33,7 +33,11 @@ func (t fiveTuple6) Hash() uint64    { return fnvHash(t[:]) }
 var emptyPort = make([]byte, 2)
 var emptyIP = make([]byte, 4)
 
-func fivetuple(packet Buffer, allowZero bool) (flows.FlowKey, bool) {
+// Fivetuple returns the standard fivetuple (srcip, dstip, proto, srcport, dstport) for the packet.
+//
+// allowZero can be set to true, to allow packets with missing layers (the respective fields will be set to zero).
+// The second return value is true if the packet is in forward direction.
+func Fivetuple(packet Buffer, allowZero bool) (flows.FlowKey, bool) {
 	var srcIP, dstIP, srcPort, dstPort gopacket.Endpoint
 	var srcPortR, dstPortR, srcIPR, dstIPR []byte
 	var proto gopacket.LayerType

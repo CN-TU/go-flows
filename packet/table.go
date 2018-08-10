@@ -115,7 +115,7 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 	}
 	switch {
 	case selector.fivetuple:
-		bt.keyFun = fivetuple
+		bt.keyFun = Fivetuple
 	case selector.empty:
 		bt.keyFun = makeEmptyKey
 	default:
