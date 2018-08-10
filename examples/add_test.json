@@ -1,0 +1,19 @@
+{
+    "features": [
+        "ipTotalLength",
+        "octetTotalCount",
+        {"add": ["octetTotalCount", 2]},
+        {"add": [3, "octetTotalCount"]},
+        {"add": [4, 5]},
+        {"add": ["octetTotalCount", "octetTotalCount"]},
+        {"accumulate": [{"add": ["octetTotalCount", "ipTotalLength"]}]}
+    ],
+    "bidirectional": true,
+    "key_features": [
+        "sourceIPAddress",
+        "destinationIPAddress",
+        "protocolIdentifier",
+        "sourceTransportPort",
+        "destinationTransportPort"
+    ]
+}
