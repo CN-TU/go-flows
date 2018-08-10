@@ -87,3 +87,29 @@ func (f *flowID) Event(new interface{}, context *flows.EventContext, src interfa
 func init() {
 	flows.RegisterStandardFeature("flowId", flows.FlowFeature, func() flows.Feature { return &flowID{} }, flows.RawPacket)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type packetTotalCount struct {
+	flows.BaseFeature
+	count uint64
+}
+
+func (f *packetTotalCount) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.count = 0
+}
+
+func (f *packetTotalCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.count++
+}
+
+func (f *packetTotalCount) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.count, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("packetTotalCount", flows.FlowFeature, func() flows.Feature { return &packetTotalCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////

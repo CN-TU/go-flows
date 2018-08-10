@@ -273,27 +273,27 @@ func (m *genericMultiEvent) Reset() {
 	}
 }
 
-// MultiBaseFeature extends BaseFeature with event tracking.
+// MultiBasePacketFeature extends BaseFeature with event tracking.
 //
-// Use this as base for creating new features with multiple arguments.
-type MultiBaseFeature struct {
+// Use this as base for creating new features returning PacketFeature with multiple arguments.
+type MultiBasePacketFeature struct {
 	BaseFeature
 	eventReady multiEvent
 }
 
 // EventResult returns the list of values for a multievent or nil if not every argument had an event
-func (f *MultiBaseFeature) EventResult(new interface{}, which interface{}) []interface{} {
+func (f *MultiBasePacketFeature) EventResult(new interface{}, which interface{}) []interface{} {
 	return f.eventReady.CheckAll(new, which)
 }
 
 // FinishEvent resets event tracking for all the arguments. Do not overload unless you know what you're doing!
-func (f *MultiBaseFeature) FinishEvent() {
+func (f *MultiBasePacketFeature) FinishEvent() {
 	f.eventReady.Reset()
 	f.BaseFeature.FinishEvent()
 }
 
 // SetArguments prepares the internal argument list for event tracking. Do not overload unless you know what you're doing!
-func (f *MultiBaseFeature) SetArguments(args []Feature) {
+func (f *MultiBasePacketFeature) SetArguments(args []Feature) {
 	featurelist := make([]interface{}, len(args))
 	featurelist = featurelist[:len(args)]
 	features := make([]int, 0, len(args))
@@ -324,4 +324,27 @@ func (f *MultiBaseFeature) SetArguments(args []Feature) {
 		}
 		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))} //FIXME preallocate ret
 	}
+}
+
+// MultiBaseFlowFeature extends BaseFeature with argument tracking.
+//
+// Use this as base for creating new features returning FlowFeature with multiple arguments.
+type MultiBaseFlowFeature struct {
+	BaseFeature
+	arguments []Feature
+}
+
+// SetArguments prepares the internal argument list for argument tracking. Do not overload unless you know what you're doing!
+func (f *MultiBaseFlowFeature) SetArguments(args []Feature) {
+	f.arguments = args
+}
+
+// GetValues returns the values of every argument
+func (f *MultiBaseFlowFeature) GetValues() []interface{} {
+	ret := make([]interface{}, len(f.arguments))
+	ret = ret[:len(f.arguments)]
+	for i, c := range f.arguments {
+		ret[i] = c.Value()
+	}
+	return ret
 }
