@@ -121,7 +121,9 @@ type flowDurationMicroSeconds struct {
 }
 
 func (f *flowDurationMicroSeconds) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.start = context.When()
+	f.lastTime = context.When()
 }
 
 func (f *flowDurationMicroSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {

@@ -94,6 +94,11 @@ type min struct {
 	current interface{}
 }
 
+func (f *min) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.current = nil
+}
+
 func (f *min) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.current == nil {
 		f.current = new
@@ -130,6 +135,11 @@ func init() {
 type max struct {
 	flows.BaseFeature
 	current interface{}
+}
+
+func (f *max) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.current = nil
 }
 
 func (f *max) Event(new interface{}, context *flows.EventContext, src interface{}) {
@@ -175,6 +185,7 @@ type stdev struct {
 }
 
 func (f *stdev) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.vector = make([]interface{}, 0)
 	f.total = 0
 	f.count = 0
@@ -216,6 +227,7 @@ type variance struct {
 }
 
 func (f *variance) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.vector = make([]interface{}, 0)
 	f.total = 0
 	f.count = 0
@@ -254,6 +266,7 @@ type median struct {
 }
 
 func (f *median) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.vector = make([]float64, 0)
 	f.med = 0
 }
@@ -290,6 +303,7 @@ type mode struct {
 }
 
 func (f *mode) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
 	f.vector = make(map[float64]uint64, 0)
 	f.max = 0
 	f.m = 0
