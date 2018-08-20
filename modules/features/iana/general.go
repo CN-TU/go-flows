@@ -134,7 +134,8 @@ func (f *flowDurationMicroSeconds) Stop(reason flows.FlowEndReason, context *flo
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("flowDurationMicroSeconds", "", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &flowDurationMicroSeconds{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("flowDurationMicroseconds", flows.FlowFeature, func() flows.Feature { return &flowDurationMicroSeconds{} }, flows.RawPacket)
+	flows.RegisterStandardCompositeFeature("flowDurationMilliseconds", "divide", "flowDurationMicroseconds", 1000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

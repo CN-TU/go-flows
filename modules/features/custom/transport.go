@@ -346,7 +346,7 @@ func (f *tcpflags) Event(new interface{}, context *flows.EventContext, src inter
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("tcpflags", "", ipfix.StringType, 1, flows.FlowFeature, func() flows.Feature { return &tcpflags{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpFlags", "returns a textual representation of the tcpflags", ipfix.StringType, 1, flows.FlowFeature, func() flows.Feature { return &tcpflags{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

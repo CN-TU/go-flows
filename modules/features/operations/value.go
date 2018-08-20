@@ -165,7 +165,7 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type std struct {
+type stdev struct {
 	flows.BaseFeature
 	vector []interface{}
 	total  float64
@@ -174,7 +174,7 @@ type std struct {
 	sd     float64
 }
 
-func (f *std) Start(context *flows.EventContext) {
+func (f *stdev) Start(context *flows.EventContext) {
 	f.vector = make([]interface{}, 0)
 	f.total = 0
 	f.count = 0
@@ -182,7 +182,7 @@ func (f *std) Start(context *flows.EventContext) {
 	f.sd = 0
 }
 
-func (f *std) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+func (f *stdev) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	if len(f.vector) != 0 {
 		f.mean = f.total / float64(f.count)
 		for j := 0; j < len(f.vector); j++ {
@@ -194,19 +194,19 @@ func (f *std) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	}
 }
 
-func (f *std) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *stdev) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 	f.total += flows.ToFloat(new)
 	f.count++
 }
 
 func init() {
-	flows.RegisterTypedFunction("std", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &std{} }, flows.PacketFeature)
+	flows.RegisterTypedFunction("stdev", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &stdev{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type vari struct {
+type variance struct {
 	flows.BaseFeature
 	vector []interface{}
 	total  float64
@@ -215,7 +215,7 @@ type vari struct {
 	sd     float64
 }
 
-func (f *vari) Start(context *flows.EventContext) {
+func (f *variance) Start(context *flows.EventContext) {
 	f.vector = make([]interface{}, 0)
 	f.total = 0
 	f.count = 0
@@ -223,7 +223,7 @@ func (f *vari) Start(context *flows.EventContext) {
 	f.sd = 0
 }
 
-func (f *vari) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+func (f *variance) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	if len(f.vector) != 0 {
 		f.mean = f.total / float64(f.count)
 		for j := 0; j < len(f.vector); j++ {
@@ -235,14 +235,14 @@ func (f *vari) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	}
 }
 
-func (f *vari) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *variance) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 	f.total += flows.ToFloat(new)
 	f.count++
 }
 
 func init() {
-	flows.RegisterTypedFunction("vari", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &vari{} }, flows.PacketFeature)
+	flows.RegisterTypedFunction("variance", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &variance{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
