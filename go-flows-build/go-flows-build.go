@@ -279,7 +279,7 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 	if !nonstd {
 		args := append([]string{"build"}, goflags...)
 		cmd := exec.Command("go", args...)
-		cmd.Path = thisPath
+		cmd.Dir = thisPath
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		ret := cmd.Run()
