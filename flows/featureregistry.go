@@ -19,13 +19,15 @@ type MakeFeature func() Feature
 
 // featureMake is used internally to hold information about how to create a specific feature and the needed metadata
 type featureMaker struct {
-	ret       FeatureType
-	make      MakeFeature
-	arguments []FeatureType
-	ie        ipfix.InformationElement
-	variants  []ipfix.InformationElement
-	resolver  TypeResolver
-	function  bool
+	ret         FeatureType
+	make        MakeFeature
+	arguments   []FeatureType
+	ie          ipfix.InformationElement
+	variants    []ipfix.InformationElement
+	resolver    TypeResolver
+	description string
+	iana        bool
+	function    bool
 }
 
 func (f featureMaker) String() string {
@@ -86,6 +88,7 @@ func RegisterFeature(ie ipfix.InformationElement, ret FeatureType, make MakeFeat
 			make:      make,
 			arguments: arguments,
 			ie:        ie,
+			iana:      ie.ID != 0 && ie.Pen == 0,
 		})
 }
 
@@ -132,7 +135,7 @@ func RegisterCustomFunction(name string, resolver TypeResolver, ret FeatureType,
 		})
 }
 
-// RegisterVariantFeature registers a feature that represents more than one information element depending on the data (e.g. sourceIpv4Address/sourceIpv6Address)
+// RegisterVariantFeature registers a feature that represents more than one information element depending on the data
 func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
@@ -142,6 +145,20 @@ func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret Fea
 			arguments: arguments,
 			ie:        ie,
 			variants:  ies,
+		})
+}
+
+// RegisterStandardVariantFeature registers a feature that represents more than one information element depending on the data and is part of the iana ipfix list (e.g. sourceIpv4Address/sourceIpv6Address)
+func RegisterStandardVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
+	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
+		featureMaker{
+			ret:       ret,
+			make:      make,
+			arguments: arguments,
+			ie:        ie,
+			variants:  ies,
+			iana:      true,
 		})
 }
 
@@ -176,6 +193,7 @@ func RegisterCompositeFeature(ie ipfix.InformationElement, definition ...interfa
 	compositeFeatures[ie.Name] = compositeFeatureMaker{
 		definition: definition,
 		ie:         ie,
+		iana:       ie.Pen == 0 && ie.ID != 0,
 	}
 }
 
@@ -218,7 +236,7 @@ func ListFeatures(w io.Writer) {
 	ff := make(map[string]string)
 	args := make(map[string]string)
 	impl := make(map[string]string)
-	var base, functions, filters, control []string
+	var iana, base, functions, filters, control []string
 	for ret, features := range featureRegistry {
 		for name, featurelist := range features {
 			for _, feature := range featurelist {
@@ -246,7 +264,11 @@ func ListFeatures(w io.Writer) {
 					args[name] = strings.Join(tmp, ",")
 				} else if len(feature.arguments) == 1 &&
 					(feature.arguments[0] == RawPacket || feature.arguments[0] == RawFlow) {
-					base = append(base, name)
+					if feature.iana {
+						iana = append(iana, name)
+					} else {
+						base = append(base, name)
+					}
 				} else {
 					tmp := make([]string, len(feature.arguments))
 					for i := range feature.arguments {
@@ -294,8 +316,13 @@ func ListFeatures(w io.Writer) {
 			ff[name] = "X"
 			pf[name] = "X"
 		}
-		base = append(base, name)
+		if feature.iana {
+			iana = append(iana, name)
+		} else {
+			base = append(base, name)
+		}
 	}
+	sort.Strings(iana)
 	sort.Strings(base)
 	sort.Strings(functions)
 	sort.Strings(filters)
@@ -303,10 +330,23 @@ func ListFeatures(w io.Writer) {
 	fmt.Fprintln(w, "F ... Flow Feature")
 	fmt.Fprintln(w, "S ... Selection")
 	fmt.Fprintln(w, "C ... Constant")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Base Features:")
-	fmt.Fprintln(w, "  P F Name")
 	var last string
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Iana Features:")
+	fmt.Fprintln(w, "  P F Name")
+	for _, name := range iana {
+		if name == last {
+			continue
+		}
+		last = name
+		line := new(bytes.Buffer)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\n", pf[name], ff[name], name, impl[name])
+		t.Write(line.Bytes())
+	}
+	t.Flush()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Custom Features:")
+	fmt.Fprintln(w, "  P F Name")
 	for _, name := range base {
 		if name == last {
 			continue

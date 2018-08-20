@@ -38,7 +38,7 @@ func (f *sourceIPAddress) Variant() int {
 }
 
 func init() {
-	flows.RegisterVariantFeature("sourceIPAddress", []ipfix.InformationElement{
+	flows.RegisterStandardVariantFeature("sourceIPAddress", []ipfix.InformationElement{
 		ipfix.GetInformationElement("sourceIPv4Address"),
 		ipfix.GetInformationElement("sourceIPv6Address"),
 	}, flows.FlowFeature, func() flows.Feature { return &sourceIPAddress{} }, flows.RawPacket)
@@ -72,7 +72,7 @@ func (f *destinationIPAddress) Variant() int {
 }
 
 func init() {
-	flows.RegisterVariantFeature("destinationIPAddress", []ipfix.InformationElement{
+	flows.RegisterStandardVariantFeature("destinationIPAddress", []ipfix.InformationElement{
 		ipfix.GetInformationElement("destinationIPv4Address"),
 		ipfix.GetInformationElement("destinationIPv6Address"),
 	}, flows.FlowFeature, func() flows.Feature { return &destinationIPAddress{} }, flows.RawPacket)
