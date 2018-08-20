@@ -175,34 +175,33 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Calculate online stdev according to Welford "Note on a method for calculating corrected sums of squares and products."
 type stdev struct {
 	flows.BaseFeature
-	vector []interface{}
-	total  float64
+	count    uint64
+	mean, m2 float64
 }
 
 func (f *stdev) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
-	f.vector = make([]interface{}, 0)
-	f.total = 0
+	f.count = 0
+	f.mean = 0
+	f.m2 = 0
 }
 
 func (f *stdev) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	if len(f.vector) != 0 {
-		mean := f.total / float64(len(f.vector))
-		var sd float64
-		for j := 0; j < len(f.vector); j++ {
-			sd += math.Pow(flows.ToFloat(f.vector[j])-mean, 2)
-		}
-
-		sd = math.Sqrt(sd / flows.ToFloat(len(f.vector)))
-		f.SetValue(sd, context, f)
+	if f.count != 0 {
+		f.SetValue(math.Sqrt(f.m2/(float64(f.count)-1)), context, f)
 	}
 }
 
 func (f *stdev) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.vector = append(f.vector, new)
-	f.total += flows.ToFloat(new)
+	val := flows.ToFloat(new)
+	f.count++
+	delta := val - f.mean
+	f.mean = f.mean + delta/float64(f.count)
+	delta2 := val - f.mean
+	f.m2 = f.m2 + delta*delta2
 }
 
 func init() {
@@ -211,34 +210,33 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Calculate online variance according to Welford "Note on a method for calculating corrected sums of squares and products."
 type variance struct {
 	flows.BaseFeature
-	vector []interface{}
-	total  float64
+	count    uint64
+	mean, m2 float64
 }
 
 func (f *variance) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
-	f.vector = make([]interface{}, 0)
-	f.total = 0
+	f.count = 0
+	f.mean = 0
+	f.m2 = 0
 }
 
 func (f *variance) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	if len(f.vector) != 0 {
-		mean := f.total / float64(len(f.vector))
-		var sd float64
-		for j := 0; j < len(f.vector); j++ {
-			sd += math.Pow(flows.ToFloat(f.vector[j])-mean, 2)
-		}
-
-		sd = math.Sqrt(sd / flows.ToFloat(len(f.vector)))
-		f.SetValue(math.Pow(sd, 2), context, f)
+	if f.count != 0 {
+		f.SetValue(f.m2/(float64(f.count)-1), context, f)
 	}
 }
 
 func (f *variance) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.vector = append(f.vector, new)
-	f.total += flows.ToFloat(new)
+	val := flows.ToFloat(new)
+	f.count++
+	delta := val - f.mean
+	f.mean = f.mean + delta/float64(f.count)
+	delta2 := val - f.mean
+	f.m2 = f.m2 + delta*delta2
 }
 
 func init() {
