@@ -307,7 +307,7 @@ func (f *mode) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func (f *mode) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.vector[flows.ToFloat(new)] += 1
+	f.vector[flows.ToFloat(new)]++
 }
 
 func init() {
