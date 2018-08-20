@@ -305,44 +305,41 @@ func init() {
 
 type tcpflags struct {
 	flows.BaseFeature
-	flag  string
-	notcp string
 }
 
 func (f *tcpflags) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	tcp := features.GetTCP(new)
-	if tcp == nil {
-		f.flag = ""
-	} else {
+	flag := ""
+	if tcp != nil {
 		if tcp.SYN {
-			f.flag += "S"
+			flag += "S"
 		}
 		if tcp.FIN {
-			f.flag += "F"
+			flag += "F"
 		}
 		if tcp.RST {
-			f.flag += "R"
+			flag += "R"
 		}
 		if tcp.PSH {
-			f.flag += "P"
+			flag += "P"
 		}
 		if tcp.ACK {
-			f.flag += "A"
+			flag += "A"
 		}
 		if tcp.URG {
-			f.flag += "U"
+			flag += "U"
 		}
 		if tcp.ECE {
-			f.flag += "E"
+			flag += "E"
 		}
 		if tcp.CWR {
-			f.flag += "C"
+			flag += "C"
 		}
 		if tcp.NS {
-			f.flag += "N"
+			flag += "N"
 		}
 	}
-	f.SetValue(f.flag, context, f)
+	f.SetValue(flag, context, f)
 }
 
 func init() {

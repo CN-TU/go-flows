@@ -179,36 +179,30 @@ type stdev struct {
 	flows.BaseFeature
 	vector []interface{}
 	total  float64
-	count  uint64
-	mean   float64
-	sd     float64
 }
 
 func (f *stdev) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.vector = make([]interface{}, 0)
 	f.total = 0
-	f.count = 0
-	f.mean = 0
-	f.sd = 0
 }
 
 func (f *stdev) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	if len(f.vector) != 0 {
-		f.mean = f.total / float64(f.count)
+		mean := f.total / float64(len(f.vector))
+		var sd float64
 		for j := 0; j < len(f.vector); j++ {
-			f.sd += math.Pow(flows.ToFloat(f.vector[j])-f.mean, 2)
+			sd += math.Pow(flows.ToFloat(f.vector[j])-mean, 2)
 		}
 
-		f.sd = math.Sqrt(f.sd / flows.ToFloat(len(f.vector)))
-		f.SetValue(f.sd, context, f)
+		sd = math.Sqrt(sd / flows.ToFloat(len(f.vector)))
+		f.SetValue(sd, context, f)
 	}
 }
 
 func (f *stdev) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 	f.total += flows.ToFloat(new)
-	f.count++
 }
 
 func init() {
@@ -221,36 +215,30 @@ type variance struct {
 	flows.BaseFeature
 	vector []interface{}
 	total  float64
-	count  uint64
-	mean   float64
-	sd     float64
 }
 
 func (f *variance) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.vector = make([]interface{}, 0)
 	f.total = 0
-	f.count = 0
-	f.mean = 0
-	f.sd = 0
 }
 
 func (f *variance) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	if len(f.vector) != 0 {
-		f.mean = f.total / float64(f.count)
+		mean := f.total / float64(len(f.vector))
+		var sd float64
 		for j := 0; j < len(f.vector); j++ {
-			f.sd += math.Pow(flows.ToFloat(f.vector[j])-f.mean, 2)
+			sd += math.Pow(flows.ToFloat(f.vector[j])-mean, 2)
 		}
 
-		f.sd = math.Sqrt(f.sd / flows.ToFloat(len(f.vector)))
-		f.SetValue(math.Pow(f.sd, 2), context, f)
+		sd = math.Sqrt(sd / flows.ToFloat(len(f.vector)))
+		f.SetValue(math.Pow(sd, 2), context, f)
 	}
 }
 
 func (f *variance) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	f.vector = append(f.vector, new)
 	f.total += flows.ToFloat(new)
-	f.count++
 }
 
 func init() {
@@ -262,13 +250,11 @@ func init() {
 type median struct {
 	flows.BaseFeature
 	vector []float64
-	med    float64
 }
 
 func (f *median) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.vector = make([]float64, 0)
-	f.med = 0
 }
 
 func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
@@ -276,13 +262,10 @@ func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	if len(f.vector) == 0 {
 		f.SetValue(0, context, f)
 	} else if len(f.vector)%2 == 0 {
-		f.med = float64((f.vector[len(f.vector)/2-1] + f.vector[len(f.vector)/2]) / 2)
+		f.SetValue(float64((f.vector[len(f.vector)/2-1]+f.vector[len(f.vector)/2])/2), context, f)
 	} else {
-		f.med = float64(f.vector[(len(f.vector)-1)/2])
+		f.SetValue(float64(f.vector[(len(f.vector)-1)/2]), context, f)
 	}
-
-	f.SetValue(f.med, context, f)
-
 }
 
 func (f *median) Event(new interface{}, context *flows.EventContext, src interface{}) {
@@ -298,25 +281,23 @@ func init() {
 type mode struct {
 	flows.BaseFeature
 	vector map[float64]uint64
-	max    uint64
-	m      float64
 }
 
 func (f *mode) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.vector = make(map[float64]uint64, 0)
-	f.max = 0
-	f.m = 0
 }
 
 func (f *mode) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	var max uint64
+	var m float64
 	for key, value := range f.vector {
-		if value > f.max {
-			f.max = value
-			f.m = key
+		if value > max {
+			max = value
+			m = key
 		}
 	}
-	f.SetValue(f.m, context, f)
+	f.SetValue(m, context, f)
 
 }
 
