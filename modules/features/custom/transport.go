@@ -302,3 +302,51 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type tcpflags struct {
+	flows.BaseFeature
+	flag  string
+	notcp string
+}
+
+func (f *tcpflags) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		f.flag = ""
+	} else {
+		if tcp.SYN {
+			f.flag += "S"
+		}
+		if tcp.FIN {
+			f.flag += "F"
+		}
+		if tcp.RST {
+			f.flag += "R"
+		}
+		if tcp.PSH {
+			f.flag += "P"
+		}
+		if tcp.ACK {
+			f.flag += "A"
+		}
+		if tcp.URG {
+			f.flag += "U"
+		}
+		if tcp.ECE {
+			f.flag += "E"
+		}
+		if tcp.CWR {
+			f.flag += "C"
+		}
+		if tcp.NS {
+			f.flag += "N"
+		}
+	}
+	f.SetValue(f.flag, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("tcpflags", "", ipfix.StringType, 1, flows.FlowFeature, func() flows.Feature { return &tcpflags{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@ package iana
 import (
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
+	ipfix "github.com/CN-TU/go-ipfix"
 )
 
 type flowEndReason struct {
@@ -110,6 +111,30 @@ func (f *packetTotalCount) Stop(reason flows.FlowEndReason, context *flows.Event
 
 func init() {
 	flows.RegisterStandardFeature("packetTotalCount", flows.FlowFeature, func() flows.Feature { return &packetTotalCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type flowDurationMicroSeconds struct {
+	flows.BaseFeature
+	start    ipfix.DateTimeNanoseconds
+	lastTime flows.DateTimeNanoseconds
+}
+
+func (f *flowDurationMicroSeconds) Start(context *flows.EventContext) {
+	f.start = context.When()
+}
+
+func (f *flowDurationMicroSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.lastTime = (context.When() - f.start) / 1000
+}
+
+func (f *flowDurationMicroSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.lastTime, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("flowDurationMicroSeconds", "", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &flowDurationMicroSeconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
