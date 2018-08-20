@@ -111,10 +111,8 @@ func (f *_HTTPLines) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterFunction("httpLines", flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
-	ieText := []byte("_HTTPLines(667)<octetArray>") // FIXME get number for IE
-	ie := ipfix.MakeIEFromSpec(ieText)
-	flows.RegisterCompositeFeature(ie, "httpLines", "_tcpReorderPayload")
+	flows.RegisterTemporaryFeature("httpLines", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
+	flows.RegisterTemporaryCompositeFeature("_HTTPLines", ipfix.StringType, 0, "httpLines", "_tcpReorderPayload")
 }
 
 type httpRequestHost struct {
@@ -129,7 +127,7 @@ func (f *httpRequestHost) Event(new interface{}, context *flows.EventContext, sr
 }
 
 func init() {
-	flows.RegisterFunction("__httpRequestHost", flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("__httpRequestHost", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
 	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "_HTTPLines")
 }
 
