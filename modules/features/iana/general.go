@@ -3,7 +3,6 @@ package iana
 import (
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
-	ipfix "github.com/CN-TU/go-ipfix"
 )
 
 type flowEndReason struct {
@@ -117,7 +116,7 @@ func init() {
 
 type flowDurationMicroSeconds struct {
 	flows.BaseFeature
-	start    ipfix.DateTimeNanoseconds
+	start    flows.DateTimeNanoseconds
 	lastTime flows.DateTimeNanoseconds
 }
 
@@ -126,11 +125,11 @@ func (f *flowDurationMicroSeconds) Start(context *flows.EventContext) {
 }
 
 func (f *flowDurationMicroSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.lastTime = (context.When() - f.start) / 1000
+	f.lastTime = context.When()
 }
 
 func (f *flowDurationMicroSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	f.SetValue(f.lastTime, context, f)
+	f.SetValue((f.lastTime-f.start)/1000, context, f)
 }
 
 func init() {
