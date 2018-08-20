@@ -45,8 +45,8 @@ func (f *andFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) 
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("and", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &andPacket{} }, flows.PacketFeature, flows.PacketFeature, flows.Ellipsis)
-	flows.RegisterTemporaryFeature("and", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &andFlow{} }, flows.FlowFeature, flows.FlowFeature, flows.Ellipsis)
+	flows.RegisterTemporaryFeature("and", "returns logical conjunction of arguments", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &andPacket{} }, flows.PacketFeature, flows.PacketFeature, flows.Ellipsis)
+	flows.RegisterTemporaryFeature("and", "returns logical conjunction of arguments", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &andFlow{} }, flows.FlowFeature, flows.FlowFeature, flows.Ellipsis)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +91,6 @@ func (f *orFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("or", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &orPacket{} }, flows.PacketFeature, flows.PacketFeature, flows.Ellipsis)
-	flows.RegisterTemporaryFeature("or", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &orFlow{} }, flows.FlowFeature, flows.FlowFeature, flows.Ellipsis)
+	flows.RegisterTemporaryFeature("or", "returns logical disjunction of arguments", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &orPacket{} }, flows.PacketFeature, flows.PacketFeature, flows.Ellipsis)
+	flows.RegisterTemporaryFeature("or", "returns logical disjunction of arguments", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &orFlow{} }, flows.FlowFeature, flows.FlowFeature, flows.Ellipsis)
 }

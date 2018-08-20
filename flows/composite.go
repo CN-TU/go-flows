@@ -7,9 +7,10 @@ import (
 )
 
 type compositeFeatureMaker struct {
-	definition []interface{}
-	ie         ipfix.InformationElement
-	iana       bool
+	definition  []interface{}
+	ie          ipfix.InformationElement
+	description string
+	iana        bool
 }
 
 // compositeToCall generates a textual representation of a composite feature (e.g. fun(arg1,arg2,..))

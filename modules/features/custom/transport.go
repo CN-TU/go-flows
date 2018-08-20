@@ -34,7 +34,7 @@ func (f *_tcpEceTotalCountFlow) Event(new interface{}, context *flows.EventConte
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpEceTotalCount", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpEceTotalCountFlow{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpEceTotalCount", "count of TCP packets with ECE flag", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpEceTotalCountFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ func (f *_tcpEceTotalCountPacket) Event(new interface{}, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpEceTotalCount", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpEceTotalCountPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpEceTotalCount", "count of TCP packets with ECE flag", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpEceTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +80,7 @@ func (f *_tcpCwrTotalCountFlow) Event(new interface{}, context *flows.EventConte
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpCwrTotalCountFlow{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", "count of TCP packets with CWR flag", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpCwrTotalCountFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +98,7 @@ func (f *_tcpCwrTotalCountPacket) Event(new interface{}, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpCwrTotalCountPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpCwrTotalCount", "count of TCP packets with CWR flag", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpCwrTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,7 +126,7 @@ func (f *_tcpNsTotalCountFlow) Event(new interface{}, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpNsTotalCount", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpNsTotalCount", "count of TCP packets with NS flag", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpNsTotalCountFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +144,7 @@ func (f *_tcpNsTotalCountPacket) Event(new interface{}, context *flows.EventCont
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpNsTotalCount", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpNsTotalCountPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpNsTotalCount", "count of TCP packets with NS flag", ipfix.Unsigned64Type, 1, flows.PacketFeature, func() flows.Feature { return &_tcpNsTotalCountPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +298,7 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 }
 
 func init() {
-	flows.RegisterFilterFeature("tcpReorder", func() flows.Feature { return &tcpReorder{} })
+	flows.RegisterFilterFeature("tcpReorder", "returns tcp packets ordered by sequence number; non-tcp packets are passed unmodified.", func() flows.Feature { return &tcpReorder{} })
 }
 
 ////////////////////////////////////////////////////////////////////////////////

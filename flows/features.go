@@ -57,8 +57,8 @@ func newConstantMetaFeature(value interface{}) featureMaker {
 
 //apply and map pseudofeatures; those are handled during callgraph building
 func init() {
-	RegisterFunction("apply", FlowFeature, nil, FlowFeature, Selection)
-	RegisterFunction("map", PacketFeature, nil, PacketFeature, Selection)
+	RegisterFunction("apply", "returns a single feature value for the selection of objects", FlowFeature, nil, FlowFeature, Selection)
+	RegisterFunction("map", "returns a feature value for each object in selection", PacketFeature, nil, PacketFeature, Selection)
 }
 
 // select and select_slice features; needed by the base implementation
@@ -103,7 +103,7 @@ func (f *selectS) Event(new interface{}, context *EventContext, src interface{})
 }
 
 func init() {
-	RegisterFunction("select", Selection, func() Feature { return &selectF{} }, PacketFeature)
-	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const)
-	RegisterFunction("select_slice", Selection, func() Feature { return &selectS{} }, Const, Const, Selection)
+	RegisterFunction("select", "select a subsect of packets", Selection, func() Feature { return &selectF{} }, PacketFeature)
+	RegisterFunction("select_slice", "selects a slice from the first value to the second value, with Python-like indexing (if a <selection is not provided, default to selecting everything)", Selection, func() Feature { return &selectS{} }, Const, Const)
+	RegisterFunction("select_slice", "selects a slice from the first value to the second value, with Python-like indexing (if a <selection is not provided, default to selecting everything)", Selection, func() Feature { return &selectS{} }, Const, Const, Selection)
 }

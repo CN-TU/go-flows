@@ -54,7 +54,7 @@ func (f *_characters) Event(new interface{}, context *flows.EventContext, src in
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_characters", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_characters", "returns a textual representation of a packet", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +142,7 @@ func (f *_characters2) Event(new interface{}, context *flows.EventContext, src i
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_characters2", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters2{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_characters2", "returns a textual representation of a packet", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_characters2{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,9 +184,9 @@ func (f *_consecutiveSeconds) Stop(reason flows.FlowEndReason, context *flows.Ev
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__consecutiveSeconds", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &_consecutiveSeconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "maximum", "_consecutiveSeconds")
-	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", ipfix.Unsigned64Type, 0, "minimum", "_consecutiveSeconds")
+	flows.RegisterTemporaryFeature("__consecutiveSeconds", "outputs number of consecutive seconds in which there was at least one packet", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &_consecutiveSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("__maximumConsecutiveSeconds", "", ipfix.Unsigned64Type, 0, "maximum", "_consecutiveSeconds")
+	flows.RegisterTemporaryCompositeFeature("__minimumConsecutiveSeconds", "", ipfix.Unsigned64Type, 0, "minimum", "_consecutiveSeconds")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,7 +222,7 @@ func (f *_activeForSeconds) Stop(reason flows.FlowEndReason, context *flows.Even
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_activeForSeconds", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_activeForSeconds", "outputs number of seconds in which there was at least one packet", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &_activeForSeconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +253,7 @@ func (f *_tcpOptionsFirstPacket) Event(new interface{}, context *flows.EventCont
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpOptionsFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionsFirstPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpOptionsFirstPacket", "textual representation of TCP options in first packet", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionsFirstPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,7 +286,7 @@ func (f *_tcpTimestampFirstPacket) Event(new interface{}, context *flows.EventCo
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpTimestampFirstPacket", ipfix.Unsigned32Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpTimestampFirstPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpTimestampFirstPacket", "TCP timestamp of first packet", ipfix.Unsigned32Type, 0, flows.FlowFeature, func() flows.Feature { return &_tcpTimestampFirstPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +321,7 @@ func (f *_tcpOptionDataFirstPacket) Event(new interface{}, context *flows.EventC
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpOptionDataFirstPacket", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionDataFirstPacket{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpOptionDataFirstPacket", "textual representation of TCP options in first packet", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &_tcpOptionDataFirstPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,7 +371,7 @@ func (f *_tcpTimestampsPerSeconds) Stop(reason flows.FlowEndReason, context *flo
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_tcpTimestampsPerSeconds", ipfix.Float64Type, 0, flows.PacketFeature, func() flows.Feature { return &_tcpTimestampsPerSeconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_tcpTimestampsPerSeconds", "list of the difference of tcp timestamp divided by actual time in the packets in the flow", ipfix.Float64Type, 0, flows.PacketFeature, func() flows.Feature { return &_tcpTimestampsPerSeconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,5 +388,5 @@ func (f *_label) Event(new interface{}, context *flows.EventContext, src interfa
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__label", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_label{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__label", "label of the packet", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_label{} }, flows.RawPacket)
 }

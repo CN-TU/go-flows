@@ -30,7 +30,7 @@ func resolveGet(args []ipfix.InformationElement) ipfix.InformationElement {
 }
 
 func init() {
-	flows.RegisterCustomFunction("get", resolveGet, flows.FlowFeature, func() flows.Feature { return &get{} }, flows.Const, flows.PacketFeature)
+	flows.RegisterCustomFunction("get", "gets the <value>-th element of the second argument; indexing is like in Python", resolveGet, flows.FlowFeature, func() flows.Feature { return &get{} }, flows.Const, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +54,7 @@ func (f *count) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("count", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.Selection)
+	flows.RegisterTemporaryFeature("count", "returns number of selected objects", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +81,7 @@ func (f *mean) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterTypedFunction("mean", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &mean{} }, flows.PacketFeature)
+	flows.RegisterTypedFunction("mean", "returns mean of input", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &mean{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,8 +118,8 @@ func (f *min) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterFunction("min", flows.FlowFeature, func() flows.Feature { return &min{} }, flows.PacketFeature)
-	flows.RegisterFunction("minimum", flows.FlowFeature, func() flows.Feature { return &min{} }, flows.PacketFeature)
+	flows.RegisterFunction("min", "returns min of input", flows.FlowFeature, func() flows.Feature { return &min{} }, flows.PacketFeature)
+	flows.RegisterFunction("minimum", "returns min of input", flows.FlowFeature, func() flows.Feature { return &min{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,8 +156,8 @@ func (f *max) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
-	flows.RegisterFunction("max", flows.FlowFeature, func() flows.Feature { return &max{} }, flows.PacketFeature)
-	flows.RegisterFunction("maximum", flows.FlowFeature, func() flows.Feature { return &max{} }, flows.PacketFeature)
+	flows.RegisterFunction("max", "returns max of input", flows.FlowFeature, func() flows.Feature { return &max{} }, flows.PacketFeature)
+	flows.RegisterFunction("maximum", "returns max of input", flows.FlowFeature, func() flows.Feature { return &max{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

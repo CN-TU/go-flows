@@ -25,10 +25,10 @@ func (f *_interPacketTimeNanoseconds) Event(new interface{}, context *flows.Even
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", ipfix.Signed64Type, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMicroseconds", ipfix.Signed64Type, 0, "divide", "_interPacketTimeNanoseconds", 1000)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMilliseconds", ipfix.Signed64Type, 0, "divide", "_interPacketTimeNanoseconds", 1000000)
-	flows.RegisterTemporaryCompositeFeature("_interPacketTimeSeconds", ipfix.Signed32Type, 0, "divide", "_interPacketTimeNanoseconds", 1000000000)
+	flows.RegisterTemporaryFeature("_interPacketTimeNanoseconds", "time difference between consecutive packets", ipfix.Signed64Type, 0, flows.PacketFeature, func() flows.Feature { return &_interPacketTimeNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMicroseconds", "time difference between consecutive packets", ipfix.Signed64Type, 0, "divide", "_interPacketTimeNanoseconds", 1000)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeMilliseconds", "time difference between consecutive packets", ipfix.Signed64Type, 0, "divide", "_interPacketTimeNanoseconds", 1000000)
+	flows.RegisterTemporaryCompositeFeature("_interPacketTimeSeconds", "time difference between consecutive packets", ipfix.Signed32Type, 0, "divide", "_interPacketTimeNanoseconds", 1000000000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

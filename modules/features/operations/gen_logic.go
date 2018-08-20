@@ -15,15 +15,15 @@ import (
 // go run gen_logic.go | gofmt > logic_generated.go
 
 type operation struct {
-	Name, Operator string
+	Name, Operator, Description string
 }
 
 var comparisons = [...]operation{
-	{Name: "geq", Operator: ">="},
-	{Name: "leq", Operator: "<="},
-	{Name: "less", Operator: "<"},
-	{Name: "greater", Operator: ">"},
-	{Name: "equal", Operator: "=="},
+	{Name: "geq", Operator: ">=", Description: "returns true if a >= b"},
+	{Name: "leq", Operator: "<=", Description: "returns true if a <= b"},
+	{Name: "less", Operator: "<", Description: "returns true if a < b"},
+	{Name: "greater", Operator: ">", Description: "returns true if a > b"},
+	{Name: "equal", Operator: "==", Description: "returns true if a == b"},
 }
 
 const heading = `package operations
@@ -79,8 +79,8 @@ func (f *{{.Name}}Flow) Stop(reason flows.FlowEndReason, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("{{.Name}}", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("{{.Name}}", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTemporaryFeature("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
 }`))
 
 func main() {

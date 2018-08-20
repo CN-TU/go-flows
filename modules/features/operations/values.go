@@ -31,7 +31,7 @@ func resolveSlice(args []ipfix.InformationElement) ipfix.InformationElement {
 }
 
 func init() {
-	flows.RegisterCustomFunction("slice", resolveSlice, flows.PacketFeature, func() flows.Feature { return &slice{} }, flows.Const, flows.Const, flows.PacketFeature)
+	flows.RegisterCustomFunction("slice", "gets third_argument[first_argument, second_argument]; indexing is like in Python", resolveSlice, flows.PacketFeature, func() flows.Feature { return &slice{} }, flows.Const, flows.Const, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

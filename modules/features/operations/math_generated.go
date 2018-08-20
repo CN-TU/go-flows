@@ -1,7 +1,7 @@
 package operations
 
 // Created by gen_math.go, don't edit manually!
-// Generated at 2018-08-10 19:27:10.046658804 +0200 CEST m=+0.001055803
+// Generated at 2018-08-20 14:07:29.66653769 +0200 CEST m=+0.001376418
 
 import (
 	"github.com/CN-TU/go-flows/flows"
@@ -27,8 +27,8 @@ func (f *floorFlow) Event(new interface{}, context *flows.EventContext, src inte
 }
 
 func init() {
-	flows.RegisterFunction("floor", flows.PacketFeature, func() flows.Feature { return &floorPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("floor", flows.FlowFeature, func() flows.Feature { return &floorFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("floor", "returns ⌊a⌋", flows.PacketFeature, func() flows.Feature { return &floorPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("floor", "returns ⌊a⌋", flows.FlowFeature, func() flows.Feature { return &floorFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type ceilPacket struct {
@@ -50,8 +50,8 @@ func (f *ceilFlow) Event(new interface{}, context *flows.EventContext, src inter
 }
 
 func init() {
-	flows.RegisterFunction("ceil", flows.PacketFeature, func() flows.Feature { return &ceilPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("ceil", flows.FlowFeature, func() flows.Feature { return &ceilFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("ceil", "returns ⌈a⌉", flows.PacketFeature, func() flows.Feature { return &ceilPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("ceil", "returns ⌈a⌉", flows.FlowFeature, func() flows.Feature { return &ceilFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type logPacket struct {
@@ -73,8 +73,8 @@ func (f *logFlow) Event(new interface{}, context *flows.EventContext, src interf
 }
 
 func init() {
-	flows.RegisterFunction("log", flows.PacketFeature, func() flows.Feature { return &logPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("log", flows.FlowFeature, func() flows.Feature { return &logFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("log", "returns log(a)", flows.PacketFeature, func() flows.Feature { return &logPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("log", "returns log(a)", flows.FlowFeature, func() flows.Feature { return &logFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type expPacket struct {
@@ -96,8 +96,8 @@ func (f *expFlow) Event(new interface{}, context *flows.EventContext, src interf
 }
 
 func init() {
-	flows.RegisterFunction("exp", flows.PacketFeature, func() flows.Feature { return &expPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("exp", flows.FlowFeature, func() flows.Feature { return &expFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("exp", "returns exp(a)", flows.PacketFeature, func() flows.Feature { return &expPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("exp", "returns exp(a)", flows.FlowFeature, func() flows.Feature { return &expFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type addPacket struct {
@@ -144,8 +144,8 @@ func (f *addFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) 
 }
 
 func init() {
-	flows.RegisterFunction("add", flows.PacketFeature, func() flows.Feature { return &addPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("add", flows.FlowFeature, func() flows.Feature { return &addFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("add", "returns a + b", flows.PacketFeature, func() flows.Feature { return &addPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("add", "returns a + b", flows.FlowFeature, func() flows.Feature { return &addFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type subtractPacket struct {
@@ -192,8 +192,8 @@ func (f *subtractFlow) Stop(reason flows.FlowEndReason, context *flows.EventCont
 }
 
 func init() {
-	flows.RegisterFunction("subtract", flows.PacketFeature, func() flows.Feature { return &subtractPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("subtract", flows.FlowFeature, func() flows.Feature { return &subtractFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("subtract", "returns a - b", flows.PacketFeature, func() flows.Feature { return &subtractPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("subtract", "returns a - b", flows.FlowFeature, func() flows.Feature { return &subtractFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type multiplyPacket struct {
@@ -240,8 +240,8 @@ func (f *multiplyFlow) Stop(reason flows.FlowEndReason, context *flows.EventCont
 }
 
 func init() {
-	flows.RegisterFunction("multiply", flows.PacketFeature, func() flows.Feature { return &multiplyPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("multiply", flows.FlowFeature, func() flows.Feature { return &multiplyFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("multiply", "returns a * b", flows.PacketFeature, func() flows.Feature { return &multiplyPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("multiply", "returns a * b", flows.FlowFeature, func() flows.Feature { return &multiplyFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type dividePacket struct {
@@ -288,6 +288,6 @@ func (f *divideFlow) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterFunction("divide", flows.PacketFeature, func() flows.Feature { return &dividePacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("divide", flows.FlowFeature, func() flows.Feature { return &divideFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("divide", "returns a / b", flows.PacketFeature, func() flows.Feature { return &dividePacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("divide", "returns a / b", flows.FlowFeature, func() flows.Feature { return &divideFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }

@@ -32,7 +32,8 @@ func (f *addPacketFlow) Stop(reason flows.FlowEndReason, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterFunction("add", flows.FlowFeature, func() flows.Feature { return &addPacketFlow{} }, flows.PacketFeature)
+	flows.RegisterFunction("add", "returns ∑ a", flows.FlowFeature, func() flows.Feature { return &addPacketFlow{} }, flows.PacketFeature)
+	flows.RegisterFunction("sum", "returns ∑ a", flows.FlowFeature, func() flows.Feature { return &addPacketFlow{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +68,7 @@ func (f *multiplyPacketFlow) Stop(reason flows.FlowEndReason, context *flows.Eve
 }
 
 func init() {
-	flows.RegisterFunction("multiply", flows.FlowFeature, func() flows.Feature { return &multiplyPacketFlow{} }, flows.PacketFeature)
+	flows.RegisterFunction("multiply", "returns ∏ a", flows.FlowFeature, func() flows.Feature { return &multiplyPacketFlow{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

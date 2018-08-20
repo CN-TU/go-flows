@@ -21,7 +21,7 @@ func (f *join) Event(new interface{}, context *flows.EventContext, src interface
 }
 
 func init() {
-	flows.RegisterFunction("join", flows.PacketFeature, func() flows.Feature { return &join{} }, flows.PacketFeature, flows.Ellipsis)
+	flows.RegisterFunction("join", "returns arguments as list", flows.PacketFeature, func() flows.Feature { return &join{} }, flows.PacketFeature, flows.Ellipsis)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ func resolveAccumulate(args []ipfix.InformationElement) ipfix.InformationElement
 
 //FIXME: this has a bad name
 func init() {
-	flows.RegisterCustomFunction("accumulate", resolveAccumulate, flows.FlowFeature, func() flows.Feature { return &accumulate{} }, flows.PacketFeature)
+	flows.RegisterCustomFunction("accumulate", "returns per-packet values as a list", resolveAccumulate, flows.FlowFeature, func() flows.Feature { return &accumulate{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +80,7 @@ func (f *concatenate) Stop(reason flows.FlowEndReason, context *flows.EventConte
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("concatenate", ipfix.OctetArrayType, 0, flows.FlowFeature, func() flows.Feature { return &concatenate{} }, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("concatenate", "concatenates per-packet values into a string", ipfix.OctetArrayType, 0, flows.FlowFeature, func() flows.Feature { return &concatenate{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

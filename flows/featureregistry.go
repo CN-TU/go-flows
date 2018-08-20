@@ -81,14 +81,15 @@ func init() {
 }
 
 // RegisterFeature registers a new feature with the given IE.
-func RegisterFeature(ie ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterFeature(ie ipfix.InformationElement, description string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			ie:        ie,
-			iana:      ie.ID != 0 && ie.Pen == 0,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			ie:          ie,
+			iana:        ie.ID != 0 && ie.Pen == 0,
+			description: description,
 		})
 }
 
@@ -98,115 +99,121 @@ func RegisterFeature(ie ipfix.InformationElement, ret FeatureType, make MakeFeat
 // This is the case for one-argument functions, where return type (e.g. min()) is the same as argument
 // type, and n-argument functions, where the return type is the maximum numeric type resolved from the
 // arguments (e.g. add)
-func RegisterFunction(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterFunction(name string, description string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			ie:        ie,
-			function:  true,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			ie:          ie,
+			function:    true,
+			description: description,
 		})
 }
 
 // RegisterTypedFunction registers a function that has a specific return type.
-func RegisterTypedFunction(name string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterTypedFunction(name string, description string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			ie:        ie,
-			function:  true,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			ie:          ie,
+			function:    true,
+			description: description,
 		})
 }
 
 // RegisterCustomFunction registers a function that needs custom type resolution to get the return type
-func RegisterCustomFunction(name string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterCustomFunction(name string, description string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			resolver:  resolver,
-			function:  true,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			resolver:    resolver,
+			function:    true,
+			description: description,
 		})
 }
 
 // RegisterVariantFeature registers a feature that represents more than one information element depending on the data
-func RegisterVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterVariantFeature(name string, description string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			ie:        ie,
-			variants:  ies,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			ie:          ie,
+			variants:    ies,
+			description: description,
 		})
 }
 
 // RegisterStandardVariantFeature registers a feature that represents more than one information element depending on the data and is part of the iana ipfix list (e.g. sourceIpv4Address/sourceIpv6Address)
-func RegisterStandardVariantFeature(name string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterStandardVariantFeature(name string, description string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
 	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
 		featureMaker{
-			ret:       ret,
-			make:      make,
-			arguments: arguments,
-			ie:        ie,
-			variants:  ies,
-			iana:      true,
+			ret:         ret,
+			make:        make,
+			arguments:   arguments,
+			ie:          ie,
+			variants:    ies,
+			iana:        true,
+			description: description,
 		})
 }
 
 // RegisterStandardFeature registers a feature from the iana ipfix list
 func RegisterStandardFeature(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.GetInformationElement(name)
-	RegisterFeature(ie, ret, make, arguments...)
+	RegisterFeature(ie, "", ret, make, arguments...)
 }
 
 // RegisterTemporaryFeature registers a feature that is not part of the iana ipfix list. It gets assigned a number upon exporting.
-func RegisterTemporaryFeature(name string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+func RegisterTemporaryFeature(name string, description string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
-	RegisterFeature(ie, ret, make, arguments...)
+	RegisterFeature(ie, description, ret, make, arguments...)
 }
 
 // RegisterControlFeature registers a control feature (i.e. a feature that can manipulate flow behaviour)
-func RegisterControlFeature(name string, make MakeFeature) {
-	RegisterFunction(name, ControlFeature, make, RawPacket)
+func RegisterControlFeature(name string, description string, make MakeFeature) {
+	RegisterFunction(name, description, ControlFeature, make, RawPacket)
 }
 
 // RegisterFilterFeature registers a filter feature (i.e. a feature that can skip events for a flow)
-func RegisterFilterFeature(name string, make MakeFeature) {
-	RegisterFunction(name, RawPacket, make, RawPacket)
+func RegisterFilterFeature(name string, description string, make MakeFeature) {
+	RegisterFunction(name, description, RawPacket, make, RawPacket)
 }
 
 // RegisterCompositeFeature registers a new composite feature with the given name. Composite features are features that depend on other features and need to be
 // represented in the form ["featurea", ["featureb", "featurec"]]
-func RegisterCompositeFeature(ie ipfix.InformationElement, definition ...interface{}) {
+func RegisterCompositeFeature(ie ipfix.InformationElement, description string, definition ...interface{}) {
 	if _, ok := compositeFeatures[ie.Name]; ok {
 		panic(fmt.Sprintf("Feature %s already registered", ie.Name))
 	}
 	compositeFeatures[ie.Name] = compositeFeatureMaker{
-		definition: definition,
-		ie:         ie,
-		iana:       ie.Pen == 0 && ie.ID != 0,
+		definition:  definition,
+		ie:          ie,
+		iana:        ie.Pen == 0 && ie.ID != 0,
+		description: description,
 	}
 }
 
 // RegisterStandardCompositeFeature registers a composite feature (see RegisterCompositeFeature) that is part of the iana ipfix list
 func RegisterStandardCompositeFeature(name string, definition ...interface{}) {
 	ie := ipfix.GetInformationElement(name)
-	RegisterCompositeFeature(ie, definition...)
+	RegisterCompositeFeature(ie, "", definition...)
 }
 
 // RegisterTemporaryCompositeFeature registers a composite feature (see RegisterCompositeFeature) that is not part of the iana ipfix list
-func RegisterTemporaryCompositeFeature(name string, t ipfix.Type, tl uint16, definition ...interface{}) {
+func RegisterTemporaryCompositeFeature(name string, description string, t ipfix.Type, tl uint16, definition ...interface{}) {
 	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
-	RegisterCompositeFeature(ie, definition...)
+	RegisterCompositeFeature(ie, description, definition...)
 }
 
 // getFeature returns the feature metadata for a feature with the given name, return type, and number of arguments, and true if such a feature exists
@@ -236,10 +243,12 @@ func ListFeatures(w io.Writer) {
 	ff := make(map[string]string)
 	args := make(map[string]string)
 	impl := make(map[string]string)
+	desc := make(map[string]string)
 	var iana, base, functions, filters, control []string
 	for ret, features := range featureRegistry {
 		for name, featurelist := range features {
 			for _, feature := range featurelist {
+				desc[name] = feature.description
 				if feature.ret == ControlFeature {
 					control = append(control, name)
 				} else if feature.ret == RawPacket || feature.ret == RawFlow {
@@ -305,6 +314,7 @@ func ListFeatures(w io.Writer) {
 	}
 	for name, feature := range compositeFeatures {
 		impl[name] = fmt.Sprint(" = ", strings.Join(compositeToCall(feature.definition), ""))
+		desc[name] = feature.description
 		fun := feature.definition[0].(string)
 		if _, ok := featureRegistry[FlowFeature][fun]; ok {
 			ff[name] = "X"
@@ -340,7 +350,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\n", pf[name], ff[name], name, impl[name])
+		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\t%s\n", pf[name], ff[name], name, impl[name], desc[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()
@@ -353,7 +363,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\n", pf[name], ff[name], name, impl[name])
+		fmt.Fprintf(line, "  %1s\t%1s\t%s%s\t%s\n", pf[name], ff[name], name, impl[name], desc[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()
@@ -366,7 +376,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
+		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\t%s\n", pf[name], ff[name], name, args[name], desc[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()
@@ -379,7 +389,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\n", pf[name], ff[name], name, args[name])
+		fmt.Fprintf(line, "  %1s\t%1s\t%s(%s)\t%s\n", pf[name], ff[name], name, args[name], desc[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()
@@ -392,7 +402,7 @@ func ListFeatures(w io.Writer) {
 		}
 		last = name
 		line := new(bytes.Buffer)
-		fmt.Fprintf(line, "  %1s\t%1s\t%s\n", " ", " ", name)
+		fmt.Fprintf(line, "  %1s\t%1s\t%s\t%s\n", " ", " ", name, desc[name])
 		t.Write(line.Bytes())
 	}
 	t.Flush()

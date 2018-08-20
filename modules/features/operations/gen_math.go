@@ -15,21 +15,21 @@ import (
 // go run gen_math.go | gofmt > math_generated.go
 
 type operation struct {
-	Name, Operator string
+	Name, Operator, Description string
 }
 
 var single = [...]operation{
-	{Name: "floor", Operator: "math.Floor"},
-	{Name: "ceil", Operator: "math.Ceil"},
-	{Name: "log", Operator: "math.Log"},
-	{Name: "exp", Operator: "math.Exp"},
+	{Name: "floor", Operator: "math.Floor", Description: "returns ⌊a⌋"},
+	{Name: "ceil", Operator: "math.Ceil", Description: "returns ⌈a⌉"},
+	{Name: "log", Operator: "math.Log", Description: "returns log(a)"},
+	{Name: "exp", Operator: "math.Exp", Description: "returns exp(a)"},
 }
 
 var dual = [...]operation{
-	{Name: "add", Operator: "+"},
-	{Name: "subtract", Operator: "-"},
-	{Name: "multiply", Operator: "*"},
-	{Name: "divide", Operator: "/"},
+	{Name: "add", Operator: "+", Description: "returns a + b"},
+	{Name: "subtract", Operator: "-", Description: "returns a - b"},
+	{Name: "multiply", Operator: "*", Description: "returns a * b"},
+	{Name: "divide", Operator: "/", Description: "returns a / b"},
 }
 
 const heading = `package operations
@@ -64,8 +64,8 @@ func (f *{{.Name}}Flow) Event(new interface{}, context *flows.EventContext, src 
 }
 
 func init() {
-	flows.RegisterFunction("{{.Name}}", flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("{{.Name}}", flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("{{.Name}}", "{{.Description}}", flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("{{.Name}}", "{{.Description}}", flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
 }`))
 
 var dualTmpl = template.Must(template.New("comparsion").Parse(`
@@ -113,8 +113,8 @@ func (f *{{.Name}}Flow) Stop(reason flows.FlowEndReason, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterFunction("{{.Name}}", flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("{{.Name}}", flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("{{.Name}}", "{{.Description}}", flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("{{.Name}}", "{{.Description}}", flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
 }`))
 
 func main() {

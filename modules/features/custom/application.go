@@ -25,7 +25,7 @@ func (f *_payload) Event(new interface{}, context *flows.EventContext, src inter
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_payload", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_payload{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("_payload", "application layer of a packet", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_payload{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,8 +111,8 @@ func (f *_HTTPLines) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("httpLines", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
-	flows.RegisterTemporaryCompositeFeature("_HTTPLines", ipfix.StringType, 0, "httpLines", "_tcpReorderPayload")
+	flows.RegisterTemporaryFeature("httpLines", "returns headers from a http session", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_HTTPLines{} }, flows.PacketFeature)
+	flows.RegisterTemporaryCompositeFeature("_HTTPLines", "returns headers from a http session", ipfix.StringType, 0, "httpLines", "_tcpReorderPayload")
 }
 
 type httpRequestHost struct {
@@ -127,7 +127,7 @@ func (f *httpRequestHost) Event(new interface{}, context *flows.EventContext, sr
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("__httpRequestHost", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("__httpRequestHost", "extract the host header from lines of text", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
 	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "_HTTPLines")
 }
 
