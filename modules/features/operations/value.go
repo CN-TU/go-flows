@@ -2,9 +2,11 @@ package operations
 
 import (
 	"math"
-	"sort"
+
+	"github.com/wangjohn/quickselect"
 
 	"github.com/CN-TU/go-flows/flows"
+	"github.com/CN-TU/go-flows/modules/features"
 	ipfix "github.com/CN-TU/go-ipfix"
 )
 
@@ -247,31 +249,87 @@ func init() {
 
 type median struct {
 	flows.BaseFeature
-	vector []float64
+	vector features.TypedSlice
 }
 
 func (f *median) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
-	f.vector = make([]float64, 0)
+	f.vector = nil
 }
 
 func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	sort.Float64s(f.vector)
-	if len(f.vector) == 0 {
-		f.SetValue(0, context, f)
-	} else if len(f.vector)%2 == 0 {
-		f.SetValue(float64((f.vector[len(f.vector)/2-1]+f.vector[len(f.vector)/2])/2), context, f)
-	} else {
-		f.SetValue(float64(f.vector[(len(f.vector)-1)/2]), context, f)
+	k := f.vector.Len()
+	// Start with trivial cases
+	switch k {
+	case 0:
+		return // No median
+	case 1:
+		f.SetValue(f.vector.Get(0), context, f) // take the only value
+		return
+	case 2:
+		if f.vector.IsNumeric() {
+			// for numeric value between item 0 and 1
+			f.SetValue((f.vector.GetFloat(0)+f.vector.GetFloat(1))/2, context, f)
+			return
+		}
+		// for non-numeric take the lower value
+		if f.vector.Less(0, 1) {
+			f.SetValue(f.vector.Get(0), context, f)
+			return
+		}
+		f.SetValue(f.vector.Get(1), context, f)
+		return
 	}
+	// Ok we need to find the median -> do a quickselect to get the k/2+1 lowest values
+	nlowest := k/2 + 1
+	quickselect.QuickSelect(f.vector, nlowest)
+	if k%2 == 0 {
+		// no middle element -> find two highest values in the k/2+1 lowest values
+		var max, max2 int
+		if f.vector.Less(0, 1) {
+			max = 1
+			max2 = 0
+		} else {
+			max = 0
+			max2 = 1
+		}
+		for i := 2; i < nlowest; i++ {
+			if f.vector.Less(max, i) {
+				if f.vector.Less(max2, max) {
+					max2 = max
+				}
+				max = i
+			}
+		}
+		if f.vector.IsNumeric() {
+			// numeric -> value between the two highest values in the lowest values
+			f.SetValue((f.vector.GetFloat(max)+f.vector.GetFloat(max2))/2, context, f)
+			return
+		}
+		// non-numeric -> lower value
+		f.SetValue(f.vector.Get(max2), context, f)
+		return
+	}
+	// we have middle element -> find highest in the k/2+1 lowest => this is the median
+	max := 0
+	for i := 1; i < nlowest; i++ {
+		if f.vector.Less(max, i) {
+			max = i
+		}
+	}
+	f.SetValue(f.vector.Get(max), context, f)
 }
 
 func (f *median) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.vector = append(f.vector, flows.ToFloat(new))
+	if f.vector == nil {
+		f.vector = features.NewTypedSlice(new)
+	} else {
+		f.vector.Append(new)
+	}
 }
 
 func init() {
-	flows.RegisterTypedFunction("median", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &median{} }, flows.PacketFeature)
+	flows.RegisterFunction("median", "median; numeric even: arithmetic mean of two middle values; non-numeric even: lower of the two middle values", flows.FlowFeature, func() flows.Feature { return &median{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
