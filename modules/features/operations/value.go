@@ -340,33 +340,41 @@ func init() {
 
 type mode struct {
 	flows.BaseFeature
-	vector map[float64]uint64
+	vector map[interface{}]uint64
 }
 
 func (f *mode) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
-	f.vector = make(map[float64]uint64, 0)
+	f.vector = make(map[interface{}]uint64)
 }
 
 func (f *mode) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 	var max uint64
-	var m float64
-	for key, value := range f.vector {
-		if value > max {
-			max = value
-			m = key
+	var m interface{}
+	for val, num := range f.vector {
+		if num > max {
+			max = num
+			m = val
+		} else if num == max && features.Less(val, m) {
+			m = val
 		}
 	}
-	f.SetValue(m, context, f)
-
+	if max > 0 {
+		f.SetValue(m, context, f)
+	}
 }
 
 func (f *mode) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.vector[flows.ToFloat(new)]++
+	switch val := new.(type) {
+	case []byte:
+		f.vector[string(val)]++
+	default:
+		f.vector[val]++
+	}
 }
 
 func init() {
-	flows.RegisterTypedFunction("mode", "", ipfix.Float64Type, 0, flows.FlowFeature, func() flows.Feature { return &mode{} }, flows.PacketFeature)
+	flows.RegisterFunction("mode", "mode of value; if multimodal then smallest value; no special handling for continous", flows.FlowFeature, func() flows.Feature { return &mode{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
