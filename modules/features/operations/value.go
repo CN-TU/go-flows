@@ -299,6 +299,10 @@ func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 					max2 = max
 				}
 				max = i
+			} else if f.vector.Equal(max, i) {
+				max2 = i
+			} else if f.vector.Less(max2, i) {
+				max2 = i
 			}
 		}
 		if f.vector.IsNumeric() {

@@ -14,6 +14,7 @@ type TypedSlice interface {
 	GetFloat(i int) float64
 	Len() int
 	Less(i, j int) bool
+	Equal(i, j int) bool
 	Swap(i, j int)
 	IsNumeric() bool
 }
@@ -30,6 +31,10 @@ func (s *uint64Slice) Len() int {
 
 func (s *uint64Slice) Less(i, j int) bool {
 	return (*s)[i] < (*s)[j]
+}
+
+func (s *uint64Slice) Equal(i, j int) bool {
+	return (*s)[i] == (*s)[j]
 }
 
 func (s *uint64Slice) Swap(i, j int) {
@@ -62,6 +67,10 @@ func (s *int64Slice) Less(i, j int) bool {
 	return (*s)[i] < (*s)[j]
 }
 
+func (s *int64Slice) Equal(i, j int) bool {
+	return (*s)[i] == (*s)[j]
+}
+
 func (s *int64Slice) Swap(i, j int) {
 	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
 }
@@ -92,6 +101,10 @@ func (s *float64Slice) Less(i, j int) bool {
 	return (*s)[i] < (*s)[j]
 }
 
+func (s *float64Slice) Equal(i, j int) bool {
+	return (*s)[i] == (*s)[j]
+}
+
 func (s *float64Slice) Swap(i, j int) {
 	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
 }
@@ -120,6 +133,10 @@ func (s *boolSlice) Len() int {
 
 func (s *boolSlice) Less(i, j int) bool {
 	return !(*s)[i] && (*s)[j]
+}
+
+func (s *boolSlice) Equal(i, j int) bool {
+	return (*s)[i] == (*s)[j]
 }
 
 func (s *boolSlice) Swap(i, j int) {
@@ -155,6 +172,10 @@ func (s *stringSlice) Less(i, j int) bool {
 	return (*s)[i] < (*s)[j]
 }
 
+func (s *stringSlice) Equal(i, j int) bool {
+	return (*s)[i] == (*s)[j]
+}
+
 func (s *stringSlice) Swap(i, j int) {
 	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
 }
@@ -183,6 +204,10 @@ func (s *bytesSlice) Len() int {
 
 func (s *bytesSlice) Less(i, j int) bool {
 	return bytes.Compare((*s)[i], (*s)[j]) == -1
+}
+
+func (s *bytesSlice) Equal(i, j int) bool {
+	return bytes.Compare((*s)[i], (*s)[j]) == 0
 }
 
 func (s *bytesSlice) Swap(i, j int) {
