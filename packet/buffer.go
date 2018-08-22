@@ -64,6 +64,7 @@ type packetBuffer struct {
 	eth         layers.Ethernet
 	ip4         layers.IPv4
 	ip6         layers.IPv6
+	ip6skipper  layers.IPv6ExtensionSkipper
 	tcp         layers.TCP
 	udp         layers.UDP
 	icmpv4      icmpv4Flow
@@ -397,7 +398,6 @@ func (pb *packetBuffer) PayloadLength() int {
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *packetBuffer) decode() (ret bool) {
-	var ip6skipper layers.IPv6ExtensionSkipper
 	defer func() {
 		if err := recover(); err != nil {
 			ret = false
@@ -438,7 +438,7 @@ func (pb *packetBuffer) decode() (ret bool) {
 			}
 		default:
 			if layers.LayerClassIPv6Extension.Contains(typ) {
-				decoder = &ip6skipper
+				decoder = &pb.ip6skipper
 			} else {
 				return true
 			}
@@ -483,8 +483,8 @@ func (pb *packetBuffer) decode() (ret bool) {
 			return true
 		default:
 			if layers.LayerClassIPv6Extension.Contains(typ) {
-				pb.proto = uint8(ip6skipper.NextHeader)
-				pb.ip6headers += len(ip6skipper.Contents)
+				pb.proto = uint8(pb.ip6skipper.NextHeader)
+				pb.ip6headers += len(pb.ip6skipper.Contents)
 			}
 		}
 		typ = decoder.NextLayerType()
