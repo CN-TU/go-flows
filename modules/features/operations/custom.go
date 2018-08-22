@@ -27,7 +27,7 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 
 type accumulate struct {
-	flows.MultiBasePacketFeature
+	flows.BaseFeature
 	vector []interface{}
 }
 
