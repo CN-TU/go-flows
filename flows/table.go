@@ -32,7 +32,7 @@ type FlowTable struct {
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
 	return &FlowTable{
-		flows:       make(map[FlowKey]int, 1000000),
+		flows:       make(map[FlowKey]int, 1000000), //SMELL: make better defaults?
 		flowlist:    make([]Flow, 0, 1000000),
 		freelist:    make([]int, 0, 1000000),
 		newflow:     newflow,
