@@ -411,21 +411,48 @@ func (pb *packetBuffer) decode() (ret bool) {
 		switch typ {
 		case layers.LayerTypeEthernet:
 			decoder = &pb.eth
+			if pb.link != nil {
+				return true
+			}
 		case layers.LayerTypeLinuxSLL:
 			decoder = &pb.sll
+			if pb.link != nil {
+				return true
+			}
 		case layers.LayerTypeIPv4:
 			decoder = &pb.ip4
+			if pb.network != nil {
+				return true
+			}
 		case layers.LayerTypeIPv6:
 			decoder = &pb.ip6
+			if pb.network != nil {
+				return true
+			}
 		case layers.LayerTypeUDP:
 			decoder = &pb.udp
+			if pb.transport != nil {
+				return true
+			}
 		case layers.LayerTypeTCP:
 			decoder = &pb.tcp
+			if pb.transport != nil {
+				return true
+			}
 		case layers.LayerTypeICMPv4:
 			decoder = &pb.icmpv4
+			if pb.transport != nil {
+				return true
+			}
 		case layers.LayerTypeICMPv6:
 			decoder = &pb.icmpv6
+			if pb.transport != nil {
+				return true
+			}
 		case LayerTypeIPv46:
+			if pb.network != nil {
+				return true
+			}
 			version := data[0] >> 4
 			switch version {
 			case 4:
