@@ -1,6 +1,7 @@
 package iana
 
 import (
+	"encoding/binary"
 	"net"
 
 	"github.com/CN-TU/go-ipfix"
@@ -139,7 +140,30 @@ type ipTotalLengthPacket struct {
 }
 
 func (f *ipTotalLengthPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(new.(packet.Buffer).NetworkLayerLength(), context, f)
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.Length, context, f)
+		return
+	}
+	if ip, ok := network.(*layers.IPv6); ok {
+		if ip.HopByHop != nil {
+			var tlv *layers.IPv6HopByHopOption
+			for _, t := range ip.HopByHop.Options {
+				if t.OptionType == layers.IPv6HopByHopOptionJumbogram {
+					tlv = t
+					break
+				}
+			}
+			if tlv != nil && len(tlv.OptionData) == 4 {
+				l := binary.BigEndian.Uint32(tlv.OptionData)
+				if l > 65535 {
+					f.SetValue(l, context, f)
+					return
+				}
+			}
+		}
+		f.SetValue(ip.Length, context, f)
+	}
 }
 
 func init() {
@@ -157,7 +181,30 @@ func (f *ipTotalLengthFlow) Start(context *flows.EventContext) {
 }
 
 func (f *ipTotalLengthFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.total += uint64(new.(packet.Buffer).NetworkLayerLength())
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.total += uint64(ip.Length)
+		return
+	}
+	if ip, ok := network.(*layers.IPv6); ok {
+		if ip.HopByHop != nil {
+			var tlv *layers.IPv6HopByHopOption
+			for _, t := range ip.HopByHop.Options {
+				if t.OptionType == layers.IPv6HopByHopOptionJumbogram {
+					tlv = t
+					break
+				}
+			}
+			if tlv != nil && len(tlv.OptionData) == 4 {
+				l := binary.BigEndian.Uint32(tlv.OptionData)
+				if l > 65535 {
+					f.total += uint64(l)
+					return
+				}
+			}
+		}
+		f.total += uint64(ip.Length)
+	}
 }
 
 func (f *ipTotalLengthFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
