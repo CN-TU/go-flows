@@ -376,11 +376,11 @@ func (pb *packetBuffer) NetworkLayerLength() int {
 			if tlv != nil && len(tlv.OptionData) == 4 {
 				l := binary.BigEndian.Uint32(tlv.OptionData)
 				if l > 65535 {
-					return int(l)
+					return int(l) + 40 // in ip6 the Length field is actually payload length...
 				}
 			}
 		}
-		return int(ip.Length)
+		return int(ip.Length) + 40 // in ip6 the Length field is actually payload length...
 	}
 	if pb.link != nil {
 		return pb.LinkLayerLength() - len(pb.link.LayerContents())
