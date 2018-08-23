@@ -248,6 +248,7 @@ func (pb *packetBuffer) assign(data []byte, ci gopacket.CaptureInfo, lt gopacket
 	pb.application = nil
 	pb.failure = nil
 	pb.tcp.Payload = nil
+	pb.proto = 0
 	pb.ip6headers = 0
 	pb.refcnt = 1
 	dlen := len(data)
