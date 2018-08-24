@@ -5,9 +5,6 @@ import (
 	"sort"
 )
 
-// UseStringOption is a special marker, which redirects the module to use the string options
-type UseStringOption struct{}
-
 // Module interface.
 // Modules need at least an ID() function returning suitable string representation
 // and an Init() function, which is called after all the arguments were successfully parsed and all the modules created.
@@ -16,10 +13,9 @@ type Module interface {
 	Init()
 }
 
-// ModuleCreator is a function, which creates a module. It is provided a name,
-// structured arguments (or UseStringOption), or a list of string options. It needs to
+// ModuleCreator is a function, which creates a module. It is provided a list of string options. It needs to
 // return the not used string options and the created Module.
-type ModuleCreator func(string, interface{}, []string) ([]string, Module, error)
+type ModuleCreator func([]string) ([]string, Module, error)
 
 // ModuleHelp is provided the name of the module and must produce a help description on stderr.
 type ModuleHelp func(string)
@@ -91,10 +87,10 @@ func GetModules(typ string) (descriptions []ModuleDescription, err error) {
 }
 
 // CreateModule creates the module with the given type, name, and the provided options
-func CreateModule(typ, which, name string, options interface{}, args []string) ([]string, Module, error) {
+func CreateModule(typ, which string, args []string) ([]string, Module, error) {
 	if submodules, ok := modules[typ]; ok {
 		if module, ok := submodules[which]; ok {
-			return module.new(name, options, args)
+			return module.new(args)
 		}
 	}
 	return nil, nil, fmt.Errorf("couldn't find module of type %s with name %s", typ, which)

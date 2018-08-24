@@ -15,14 +15,12 @@ import (
 )
 
 type kafkaExporter struct {
-	id        string
-	kafka     string
-	zookeeper string
-	topic     string
-	producer  sarama.AsyncProducer
+	id       string
+	kafka    string
+	topic    string
+	producer sarama.AsyncProducer
 }
 
-//FIXME: remove
 func (pe *kafkaExporter) Fields(fields []string) {
 }
 
@@ -123,51 +121,16 @@ func (pe *kafkaExporter) Init() {
 	}()
 }
 
-func newKafkaExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
-	var kafka string
-	var zookeeper string
-	var topic string
-	if _, ok := opts.(util.UseStringOption); ok {
-		if len(args) > 2 {
-			kafka = args[0]
-			zookeeper = args[1]
-			topic = args[2]
-			arguments = args[3:]
-		}
-	} else {
-		switch o := opts.(type) {
-		case []interface{}:
-			if len(o) != 3 {
-				return nil, nil, errors.New("Kafka needs at least kafka address, zookeeper address, and topic in list specification")
-			}
-			kafka = o[0].(string)
-			zookeeper = o[1].(string)
-			topic = o[2].(string)
-		case map[string]interface{}:
-			if val, ok := o["kafka"]; ok {
-				kafka = val.(string)
-			}
-			if val, ok := o["zookeeper"]; ok {
-				zookeeper = val.(string)
-			}
-			if val, ok := o["topic"]; ok {
-				topic = val.(string)
-			}
-		}
+func newKafkaExporter(args []string) (arguments []string, ret util.Module, err error) {
+	if len(args) < 2 {
+		return nil, nil, errors.New("Kafka exporter needs a kafka address and a topic name as argument")
 	}
-	if kafka == "" {
-		return nil, nil, errors.New("Kafka exporter needs a kafka address as argument")
-	}
-	if zookeeper == "" {
-		return nil, nil, errors.New("Kafka exporter needs a zookeeper address as argument")
-	} // TODO: Do we really need zookeeper address?
-	if topic == "" {
-		return nil, nil, errors.New("Kafka exporter needs a topic as argument")
-	}
-	if name == "" {
-		name = "Kafka|" + zookeeper + "|" + topic
-	}
-	ret = &kafkaExporter{id: name, kafka: kafka, zookeeper: zookeeper, topic: topic}
+
+	kafka := args[0]
+	topic := args[1]
+	arguments = args[2:]
+
+	ret = &kafkaExporter{id: "Kafka|" + topic, kafka: kafka, topic: topic}
 	return
 }
 
@@ -177,32 +140,12 @@ The %s exporter writes the output to a Kafka topic with a flow per message,
 in BSON format, with keys "features" and "ts", in which "features" are the requested
 features (in order), and "ts" the timestamp that the flow was exported.
 
-As argument, the Kafka address (e.g., "localhost:9092"), the Zookeeper address
-(e.g., "localhost:2181"), and a topic name to which the producer will write are needed.
+As argument, the Kafka address (e.g., "localhost:9092"), and a topic name to
+which the producer will write are needed.
 
-Usage command line:
-	export %s kafka:9092 zookeeper:2181 topic_name
-
-Usage json file:
-  {
-    "type": "%s",
-	"options": "kafka:9092 zookeeper:2181 topic_name"
-  }
-
-  {
-    "type": "%s",
-	"options": ["kafka:9092", "zookeeper:2181", "topic_name"]
-  }
-
-  {
-    "type": "%s",
-    "options": {
-	  "kafka": "kafka:9092",
-	  "zookeeper": "zookeeper:2181",
-	  "topic": "topic_name"
-    }
-  }
-`, name, name, name, name, name)
+Usage:
+	export %s kafka:9092 topic_name
+`, name, name)
 }
 
 func init() {

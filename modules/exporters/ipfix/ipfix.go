@@ -147,47 +147,21 @@ func (pe *ipfixExporter) Init() {
 	}()
 }
 
-func newIPFIXExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
-	var outfile string
-	var specfile string
-	if _, ok := opts.(util.UseStringOption); ok {
-		set := flag.NewFlagSet("ipfix", flag.ExitOnError)
-		set.Usage = func() { ipfixhelp("ipfix") }
-		flowSpec := set.String("spec", "", "Flowspec file")
+func newIPFIXExporter(args []string) (arguments []string, ret util.Module, err error) {
+	set := flag.NewFlagSet("ipfix", flag.ExitOnError)
+	set.Usage = func() { ipfixhelp("ipfix") }
+	flowSpec := set.String("spec", "", "Flowspec file")
 
-		set.Parse(args)
-		if set.NArg() > 0 {
-			outfile = set.Args()[0]
-			arguments = set.Args()[1:]
-		}
-		specfile = *flowSpec
-	} else {
-		switch o := opts.(type) {
-		case string:
-			outfile = o
-		case []interface{}:
-			if len(o) != 2 {
-				return nil, nil, errors.New("IPFIX exporter needs outfile and specfile in list specification")
-			}
-			outfile = o[0].(string)
-			specfile = o[1].(string)
-		case map[string]interface{}:
-			if val, ok := o["out"]; ok {
-				outfile = val.(string)
-			}
-			if val, ok := o["spec"]; ok {
-				specfile = val.(string)
-			}
-		}
-	}
-	if outfile == "" {
+	set.Parse(args)
+	if set.NArg() < 1 {
 		return nil, nil, errors.New("IPFIX exporter needs a filename as argument")
 	}
-	if name == "" {
-		name = "IPFIX|" + outfile
-	}
+	outfile := set.Args()[0]
+	specfile := *flowSpec
+	arguments = set.Args()[1:]
+
 	ipfix.LoadIANASpec()
-	ret = &ipfixExporter{id: name, outfile: outfile, specfile: specfile}
+	ret = &ipfixExporter{id: "IPFIX|" + outfile, outfile: outfile, specfile: specfile}
 	return
 }
 
@@ -198,32 +172,13 @@ header consisting of the feature description.
 
 As argument, the output file is needed.
 
-Usage command line:
+Usage:
   export %s [-spec file.iespec] file.ipfix
 
 Flags:
   -spec string
     	Write iespec of temporary ies to file
-
-Usage json file:
-  {
-    "type": "%s",
-    "options": "file.ipfix"
-  }
-
-  {
-    "type": "%s",
-    "options": ["file.ipfix", "spec.iespec"]
-  }
-
-  {
-    "type": "%s",
-    "options": {
-      "out": "file.ipfix",
-      "spec": "spec.iespec"
-    }
-  }
-`, name, name, name, name, name)
+`, name, name)
 }
 
 func init() {

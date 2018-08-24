@@ -99,33 +99,26 @@ func (cl *csvLabels) GetLabel(packet packet.Buffer) (interface{}, error) {
 	return nil, nil
 }
 
-func newcsvLabels(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
+func newcsvLabels(args []string) (arguments []string, ret util.Module, err error) {
 	var files []string
 
 	arguments = args
 
-	if _, ok := opts.(util.UseStringOption); ok {
-		for len(arguments) > 0 {
-			if arguments[0] == "--" {
-				arguments = arguments[1:]
-				break
-			}
-			files = append(files, arguments[0])
+	for len(arguments) > 0 {
+		if arguments[0] == "--" {
 			arguments = arguments[1:]
+			break
 		}
-	} else {
-		panic("FIXME: implement this")
+		files = append(files, arguments[0])
+		arguments = arguments[1:]
 	}
 
 	if len(files) == 0 {
 		return nil, nil, errors.New("csv labels needs at least one input file")
 	}
 
-	if name == "" {
-		name = fmt.Sprint("csvlabel|", strings.Join(files, ";"))
-	}
 	ret = &csvLabels{
-		id:     name,
+		id:     fmt.Sprint("csvlabel|", strings.Join(files, ";")),
 		labels: files,
 	}
 	return
@@ -141,15 +134,9 @@ csv file, every row is matched up with a packet. If there are at least two
 columns, the first column must be the packet number this label belongs to.
 The number of the first packet is 1!
 
-Usage command line:
+Usage:
   label %s a.csv [b.csv] [..] [--]
-
-Usage json file (not working):
-  {
-    "type": "%s",
-    "options": "file.csv"
-  }
-`, name, name, name)
+`, name, name)
 }
 
 func init() {

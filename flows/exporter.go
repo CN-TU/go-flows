@@ -28,8 +28,8 @@ func ExporterHelp(which string) error {
 }
 
 // MakeExporter creates an exporter instance (see module system in util)
-func MakeExporter(which, name string, options interface{}, args []string) ([]string, Exporter, error) {
-	args, module, err := util.CreateModule(exporterName, which, name, options, args)
+func MakeExporter(which string, args []string) ([]string, Exporter, error) {
+	args, module, err := util.CreateModule(exporterName, which, args)
 	if err != nil {
 		return args, nil, err
 	}

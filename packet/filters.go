@@ -38,8 +38,8 @@ func FilterHelp(which string) error {
 }
 
 // MakeFilter creates an filter instance (see module system in util)
-func MakeFilter(which, name string, options interface{}, args []string) ([]string, Filter, error) {
-	args, module, err := util.CreateModule(filterName, which, name, options, args)
+func MakeFilter(which string, args []string) ([]string, Filter, error) {
+	args, module, err := util.CreateModule(filterName, which, args)
 	if err != nil {
 		return args, nil, err
 	}

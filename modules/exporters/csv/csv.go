@@ -131,25 +131,14 @@ func (pe *csvExporter) Init() {
 	}()
 }
 
-func newCSVExporter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
-	var outfile string
-	if _, ok := opts.(util.UseStringOption); ok {
-		if len(args) > 0 {
-			outfile = args[0]
-			arguments = args[1:]
-		}
-	} else {
-		if f, ok := opts.(string); ok {
-			outfile = f
-		}
-	}
-	if outfile == "" {
+func newCSVExporter(args []string) (arguments []string, ret util.Module, err error) {
+	if len(args) < 1 {
 		return nil, nil, errors.New("CSV exporter needs a filename as argument")
 	}
-	if name == "" {
-		name = "CSV|" + outfile
-	}
-	ret = &csvExporter{id: name, outfile: outfile}
+	outfile := args[0]
+	arguments = args[1:]
+
+	ret = &csvExporter{id: "CSV|" + outfile, outfile: outfile}
 	return
 }
 
@@ -160,15 +149,9 @@ header consisting of the feature description.
 
 As argument, the output file is needed.
 
-Usage command line:
+Usage:
   export %s file.csv
-
-Usage json file:
-  {
-    "type": "%s",
-    "options": "file.csv"
-  }
-`, name, name, name)
+`, name, name)
 }
 
 func init() {

@@ -67,8 +67,8 @@ func SourceHelp(which string) error {
 }
 
 // MakeSource creates an source instance (see module system in util)
-func MakeSource(which, name string, options interface{}, args []string) ([]string, Source, error) {
-	args, module, err := util.CreateModule(sourceName, which, name, options, args)
+func MakeSource(which string, args []string) ([]string, Source, error) {
+	args, module, err := util.CreateModule(sourceName, which, args)
 	if err != nil {
 		return args, nil, err
 	}

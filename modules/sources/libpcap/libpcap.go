@@ -167,59 +167,51 @@ func (ps *libpcapSource) Stop() {
 	}
 }
 
-func newLibpcapSource(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
+func newLibpcapSource(args []string) (arguments []string, ret util.Module, err error) {
 	var filter string
 	var files []string
 	var live bool
 	var promisc bool
 	var snaplen int
 
-	if _, ok := opts.(util.UseStringOption); ok {
-		set := flag.NewFlagSet("libpcap", flag.ExitOnError)
-		set.Usage = func() { pcapHelp("libpcap") }
+	set := flag.NewFlagSet("libpcap", flag.ExitOnError)
+	set.Usage = func() { pcapHelp("libpcap") }
 
-		online := set.Bool("live", false, "Life capture. Provided argument must be interface name")
-		sl := set.Int("snaplen", 0, "Set non-default snaplen")
-		pm := set.Bool("promisc", false, "Set interface to promiscous")
-		f := set.String("filter", "", "Filter packets with this filter")
+	online := set.Bool("live", false, "Life capture. Provided argument must be interface name")
+	sl := set.Int("snaplen", 0, "Set non-default snaplen")
+	pm := set.Bool("promisc", false, "Set interface to promiscous")
+	f := set.String("filter", "", "Filter packets with this filter")
 
-		set.Parse(args)
+	set.Parse(args)
 
-		filter = *f
-		live = *online
-		promisc = *pm
-		snaplen = *sl
+	filter = *f
+	live = *online
+	promisc = *pm
+	snaplen = *sl
 
-		arguments = set.Args()
-		if set.NArg() > 0 {
-			if *online {
-				files = []string{arguments[0]}
-				arguments = arguments[1:]
-			} else {
-				for len(arguments) > 0 {
-					if arguments[0] == "--" {
-						arguments = arguments[1:]
-						break
-					}
-					files = append(files, arguments[0])
+	arguments = set.Args()
+	if set.NArg() > 0 {
+		if *online {
+			files = []string{arguments[0]}
+			arguments = arguments[1:]
+		} else {
+			for len(arguments) > 0 {
+				if arguments[0] == "--" {
 					arguments = arguments[1:]
+					break
 				}
+				files = append(files, arguments[0])
+				arguments = arguments[1:]
 			}
 		}
-	} else {
-		panic("FIXME: implement this")
 	}
 
 	if len(files) == 0 {
 		return nil, nil, errors.New("libpcap needs at least one input file or interface")
 	}
 
-	if name == "" {
-		name = fmt.Sprint("libpcap|", filter, "|", strings.Join(files, ";"))
-	}
-
 	ret = &libpcapSource{
-		id:      name,
+		id:      fmt.Sprint("libpcap|", filter, "|", strings.Join(files, ";")),
 		files:   files,
 		filter:  filter,
 		live:    live,
@@ -236,7 +228,7 @@ The %s source reads packets via libpcap. This can be either from a list of files
 or online from an interface. If files are specified, and further commands need
 to be provided, then "--" can be used to stop the file list.
 
-Usage command line:
+Usage:
   source %s a.pcap [b.pcapng] [..] [--]
 
 Flags:
@@ -248,13 +240,7 @@ Flags:
     Set interface to promiscous
   -filter string
     Filter packets with this filter
-
-Usage json file (not working):
-  {
-    "type": "%s",
-    "options": "file.csv"
-  }
-`, name, name, name)
+`, name, name)
 }
 
 func init() {

@@ -34,65 +34,59 @@ func (tf *timeFilter) Matches(ci gopacket.CaptureInfo, data []byte) bool {
 	return false
 }
 
-func newTimeFilter(name string, opts interface{}, args []string) (arguments []string, ret util.Module, err error) {
+func newTimeFilter(args []string) (arguments []string, ret util.Module, err error) {
 	var before, after time.Time
 	var checkbefore, checkafter bool
 
-	if _, ok := opts.(util.UseStringOption); ok {
-		if len(args) == 0 {
-			return nil, nil, errors.New("time filter needs a keyword (before, after, between) and time, was given none")
+	if len(args) == 0 {
+		return nil, nil, errors.New("time filter needs a keyword (before, after, between) and time, was given none")
+	}
+	switch args[0] {
+	case "before":
+		if len(args) < 2 {
+			return nil, nil, errors.New("time filter keyword 'before' needs a time argument")
 		}
-		switch args[0] {
-		case "before":
-			if len(args) < 2 {
-				return nil, nil, errors.New("time filter keyword 'before' needs a time argument")
-			}
-			checkbefore = true
-			before, err = time.Parse(time.RFC3339Nano, args[1])
-			if err != nil {
-				return
-			}
-			arguments = args[2:]
-		case "after":
-			if len(args) < 2 {
-				return nil, nil, errors.New("time filter keyword 'after' needs a time argument")
-			}
-			checkafter = true
-			after, err = time.Parse(time.RFC3339Nano, args[1])
-			if err != nil {
-				return
-			}
-			arguments = args[2:]
-		case "between":
-			if len(args) < 3 {
-				return nil, nil, errors.New("time filter keyword 'between' needs two time arguments")
-			}
-			checkafter = true
-			after, err = time.Parse(time.RFC3339Nano, args[1])
-			if err != nil {
-				return
-			}
-			checkbefore = true
-			before, err = time.Parse(time.RFC3339Nano, args[2])
-			if err != nil {
-				return
-			}
-			arguments = args[3:]
-		default:
-			return nil, nil, fmt.Errorf("time filter needs a keyword (before, after, between), but was given '%s'", args[0])
+		checkbefore = true
+		before, err = time.Parse(time.RFC3339Nano, args[1])
+		if err != nil {
+			return
 		}
-	} else {
-		panic("FIXME: implement this")
+		arguments = args[2:]
+	case "after":
+		if len(args) < 2 {
+			return nil, nil, errors.New("time filter keyword 'after' needs a time argument")
+		}
+		checkafter = true
+		after, err = time.Parse(time.RFC3339Nano, args[1])
+		if err != nil {
+			return
+		}
+		arguments = args[2:]
+	case "between":
+		if len(args) < 3 {
+			return nil, nil, errors.New("time filter keyword 'between' needs two time arguments")
+		}
+		checkafter = true
+		after, err = time.Parse(time.RFC3339Nano, args[1])
+		if err != nil {
+			return
+		}
+		checkbefore = true
+		before, err = time.Parse(time.RFC3339Nano, args[2])
+		if err != nil {
+			return
+		}
+		arguments = args[3:]
+	default:
+		return nil, nil, fmt.Errorf("time filter needs a keyword (before, after, between), but was given '%s'", args[0])
 	}
 
-	if name == "" {
-		name = "time"
-		if checkafter {
-			name += fmt.Sprint("|>", after)
-		}
-		if checkbefore {
-			name += fmt.Sprint("|>", before)
-		}
+	name := "time"
+	if checkafter {
+		name += fmt.Sprint("|>", after)
+	}
+	if checkbefore {
+		name += fmt.Sprint("|>", before)
 	}
 
 	ret = &timeFilter{
@@ -118,15 +112,9 @@ Possible filters:
   between <a> <b>
     Only packets with <a> < arrival < <b> are accepted.
 
-Usage command line:
+Usage:
   filter %s before|after|bewteen time [time]
-
-Usage json file (not working):
-  {
-    "type": "%s",
-    "options": "file.csv"
-  }
-`, name, name, name)
+`, name, name)
 }
 
 func init() {

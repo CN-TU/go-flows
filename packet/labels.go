@@ -43,8 +43,8 @@ func LabelHelp(which string) error {
 }
 
 // MakeLabel creates an label instance (see module system in util)
-func MakeLabel(which, name string, options interface{}, args []string) ([]string, Label, error) {
-	args, module, err := util.CreateModule(labelName, which, name, options, args)
+func MakeLabel(which string, args []string) ([]string, Label, error) {
+	args, module, err := util.CreateModule(labelName, which, args)
 	if err != nil {
 		return args, nil, err
 	}

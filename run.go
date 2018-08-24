@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"path"
 	"reflect"
 	"runtime/debug"
 	"runtime/pprof"
@@ -24,11 +22,9 @@ func tableUsage(cmd string, tableset *flag.FlagSet) {
 	switch cmd {
 	case "callgraph":
 		cmdString(fmt.Sprintf("%s %s", cmd, main))
-		cmdString(fmt.Sprintf("%s [args] -spec commands.json", cmd))
 		fmt.Fprint(os.Stderr, "\nWrites the resulting callgraph in dot representation to stdout.")
 	case "run":
 		cmdString(fmt.Sprintf("%s [args] %s input inputfile [...]", cmd, main))
-		cmdString(fmt.Sprintf("%s [args] -spec commands.json inputfile [...]", cmd))
 		fmt.Fprint(os.Stderr, `
 Parse the packets from input source(s), apply filter(s) and/or label(s) and
 export the specified feature set to the specified exporters.`)
@@ -53,9 +49,6 @@ share a common exporter instance, resulting in a field set specification
 per specified featureset, and mixed field sets (depending on the feature
 specification).
 
-Instead of providing the commands on the command line, it is also possible
-to use a json file.
-
 A list of supported exporters and features can be seen with the list
 command. See also %s %s features -h.
 
@@ -70,9 +63,6 @@ Examples:
   results in a csv with features from a in the odd lines, and features
   from b in the even lines)
     %s %s features a.json features b.json export common.csv source [sourcetype ...]
-
-  Execute the commands provided in commands.json
-    %s %s -spec commands.json [...]
 
 `, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
 	flags()
@@ -146,108 +136,6 @@ type exportedFeatures struct {
 	featureset []featureSpec
 }
 
-// TODO: fix this function to the new style
-func parseCommandFile(cmd string, file string) (result []exportedFeatures, exporters map[string]flows.Exporter, filters packet.Filters, sources packet.Sources, labels packet.Labels) {
-	f, err := os.Open(file)
-	if err != nil {
-		log.Fatalln("Can't open ", file)
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	dec.UseNumber()
-
-	var decoded struct {
-		Exporters map[string]struct {
-			Type    string
-			Options interface{}
-		}
-		Features []struct {
-			Exporters []string
-			Input     []map[string]interface{}
-		}
-	}
-
-	if err := dec.Decode(&decoded); err != nil {
-		log.Fatalln("Couldn' parse command spec:", err)
-	}
-
-	exporters = make(map[string]flows.Exporter)
-
-	for name, options := range decoded.Exporters {
-		if _, exporter, err := flows.MakeExporter(options.Type, name, options.Options, nil); err == nil {
-			exporters[name] = exporter
-		} else {
-			log.Fatalf("Error initializing exporter '%s': %s\n", options.Type, err)
-		}
-	}
-
-	reldir := path.Dir(file)
-
-	for _, feature := range decoded.Features {
-		var toexport exportedFeatures
-		for _, exporter := range feature.Exporters {
-			if e, ok := exporters[exporter]; ok {
-				toexport.exporter = append(toexport.exporter, e)
-			} else {
-				log.Fatalf("Couldn' find exporter with name '%s'\n", exporter)
-			}
-		}
-		for _, input := range feature.Input {
-			if file, ok := input["file"].(string); ok {
-				t := jsonAuto
-				if v, ok := input["type"].(string); ok {
-					switch v {
-					case "v1":
-						t = jsonV1
-					case "v2":
-						t = jsonV2
-					case "simple":
-						t = jsonSimple
-					default:
-						log.Fatalf("Don't know file type '%s' (I only know v1, v2, simple)\n", v)
-					}
-				}
-				id := 0
-				if i, ok := input["id"].(json.Number); ok {
-					if i, err := i.Int64(); err == nil {
-						id = int(i)
-					} else {
-						log.Fatalf("'%s' is not a valid id", input["id"])
-					}
-				}
-				var f featureSpec
-				if !path.IsAbs(file) {
-					file = path.Join(reldir, file)
-				}
-				f.features, f.key, f.bidirectional = decodeJSON(file, t, id)
-				toexport.featureset = append(toexport.featureset, f)
-			} else {
-				var f featureSpec
-				var key []interface{}
-				var ok bool
-				if f.bidirectional, ok = input["bidirectional"].(bool); !ok {
-					log.Fatalln("Bidirectional must be a bool")
-				}
-				if key, ok = input["key_features"].([]interface{}); !ok {
-					log.Fatalln("key_features must be a list of strings")
-				} else {
-					f.key = make([]string, len(key))
-					for i, elem := range key {
-						if f.key[i], ok = elem.(string); !ok {
-							log.Fatalln("key_features must be a list of strings")
-						}
-					}
-				}
-				f.features = decodeFeatures(input["features"])
-				toexport.featureset = append(toexport.featureset, f)
-			}
-		}
-		result = append(result, toexport)
-	}
-
-	return
-}
-
 func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exporters map[string]flows.Exporter, filters packet.Filters, sources packet.Sources, labels packet.Labels) {
 	var featureset []featureSpec
 	clear := false
@@ -281,7 +169,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				log.Fatalln("Need an export type")
 			}
 			var e flows.Exporter
-			args, e, err = flows.MakeExporter(name, "", util.UseStringOption{}, args[2:])
+			args, e, err = flows.MakeExporter(name, args[2:])
 			if err != nil {
 				log.Fatalf("Error creating exporter '%s': %s\n", name, err)
 			}
@@ -297,7 +185,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				log.Fatalln("Need a source type")
 			}
 			var s packet.Source
-			args, s, err = packet.MakeSource(name, "", util.UseStringOption{}, args[2:])
+			args, s, err = packet.MakeSource(name, args[2:])
 			if err != nil {
 				log.Fatalf("Error creating source '%s': %s\n", name, err)
 			}
@@ -307,7 +195,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				log.Fatalln("Need a filter type")
 			}
 			var s packet.Filter
-			args, s, err = packet.MakeFilter(name, "", util.UseStringOption{}, args[2:])
+			args, s, err = packet.MakeFilter(name, args[2:])
 			if err != nil {
 				log.Fatalf("Error creating filter '%s': %s\n", name, err)
 			}
@@ -317,7 +205,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				log.Fatalln("Need a label type")
 			}
 			var s packet.Label
-			args, s, err = packet.MakeLabel(name, "", util.UseStringOption{}, args[2:])
+			args, s, err = packet.MakeLabel(name, args[2:])
 			if err != nil {
 				log.Fatalf("Error creating label '%s': %s\n", name, err)
 			}
@@ -348,7 +236,6 @@ func parseArguments(cmd string, args []string) {
 	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
 	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
-	commands := set.String("spec", "", "Load exporters and features from specified json file")
 	printStats := set.Bool("stats", false, "Output statistics")
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
@@ -369,11 +256,7 @@ func parseArguments(cmd string, args []string) {
 	var sources packet.Sources
 	var labels packet.Labels
 
-	if *commands != "" {
-		result, exporters, filters, sources, labels = parseCommandFile(cmd, *commands)
-	} else {
-		result, exporters, filters, sources, labels = parseCommandLine(cmd, set.Args())
-	}
+	result, exporters, filters, sources, labels = parseCommandLine(cmd, set.Args())
 
 	if len(result) == 0 {
 		log.Fatalf("At least one exporter is needed!\n")
