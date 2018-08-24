@@ -247,6 +247,7 @@ type featureToInit struct {
 	variantid int
 	export    bool
 	exportid  int
+	hasargs   bool
 }
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
@@ -526,6 +527,9 @@ MAIN:
 		if len(feature.call) > 0 {
 			tocall = append(tocall, callSpec{i, feature.call})
 		}
+		if _, ok := feature.feature.make().(FeatureWithArguments); ok && len(feature.arguments) > 0 {
+			init[i].hasargs = true
+		}
 	}
 
 	toexport := make([]featureToInit, len(exportList))
@@ -573,13 +577,13 @@ MAIN:
 				if toinit[i].export {
 					export[toinit[i].exportid] = f
 				}
-				if len(toinit[i].arguments) > 0 {
+				if toinit[i].hasargs {
 					args := make([]Feature, len(toinit[i].arguments))
 					args = args[:len(toinit[i].arguments)] //BCE
 					for i, arg := range toinit[i].arguments {
 						args[i] = startup[arg]
 					}
-					startup[i].SetArguments(args)
+					startup[i].(FeatureWithArguments).SetArguments(args)
 				}
 			}
 			var filter []Feature

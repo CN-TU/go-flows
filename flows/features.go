@@ -20,7 +20,6 @@ func (f *constantFeature) Stop(FlowEndReason, *EventContext)                {}
 func (f *constantFeature) Variant() int                                     { return NoVariant }
 func (f *constantFeature) Emit(interface{}, *EventContext, interface{})     {}
 func (f *constantFeature) setDependent([]Feature)                           {}
-func (f *constantFeature) SetArguments([]Feature)                           {}
 func (f *constantFeature) IsConstant() bool                                 { return true }
 func (f *constantFeature) setRecord(*record)                                {}
 

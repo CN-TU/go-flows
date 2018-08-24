@@ -47,12 +47,16 @@ type Feature interface {
 	Variant() int
 	// Emit sends value new, with time when, and source self to the dependent Features
 	Emit(new interface{}, when *EventContext, self interface{})
-	// SetArguments gets called during Feature initialization with the arguments of the features (needed for operations)
-	SetArguments([]Feature)
 	// IsConstant must return true, if this feature is a constant
 	IsConstant() bool
 	// setDependent is used internally for setting features that depend on this features' value.
 	setDependent([]Feature)
+}
+
+// FeatureWithArguments represents a feature that needs arguments (e.g. MultiBase*Feature or select)
+type FeatureWithArguments interface {
+	// SetArguments gets called during Feature initialization with the arguments of the features (needed for operations)
+	SetArguments([]Feature)
 }
 
 // NoVariant represents the value returned from Variant if this Feature has only a single type.
@@ -89,9 +93,6 @@ func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interfac
 
 // setDependent is an empty function to adding dependent features. Overload this if you need to support dependent features.
 func (f *NoopFeature) setDependent(dep []Feature) {}
-
-// SetArguments is an empty function to ignore arguments. Overload this if you need to support arguments.
-func (f *NoopFeature) SetArguments([]Feature) {}
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
 func (f *NoopFeature) IsConstant() bool { return false }
@@ -140,9 +141,6 @@ func (f *EmptyBaseFeature) Emit(new interface{}, context *EventContext, self int
 
 // setDependent sets the given list of features for forwarding events to
 func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
-
-// SetArguments is an empty function to ignore arguments. Overload this if you need to support arguments.
-func (f *EmptyBaseFeature) SetArguments([]Feature) {}
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
 func (f *EmptyBaseFeature) IsConstant() bool { return false }
