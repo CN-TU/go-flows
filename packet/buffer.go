@@ -404,119 +404,111 @@ func (pb *packetBuffer) decode() (ret bool) {
 			ret = false
 		}
 	}()
+
 	typ := pb.first
-	var decoder gopacket.DecodingLayer
 	data := pb.buffer
-	for len(data) > 0 {
-		switch typ {
-		case layers.LayerTypeEthernet:
-			decoder = &pb.eth
-			if pb.link != nil {
-				return true
-			}
-		case layers.LayerTypeLinuxSLL:
-			decoder = &pb.sll
-			if pb.link != nil {
-				return true
-			}
-		case layers.LayerTypeIPv4:
-			decoder = &pb.ip4
-			if pb.network != nil {
-				return true
-			}
-		case layers.LayerTypeIPv6:
-			decoder = &pb.ip6
-			if pb.network != nil {
-				return true
-			}
-		case layers.LayerTypeUDP:
-			decoder = &pb.udp
-			if pb.transport != nil {
-				return true
-			}
-		case layers.LayerTypeTCP:
-			decoder = &pb.tcp
-			if pb.transport != nil {
-				return true
-			}
-		case layers.LayerTypeICMPv4:
-			decoder = &pb.icmpv4
-			if pb.transport != nil {
-				return true
-			}
-		case layers.LayerTypeICMPv6:
-			decoder = &pb.icmpv6
-			if pb.transport != nil {
-				return true
-			}
-		case LayerTypeIPv46:
-			if pb.network != nil {
-				return true
-			}
-			version := data[0] >> 4
-			switch version {
-			case 4:
-				decoder = &pb.ip4
-				typ = layers.LayerTypeIPv4
-			case 6:
-				decoder = &pb.ip6
-				typ = layers.LayerTypeIPv6
-			default:
-				return false
-			}
-		default:
-			if layers.LayerClassIPv6Extension.Contains(typ) {
-				decoder = &pb.ip6skipper
-			} else {
-				return true
-			}
-		}
-		if err := decoder.DecodeFromBytes(data, pb); err != nil {
+
+	// link layer
+	if typ == layers.LayerTypeEthernet {
+		if err := pb.eth.DecodeFromBytes(data, pb); err != nil {
 			return false
 		}
-		switch typ {
-		case layers.LayerTypeEthernet:
-			pb.link = &pb.eth
-		case layers.LayerTypeLinuxSLL:
-			pb.link = &pb.sll
-		case layers.LayerTypeIPv4:
-			pb.network = &pb.ip4
-			pb.proto = uint8(pb.ip4.Protocol)
-			if data[3] == 0 && data[2] == 0 && pb.ci.Truncated {
-				// ip.Length == 0; e.g. windows TSO
-				// fix length if packet is truncated...
-				newlen := pb.ci.CaptureLength
-				if pb.link != nil {
-					newlen -= len(pb.link.LayerContents())
-				}
-				pb.ip4.Length = uint16(newlen)
-			}
-		case layers.LayerTypeIPv6:
-			pb.network = &pb.ip6
-			pb.proto = uint8(pb.ip6.NextHeader)
-			if pb.proto == 0 { //fix hopbyhop
-				pb.proto = uint8(pb.ip6.HopByHop.NextHeader)
-			}
-		case layers.LayerTypeUDP:
-			pb.transport = &pb.udp
-			return true
-		case layers.LayerTypeTCP:
-			pb.transport = &pb.tcp
-			return true
-		case layers.LayerTypeICMPv4:
-			pb.transport = &pb.icmpv4
-			return true
-		case layers.LayerTypeICMPv6:
-			pb.transport = &pb.icmpv6
-			return true
-		default:
-			if layers.LayerClassIPv6Extension.Contains(typ) {
-				pb.proto = uint8(pb.ip6skipper.NextHeader)
-				pb.ip6headers += len(pb.ip6skipper.Contents)
-			}
+		pb.link = &pb.eth
+		typ = pb.eth.NextLayerType()
+		data = pb.eth.LayerPayload()
+	} else if typ == layers.LayerTypeLinuxSLL {
+		if err := pb.sll.DecodeFromBytes(data, pb); err != nil {
+			return false
 		}
-		typ = decoder.NextLayerType()
-		data = decoder.LayerPayload()
+		pb.link = &pb.sll
+		typ = pb.sll.NextLayerType()
+		data = pb.sll.LayerPayload()
+	} else if typ == LayerTypeIPv46 {
+		version := data[0] >> 4
+		switch version {
+		case 4:
+			typ = layers.LayerTypeIPv4
+		case 6:
+			typ = layers.LayerTypeIPv6
+		default:
+			return false
+		}
+	}
+
+	if len(data) == 0 {
+		return true
+	}
+
+	// network layer
+	if typ == layers.LayerTypeIPv4 {
+		if err := pb.ip4.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.network = &pb.ip4
+		pb.proto = uint8(pb.ip4.Protocol)
+		if data[3] == 0 && data[2] == 0 && pb.ci.Truncated {
+			// ip.Length == 0; e.g. windows TSO
+			// fix length if packet is truncated...
+			newlen := pb.ci.CaptureLength
+			if pb.link != nil {
+				newlen -= len(pb.link.LayerContents())
+			}
+			pb.ip4.Length = uint16(newlen)
+		}
+		typ = pb.ip4.NextLayerType()
+		data = pb.ip4.LayerPayload()
+	} else if typ == layers.LayerTypeIPv6 {
+		if err := pb.ip6.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.network = &pb.ip6
+		pb.proto = uint8(pb.ip6.NextHeader)
+		if pb.proto == 0 { //fix hopbyhop
+			pb.proto = uint8(pb.ip6.HopByHop.NextHeader)
+		}
+		typ = pb.ip6.NextLayerType()
+		data = pb.ip6.LayerPayload()
+		for layers.LayerClassIPv6Extension.Contains(typ) {
+			if err := pb.ip6skipper.DecodeFromBytes(data, pb); err != nil {
+				return false
+			}
+			pb.proto = uint8(pb.ip6skipper.NextHeader)
+			pb.ip6headers += len(pb.ip6skipper.Contents)
+			typ = pb.ip6skipper.NextLayerType()
+			data = pb.ip6skipper.LayerPayload()
+		}
+	}
+
+	if len(data) == 0 {
+		return true
+	}
+
+	// transport layer
+	switch typ {
+	case layers.LayerTypeUDP:
+		if err := pb.udp.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.transport = &pb.udp
+		return true
+	case layers.LayerTypeTCP:
+		if err := pb.tcp.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.transport = &pb.tcp
+		return true
+	case layers.LayerTypeICMPv4:
+		if err := pb.icmpv4.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.transport = &pb.icmpv4
+		return true
+	case layers.LayerTypeICMPv6:
+		if err := pb.icmpv6.DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		pb.transport = &pb.icmpv6
+		return true
 	}
 	return true
 }
