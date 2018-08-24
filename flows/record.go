@@ -240,8 +240,13 @@ type featureToInit struct {
 	arguments []int
 	call      []int
 	event     bool
+	eventid   int
 	control   bool
+	controlid int
 	variant   bool
+	variantid int
+	export    bool
+	exportid  int
 }
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
@@ -498,17 +503,28 @@ MAIN:
 	nevent := 0
 	ncontrol := 0
 	nvariants := 0
+	type callSpec struct {
+		id   int
+		args []int
+	}
+	var tocall []callSpec
 
 	for i, feature := range init {
 		if len(feature.feature.variants) != 0 {
-			nvariants++
 			init[i].variant = true
+			init[i].variantid = nvariants
+			nvariants++
 		}
 		if feature.event {
+			init[i].eventid = nevent
 			nevent++
 		}
 		if feature.control {
+			init[i].controlid = ncontrol
 			ncontrol++
+		}
+		if len(feature.call) > 0 {
+			tocall = append(tocall, callSpec{i, feature.call})
 		}
 	}
 
@@ -516,9 +532,16 @@ MAIN:
 	toexport = toexport[:len(exportList)]
 	for i, val := range exportList {
 		toexport[i] = init[val]
+		init[val].export = true
+		init[val].exportid = i
 	}
 
 	template, fields := makeTemplate(toexport, &rl.templates)
+
+	hasfilter := false
+	if len(tofilter) > 0 {
+		hasfilter = true
+	}
 
 	rl.list = append(rl.list, RecordMaker{
 		init,
@@ -526,62 +549,66 @@ MAIN:
 		exporter,
 		fields,
 		func() *record {
-			f := make([]Feature, len(init))
-			event := make([]Feature, 0, nevent)
-			control := make([]Feature, 0, ncontrol)
-			filter := make([]Feature, 0, len(tofilter))
-			variants := make([]Feature, 0, nvariants)
-			f = f[:len(init)]
-			for i, feature := range init {
-				f[i] = feature.feature.make()
-				if feature.event {
-					event = append(event, f[i])
+			toinit := init
+			control := make([]Feature, ncontrol)
+			event := make([]Feature, nevent)
+			export := make([]Feature, len(exportList))
+			exporter := exporter
+			variant := make([]Feature, nvariants)
+			template := template
+			startup := make([]Feature, len(toinit))
+			startup = startup[:len(toinit)] //BCE
+			for i := range toinit {
+				f := toinit[i].feature.make()
+				startup[i] = f
+				if toinit[i].event {
+					event[toinit[i].eventid] = f
 				}
-				if feature.control {
-					control = append(control, f[i])
+				if toinit[i].control {
+					control[toinit[i].controlid] = f
 				}
-				if feature.variant {
-					variants = append(variants, f[i])
+				if toinit[i].variant {
+					variant[toinit[i].variantid] = f
 				}
-			}
-			filter = filter[:len(tofilter)]
-			for i, feature := range tofilter {
-				filter[i] = feature.feature.make()
-			}
-			export := make([]Feature, 0, len(exportList))
-			export = export[:len(exportList)]
-			for i, val := range exportList {
-				export[i] = f[val]
-			}
-			f = f[:len(init)]
-			for i, feature := range init {
-				if len(feature.call) > 0 {
-					args := make([]Feature, len(feature.call))
-					args = args[:len(feature.call)]
-					for i, call := range feature.call {
-						args[i] = f[call]
+				if toinit[i].export {
+					export[toinit[i].exportid] = f
+				}
+				if len(toinit[i].arguments) > 0 {
+					args := make([]Feature, len(toinit[i].arguments))
+					args = args[:len(toinit[i].arguments)] //BCE
+					for i, arg := range toinit[i].arguments {
+						args[i] = startup[arg]
 					}
-					f[i].setDependent(args)
+					startup[i].SetArguments(args)
 				}
-				if len(feature.arguments) > 0 {
-					args := make([]Feature, len(feature.arguments))
-					args = args[:len(feature.arguments)]
-					for i, arg := range feature.arguments {
-						args[i] = f[arg]
-					}
-					f[i].SetArguments(args)
+			}
+			var filter []Feature
+			if hasfilter {
+				filter = make([]Feature, len(tofilter))
+				filter = filter[:len(tofilter)] //BCE
+				for i, feature := range tofilter {
+					filter[i] = feature.feature.make()
 				}
+			}
+			for _, spec := range tocall {
+				args := make([]Feature, len(spec.args))
+				args = args[:len(spec.args)] //BCE
+				for i, call := range spec.args {
+					args[i] = startup[call]
+				}
+				startup[spec.id].setDependent(args)
 			}
 			return &record{
-				startup:  f,
+				startup:  startup,
 				filter:   filter,
 				control:  control,
 				event:    event,
 				export:   export,
 				exporter: exporter,
-				variant:  variants,
+				variant:  variant,
 				template: template,
 			}
+
 		},
 	})
 }
