@@ -116,7 +116,10 @@ func (pe *ipfixExporter) Init() {
 			log.Fatal("Couldn't open file ", pe.specfile, err)
 		}
 	}
-	writer := ipfix.MakeMessageStream(outfile, 65535, 0)
+	writer, err := ipfix.MakeMessageStream(outfile, 65535, 0)
+	if err != nil {
+		log.Fatal("Couldn't create ipfix message stream: ", err)
+	}
 	go func() {
 		defer close(pe.finished)
 		templates := make([]int, 1)
@@ -138,7 +141,7 @@ func (pe *ipfixExporter) Init() {
 			}
 			writer.SendData(now, template, data.features...)
 		}
-		writer.Finalize(now)
+		writer.Flush(now)
 		outfile.Close()
 		if specfile != nil {
 			pe.writeSpec(specfile)
