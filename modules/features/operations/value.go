@@ -82,7 +82,9 @@ func (f *mean) Event(new interface{}, context *flows.EventContext, src interface
 }
 
 func (f *mean) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	f.SetValue(f.total/float64(f.count), context, f)
+	if f.count > 0 {
+		f.SetValue(f.total/float64(f.count), context, f)
+	}
 }
 
 func init() {
