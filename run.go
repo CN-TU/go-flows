@@ -64,7 +64,7 @@ Examples:
   from b in the even lines)
     %s %s features a.json features b.json export common.csv source [sourcetype ...]
 
-`, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
+`, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd, os.Args[0], cmd)
 	flags()
 	fmt.Fprintln(os.Stderr, "\nArgs:")
 	tableset.PrintDefaults()
