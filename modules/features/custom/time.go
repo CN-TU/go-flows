@@ -16,12 +16,10 @@ func (f *_interPacketTimeNanoseconds) Start(context *flows.EventContext) {
 }
 
 func (f *_interPacketTimeNanoseconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	var time int64
 	if f.time != 0 {
-		time = int64(context.When()) - int64(f.time)
+		f.SetValue(int64(context.When())-int64(f.time), context, f)
 	}
 	f.time = context.When()
-	f.SetValue(time, context, f)
 }
 
 func init() {
