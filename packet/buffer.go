@@ -416,6 +416,22 @@ func (pb *packetBuffer) decode() (ret bool) {
 		pb.link = &pb.eth
 		typ = pb.eth.NextLayerType()
 		data = pb.eth.LayerPayload()
+		if typ == layers.LayerTypeLLC {
+			var l layers.LLC
+			if err := l.DecodeFromBytes(data, pb); err != nil {
+				return false
+			}
+			typ = l.NextLayerType()
+			data = l.LayerPayload()
+			if typ == layers.LayerTypeSNAP {
+				var s layers.SNAP
+				if err := s.DecodeFromBytes(data, pb); err != nil {
+					return false
+				}
+				typ = s.NextLayerType()
+				data = s.LayerPayload()
+			}
+		}
 	} else if typ == layers.LayerTypeLinuxSLL {
 		if err := pb.sll.DecodeFromBytes(data, pb); err != nil {
 			return false
