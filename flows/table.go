@@ -1,7 +1,7 @@
 package flows
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
-type FlowCreator func(Event, *FlowTable, FlowKey, *EventContext, uint64) Flow
+type FlowCreator func(Event, *FlowTable, string, *EventContext, uint64) Flow
 
 // TableStats holds statistics for this table
 type TableStats struct {
@@ -16,7 +16,7 @@ type TableStats struct {
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
 	FlowOptions
-	flows     map[FlowKey]int
+	flows     map[string]int
 	flowlist  []Flow
 	freelist  []int
 	newflow   FlowCreator
@@ -32,7 +32,7 @@ type FlowTable struct {
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
 	return &FlowTable{
-		flows:       make(map[FlowKey]int, 1000000), //SMELL: make better defaults?
+		flows:       make(map[string]int, 1000000), //SMELL: make better defaults?
 		flowlist:    make([]Flow, 0, 1000000),
 		freelist:    make([]int, 0, 1000000),
 		newflow:     newflow,
@@ -124,7 +124,7 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 			v.EOF(context)
 		}
 	}
-	tab.flows = make(map[FlowKey]int)
+	tab.flows = make(map[string]int)
 	tab.flowlist = nil
 	tab.freelist = nil
 	tab.eof = false

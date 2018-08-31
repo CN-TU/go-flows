@@ -5,5 +5,5 @@ type Event interface {
 	// Timestamp returns the timestamp of the event.
 	Timestamp() DateTimeNanoseconds
 	// Key returns a flow key.
-	Key() FlowKey
+	Key() string
 }

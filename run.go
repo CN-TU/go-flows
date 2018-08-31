@@ -287,7 +287,7 @@ func parseArguments(cmd string, args []string) {
 		}
 	}
 
-	keyselector := packet.MakeDynamicKeySelector(key, bidirectional)
+	keyselector := packet.MakeDynamicKeySelector(key, bidirectional, *allowZero)
 
 	if cmd == "callgraph" {
 		recordList.CallGraph(os.Stdout)
@@ -316,7 +316,7 @@ func parseArguments(cmd string, args []string) {
 			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout) * flows.SecondsInNanoseconds,
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,
 		},
-		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *allowZero, *autoGC)
+		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *autoGC)
 
 	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 

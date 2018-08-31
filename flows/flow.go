@@ -16,12 +16,6 @@ const (
 	FlowEndReasonLackOfResources FlowEndReason = 5
 )
 
-// FlowKey interface. Every flow key needs to implement this interface.
-type FlowKey interface {
-	// Hash returns a hash of the flow key.
-	Hash() uint64
-}
-
 // Flow interface is the primary object for flows. This gets created in the flow table for non-existing
 // flows and lives until forced end (EOF), timer expiry (active/idle timeout), or derived from the data
 // (e.g. tcp fin/rst)
@@ -47,7 +41,7 @@ type Flow interface {
 	// Active returns true if this flow is still active
 	Active() bool
 	// Key returns the flow key
-	Key() FlowKey
+	Key() string
 	// ID returns the flow id
 	ID() uint64
 	// Table returns the flow table this flow belongs to
@@ -56,7 +50,7 @@ type Flow interface {
 	//// Functions for flow initialization
 	//// ------------------------------------------------------------------
 	// Init gets called by the flow table to provide the flow table, a key, and a flow id
-	Init(*FlowTable, FlowKey, *EventContext, uint64)
+	Init(*FlowTable, string, *EventContext, uint64)
 
 	// internal function which returns the point in time the next event will happen
 	nextEvent() DateTimeNanoseconds
@@ -74,7 +68,7 @@ type FlowOptions struct {
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
 type BaseFlow struct {
-	key        FlowKey
+	key        string
 	table      *FlowTable
 	timers     funcEntries
 	expireNext DateTimeNanoseconds
@@ -95,7 +89,7 @@ func (flow *BaseFlow) nextEvent() DateTimeNanoseconds { return flow.expireNext }
 func (flow *BaseFlow) Active() bool { return flow.active }
 
 // Key returns the flow key belonging to this flow.
-func (flow *BaseFlow) Key() FlowKey { return flow.key }
+func (flow *BaseFlow) Key() string { return flow.key }
 
 // Table returns the flow table belonging to this flow.
 func (flow *BaseFlow) Table() *FlowTable { return flow.table }
@@ -178,7 +172,7 @@ func (flow *BaseFlow) ID() uint64 {
 }
 
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
-func (flow *BaseFlow) Init(table *FlowTable, key FlowKey, context *EventContext, id uint64) {
+func (flow *BaseFlow) Init(table *FlowTable, key string, context *EventContext, id uint64) {
 	flow.key = key
 	flow.table = table
 	flow.timers = makeFuncEntries()

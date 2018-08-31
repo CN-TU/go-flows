@@ -24,7 +24,7 @@ type Buffer interface {
 	// Timestamp returns the point in time this packet was captured
 	Timestamp() flows.DateTimeNanoseconds
 	// Key returns the flow key of this packet
-	Key() flows.FlowKey
+	Key() string
 	// Proto returns the protocol field
 	Proto() uint8
 	// Label returns the label of this packet, if one ones set
@@ -48,7 +48,7 @@ type Buffer interface {
 	//// Internal interface - don't use (necessa)
 	//// ------------------------------------------------------------------
 	// SetInfo sets the flowkey and the packet direction
-	SetInfo(flows.FlowKey, bool)
+	SetInfo(string, bool)
 
 	decode() bool
 }
@@ -56,7 +56,7 @@ type Buffer interface {
 type packetBuffer struct {
 	inUse       int32
 	owner       *multiPacketBuffer
-	key         flows.FlowKey
+	key         string
 	time        flows.DateTimeNanoseconds
 	buffer      []byte
 	first       gopacket.LayerType
@@ -284,7 +284,7 @@ func (pb *packetBuffer) Recycle() {
 	pb.owner.free(1)
 }
 
-func (pb *packetBuffer) Key() flows.FlowKey {
+func (pb *packetBuffer) Key() string {
 	return pb.key
 }
 
@@ -296,7 +296,7 @@ func (pb *packetBuffer) Forward() bool {
 	return pb.forward
 }
 
-func (pb *packetBuffer) SetInfo(key flows.FlowKey, forward bool) {
+func (pb *packetBuffer) SetInfo(key string, forward bool) {
 	pb.key = key
 	pb.forward = forward
 }

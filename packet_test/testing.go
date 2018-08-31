@@ -60,6 +60,7 @@ func (ae *assertExporter) Init() {
 
 // TestTable is flow table implementation which can be used for testing
 type TestTable struct {
+	selector packet.DynamicKeySelector
 	exporter *assertExporter
 	table    *flows.FlowTable
 	t        *testing.T
@@ -82,6 +83,13 @@ func MakeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt 
 	var f flows.RecordListMaker
 	f.AppendRecord(featuresI, []flows.Exporter{ret.exporter}, ft)
 	ret.table = flows.NewFlowTable(f, packet.NewFlow, opt, true, 0)
+	ret.selector = packet.MakeDynamicKeySelector([]string{
+		"sourceIPAddress",
+		"destinationIPAddress",
+		"protocolIdentifier",
+		"sourceTransportPort",
+		"destinationTransportPort",
+	}, true, false)
 	return
 }
 
@@ -98,7 +106,7 @@ func MakePacketFeatureTest(t *testing.T, feature string) TestTable {
 // EventLayers simulates a packet arriving at the given point in time with the given layers populated
 func (t *TestTable) EventLayers(when flows.DateTimeNanoseconds, layerList ...packet.SerializableLayerType) {
 	data := packet.BufferFromLayers(when, layerList...)
-	key, fw := packet.Fivetuple(data, false)
+	key, fw, _ := t.selector.Key(data)
 	data.SetInfo(key, fw)
 	t.table.Event(data)
 }

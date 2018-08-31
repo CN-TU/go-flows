@@ -22,18 +22,17 @@ type EventTable interface {
 	PrintStats(io.Writer)
 	event(buffer *shallowMultiPacketBuffer)
 	flush()
-	key(Buffer) (flows.FlowKey, bool)
 	getDecodeStats() *decodeStats
+	getSelector() DynamicKeySelector
 }
 
 type baseTable struct {
-	keyFun    func(Buffer, bool) (flows.FlowKey, bool)
-	allowZero bool
-	autoGC    bool
+	selector DynamicKeySelector
+	autoGC   bool
 }
 
-func (bt baseTable) key(pb Buffer) (flows.FlowKey, bool) {
-	return bt.keyFun(pb, bt.allowZero)
+func (bt baseTable) getSelector() DynamicKeySelector {
+	return bt.selector
 }
 
 type parallelFlowTable struct {
@@ -108,18 +107,10 @@ func (sft *singleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 // expire time, a key selector, if empty values in the key are allowed and if automatic gc should be used.
 //
 // num specifies the number of parallel flow tables.
-func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, allowZero bool, autoGC bool) EventTable {
+func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, autoGC bool) EventTable {
 	bt := baseTable{
-		allowZero: allowZero,
-		autoGC:    autoGC,
-	}
-	switch {
-	case selector.fivetuple:
-		bt.keyFun = Fivetuple
-	case selector.empty:
-		bt.keyFun = makeEmptyKey
-	default:
-		bt.keyFun = selector.makeDynamicKey
+		selector: selector,
+		autoGC:   autoGC,
 	}
 	if num == 1 {
 		ret := &singleFlowTable{
@@ -251,7 +242,7 @@ func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 		if b == nil {
 			break
 		}
-		h := b.Key().Hash() % uint64(len(tmp))
+		h := fnvHash(b.Key()) % uint64(len(tmp))
 		tmp[h].push(b)
 	}
 	for _, buf := range pft.tmp {

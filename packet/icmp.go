@@ -7,6 +7,8 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+var emptyPort = make([]byte, 2)
+
 var icmpEndpointType = gopacket.RegisterEndpointType(1000, gopacket.EndpointTypeMetadata{Name: "ICMP", Formatter: func(b []byte) string {
 	return fmt.Sprintf("%d:%d", b[0], b[1])
 }})
