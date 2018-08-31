@@ -33,6 +33,8 @@ func (pe *csvExporter) Export(template flows.Template, features []flows.Feature,
 	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
+		case nil:
+			// empty string
 		case byte:
 			list[i] = fmt.Sprint(int(val))
 		case flows.DateTimeNanoseconds:
