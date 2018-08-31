@@ -240,7 +240,8 @@ var builtinTemplate = template.Must(template.New("builtin").Parse(`package main
 
 import (
 {{range $i, $m := .}}	_ "{{$m}}"
-{{end}})`))
+{{end}})
+`))
 
 func build(flags []string, args []string, builtin modules, tempdir string) {
 	buildModules := len(args) > 0 && args[0] == "modules"
@@ -307,7 +308,7 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 		}
 	}
 
-	f := filepath.Join(thisPath, ".__builtin.go")
+	f := filepath.Join(thisPath, "builderBuiltin.go")
 
 	importfile, err := os.Create(f)
 	defer os.Remove(f)
