@@ -1,3 +1,4 @@
+localbuiltin.go
 *.prof
 *.pcap*
 *.pdf
