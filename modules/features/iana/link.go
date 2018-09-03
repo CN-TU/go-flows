@@ -1,6 +1,10 @@
 package iana
 
 import (
+	"net"
+
+	"github.com/google/gopacket/layers"
+
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
 )
@@ -39,6 +43,60 @@ func init() {
 	flows.RegisterStandardFeature("layer2OctetTotalCount", flows.FlowFeature, func() flows.Feature { return &layer2OctetTotalCountFlow{} }, flows.RawPacket)
 	flows.RegisterStandardCompositeFeature("minimumLayer2TotalLength", "min", "layer2OctetTotalCount")
 	flows.RegisterStandardCompositeFeature("maximumLayer2TotalLength", "max", "layer2OctetTotalCount")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type ethernetType struct {
+	flows.BaseFeature
+}
+
+func (f *ethernetType) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		f.SetValue(uint16(new.(packet.Buffer).EtherType()), context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("ethernetType", flows.FlowFeature, func() flows.Feature { return &ethernetType{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type sourceMacAddress struct {
+	flows.BaseFeature
+}
+
+func (f *sourceMacAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		link, ok := new.(packet.Buffer).LinkLayer().(*layers.Ethernet)
+		if ok {
+			f.SetValue(append(net.HardwareAddr(nil), link.SrcMAC...), context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("sourceMacAddress", flows.FlowFeature, func() flows.Feature { return &sourceMacAddress{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type destinationMacAddress struct {
+	flows.BaseFeature
+}
+
+func (f *destinationMacAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		link, ok := new.(packet.Buffer).LinkLayer().(*layers.Ethernet)
+		if ok {
+			f.SetValue(append(net.HardwareAddr(nil), link.DstMAC...), context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("destinationMacAddress", flows.FlowFeature, func() flows.Feature { return &destinationMacAddress{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

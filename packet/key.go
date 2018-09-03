@@ -40,6 +40,15 @@ func MakeDynamicKeySelector(key []string, bidirectional, allowZero bool) (ret Dy
 		case "destinationTransportPort":
 			ret.dstPort = true
 			ret.transport = true
+		case "sourceMacAddress":
+			ret.srcMac = true
+			ret.link = true
+		case "destinationMacAddress":
+			ret.dstMac = true
+			ret.link = true
+		case "ethernetType":
+			ret.etherType = true
+			ret.link = true
 		default:
 			panic(fmt.Sprintf("Unknown key_feature '%s'", key))
 		}
@@ -54,8 +63,12 @@ func MakeDynamicKeySelector(key []string, bidirectional, allowZero bool) (ret Dy
 // DynamicKeySelector holds the definition for a flow key function
 type DynamicKeySelector struct {
 	allowZero,
+	link,
 	network,
 	transport,
+	srcMac,
+	dstMac,
+	etherType,
 	srcIP,
 	dstIP,
 	protocolIdentifier,
@@ -181,5 +194,59 @@ func (selector *DynamicKeySelector) Key(packet Buffer) (string, bool, bool) {
 			}
 		}
 	}
+
+	if selector.link {
+		link := packet.LinkLayer()
+		if link == nil {
+			if !selector.allowZero {
+				return emptyKey, true, false
+			}
+		} else {
+			flow := link.LinkFlow()
+			if selector.bidirectional && selector.srcMac && selector.dstMac {
+				a := flow.Src().Raw()
+				b := flow.Dst().Raw()
+				if swapchecked {
+					if forward {
+						i += copy(scratchKey[i:], a)
+						i += copy(scratchKey[i:], b)
+					} else {
+						i += copy(scratchKey[i:], b)
+						i += copy(scratchKey[i:], a)
+					}
+				} else {
+					res := bytes.Compare(a, b)
+					if res < 0 {
+						swapchecked = true
+						i += copy(scratchKey[i:], a)
+						i += copy(scratchKey[i:], b)
+					} else if res == 0 {
+						i += copy(scratchKey[i:], a)
+						i += copy(scratchKey[i:], b)
+					} else {
+						swapchecked = true
+						forward = false
+						i += copy(scratchKey[i:], b)
+						i += copy(scratchKey[i:], a)
+					}
+				}
+			} else {
+				if selector.srcMac {
+					i += copy(scratchKey[i:], flow.Src().Raw())
+				}
+				if selector.dstMac {
+					i += copy(scratchKey[i:], flow.Dst().Raw())
+				}
+			}
+			if selector.etherType {
+				t := packet.EtherType()
+				scratchKey[i] = byte(t >> 8)
+				i++
+				scratchKey[i] = byte(t & 0x00FF)
+				i++
+			}
+		}
+	}
+
 	return string(scratchKey[:i]), forward, true
 }
