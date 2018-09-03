@@ -35,6 +35,8 @@ type Flow interface {
 	Event(Event, *EventContext)
 	// EOF gets called from the main program after the last event was read from the input
 	EOF(*EventContext)
+	// ExportWithoutContext exports the features of the flow (see Export). This function can be used from within timers.
+	ExportWithoutContext(reason FlowEndReason, expire, now DateTimeNanoseconds)
 
 	//// Functions for querying flow status
 	//// ------------------------------------------------------------------
