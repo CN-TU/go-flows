@@ -25,6 +25,8 @@ type Buffer interface {
 	Timestamp() flows.DateTimeNanoseconds
 	// Key returns the flow key of this packet
 	Key() string
+	// EtherType returns the EthernetType of the link layer
+	EtherType() layers.EthernetType
 	// Proto returns the protocol field
 	Proto() uint8
 	// Label returns the label of this packet, if one ones set
@@ -79,6 +81,7 @@ type packetBuffer struct {
 	ip6headers  int
 	refcnt      int
 	packetnr    uint64
+	ethertype   layers.EthernetType
 	proto       uint8
 	forward     bool
 	resize      bool
@@ -230,6 +233,10 @@ func BufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 
 func (pb *packetBuffer) Proto() uint8 {
 	return pb.proto
+}
+
+func (pb *packetBuffer) EtherType() layers.EthernetType {
+	return pb.ethertype
 }
 
 func (pb *packetBuffer) PacketNr() uint64 {
@@ -416,6 +423,7 @@ func (pb *packetBuffer) decode() (ret bool) {
 		pb.link = &pb.eth
 		typ = pb.eth.NextLayerType()
 		data = pb.eth.LayerPayload()
+		pb.ethertype = pb.eth.EthernetType
 		if typ == layers.LayerTypeLLC {
 			var l layers.LLC
 			if err := l.DecodeFromBytes(data, pb); err != nil {
@@ -423,6 +431,8 @@ func (pb *packetBuffer) decode() (ret bool) {
 			}
 			typ = l.NextLayerType()
 			data = l.LayerPayload()
+			//SMELL: this might be bad
+			pb.ethertype = layers.EthernetType(uint16(l.DSAP&0x7F)<<8 | uint16(l.SSAP&0x7F))
 			if typ == layers.LayerTypeSNAP {
 				var s layers.SNAP
 				if err := s.DecodeFromBytes(data, pb); err != nil {
@@ -430,6 +440,7 @@ func (pb *packetBuffer) decode() (ret bool) {
 				}
 				typ = s.NextLayerType()
 				data = s.LayerPayload()
+				pb.ethertype = s.Type
 			}
 		}
 	} else if typ == layers.LayerTypeLinuxSLL {
