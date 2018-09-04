@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -170,7 +171,10 @@ func RegisterStandardVariantFeature(name string, description string, ies []ipfix
 
 // RegisterStandardFeature registers a feature from the iana ipfix list
 func RegisterStandardFeature(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
-	ie := ipfix.GetInformationElement(name)
+	ie, err := ipfix.GetInformationElement(name)
+	if err != nil {
+		log.Panic(err)
+	}
 	RegisterFeature(ie, "", ret, make, arguments...)
 }
 
@@ -206,7 +210,10 @@ func RegisterCompositeFeature(ie ipfix.InformationElement, description string, d
 
 // RegisterStandardCompositeFeature registers a composite feature (see RegisterCompositeFeature) that is part of the iana ipfix list
 func RegisterStandardCompositeFeature(name string, definition ...interface{}) {
-	ie := ipfix.GetInformationElement(name)
+	ie, err := ipfix.GetInformationElement(name)
+	if err != nil {
+		log.Panic(err)
+	}
 	RegisterCompositeFeature(ie, "", definition...)
 }
 

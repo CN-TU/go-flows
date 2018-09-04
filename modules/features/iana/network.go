@@ -2,6 +2,7 @@ package iana
 
 import (
 	"encoding/binary"
+	"log"
 	"net"
 
 	"github.com/CN-TU/go-ipfix"
@@ -21,7 +22,7 @@ func (f *sourceIPAddress) Event(new interface{}, context *flows.EventContext, sr
 	if f.Value() == nil {
 		network := new.(packet.Buffer).NetworkLayer()
 		if network != nil {
-			ipaddr := network.NetworkFlow().Src().Raw()
+			ipaddr := network.NetworkFlow().Src().Raw() // this makes a copy of the ip
 			if ipaddr != nil {
 				fin := net.IP(ipaddr)
 				f.SetValue(fin, context, f)
@@ -39,9 +40,17 @@ func (f *sourceIPAddress) Variant() int {
 }
 
 func init() {
+	ip4, err := ipfix.GetInformationElement("sourceIPv4Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	ip6, err := ipfix.GetInformationElement("sourceIPv6Address")
+	if err != nil {
+		log.Panic(err)
+	}
 	flows.RegisterStandardVariantFeature("sourceIPAddress", "sourceIPv4Address or sourceIPv6Address depending on ip version", []ipfix.InformationElement{
-		ipfix.GetInformationElement("sourceIPv4Address"),
-		ipfix.GetInformationElement("sourceIPv6Address"),
+		ip4,
+		ip6,
 	}, flows.FlowFeature, func() flows.Feature { return &sourceIPAddress{} }, flows.RawPacket)
 }
 
@@ -55,7 +64,7 @@ func (f *destinationIPAddress) Event(new interface{}, context *flows.EventContex
 	if f.Value() == nil {
 		network := new.(packet.Buffer).NetworkLayer()
 		if network != nil {
-			ipaddr := network.NetworkFlow().Dst().Raw()
+			ipaddr := network.NetworkFlow().Dst().Raw() // this makes a copy of the ip
 			if ipaddr != nil {
 				fin := net.IP(ipaddr)
 				f.SetValue(fin, context, f)
@@ -73,9 +82,17 @@ func (f *destinationIPAddress) Variant() int {
 }
 
 func init() {
+	ip4, err := ipfix.GetInformationElement("destinationIPv4Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	ip6, err := ipfix.GetInformationElement("destinationIPv6Address")
+	if err != nil {
+		log.Panic(err)
+	}
 	flows.RegisterStandardVariantFeature("destinationIPAddress", "destinationIPv4Address or destinationIPv6Address depending on ip version", []ipfix.InformationElement{
-		ipfix.GetInformationElement("destinationIPv4Address"),
-		ipfix.GetInformationElement("destinationIPv6Address"),
+		ip4,
+		ip6,
 	}, flows.FlowFeature, func() flows.Feature { return &destinationIPAddress{} }, flows.RawPacket)
 }
 
