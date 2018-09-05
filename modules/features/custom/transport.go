@@ -8,7 +8,6 @@ import (
 	"github.com/CN-TU/go-flows/packet"
 	ipfix "github.com/CN-TU/go-ipfix"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/tcpassembly"
 )
 
 type _tcpEceTotalCountFlow struct {
@@ -149,10 +148,8 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const invalidSequence = -1
-
 type tcpFragment struct {
-	seq    tcpassembly.Sequence
+	seq    features.Sequence
 	plen   int
 	packet packet.Buffer
 }
@@ -165,10 +162,10 @@ func (a tcpFragments) Less(i, j int) bool { return a[i].seq.Difference(a[j].seq)
 
 type uniTCPStreamFragments struct {
 	fragments tcpFragments
-	nextSeq   tcpassembly.Sequence
+	nextSeq   features.Sequence
 }
 
-func (f *uniTCPStreamFragments) push(seq tcpassembly.Sequence, plen int, packet packet.Buffer) {
+func (f *uniTCPStreamFragments) push(seq features.Sequence, plen int, packet packet.Buffer) {
 	f.fragments = append(f.fragments, tcpFragment{seq, plen, packet.Copy()})
 	sort.Stable(f.fragments)
 }
@@ -204,7 +201,7 @@ func (f *uniTCPStreamFragments) forwardOld(context *flows.EventContext, src inte
 	f.fragments = f.fragments[:len(f.fragments)-deleted]
 }
 
-func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int, packet packet.Buffer, context *flows.EventContext, src interface{}) {
+func (f *uniTCPStreamFragments) forwardPacket(seq features.Sequence, plen int, packet packet.Buffer, context *flows.EventContext, src interface{}) {
 	add := 0
 	tcp := packet.TransportLayer().(*layers.TCP)
 	if tcp.FIN || tcp.SYN { // hmm what happens if we have SYN and FIN at the same time? (should not happen - but well internet...)
@@ -214,7 +211,7 @@ func (f *uniTCPStreamFragments) forwardPacket(seq tcpassembly.Sequence, plen int
 	context.Event(packet, context, src)
 }
 
-func (f *uniTCPStreamFragments) maybeForwardOld(ack tcpassembly.Sequence, context *flows.EventContext, src interface{}) {
+func (f *uniTCPStreamFragments) maybeForwardOld(ack features.Sequence, context *flows.EventContext, src interface{}) {
 	if len(f.fragments) == 0 {
 		return
 	}
@@ -237,10 +234,10 @@ type tcpReorder struct {
 
 func (f *tcpReorder) Start(*flows.EventContext) {
 	f.forward = uniTCPStreamFragments{
-		nextSeq: invalidSequence,
+		nextSeq: features.InvalidSequence,
 	}
 	f.backward = uniTCPStreamFragments{
-		nextSeq: invalidSequence,
+		nextSeq: features.InvalidSequence,
 	}
 }
 
@@ -275,11 +272,11 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 		back = &f.forward
 	}
 
-	back.maybeForwardOld(tcpassembly.Sequence(tcp.Ack), context, src)
+	back.maybeForwardOld(features.Sequence(tcp.Ack), context, src)
 
-	seq, plen := tcpassembly.Sequence(tcp.Seq), packet.PayloadLength()
+	seq, plen := features.Sequence(tcp.Seq), packet.PayloadLength()
 
-	if fragments.nextSeq == invalidSequence {
+	if fragments.nextSeq == features.InvalidSequence {
 		// first packet; set sequence start and emit
 		fragments.nextSeq = seq
 		fragments.forwardPacket(seq, plen, packet, context, src)
