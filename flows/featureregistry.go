@@ -89,7 +89,7 @@ func RegisterFeature(ie ipfix.InformationElement, description string, ret Featur
 			make:        make,
 			arguments:   arguments,
 			ie:          ie,
-			iana:        ie.ID != 0 && ie.Pen == 0,
+			iana:        ie.ID != 0 && (ie.Pen == 0 || ie.Pen == 29305),
 			description: description,
 		})
 }
@@ -175,6 +175,16 @@ func RegisterStandardFeature(name string, ret FeatureType, make MakeFeature, arg
 	if err != nil {
 		log.Panic(err)
 	}
+	RegisterFeature(ie, "", ret, make, arguments...)
+}
+
+// RegisterStandardReverseFeature registers the reverse feature of the given name from the iana ipfix list (e.g. RegisterStandardReverseFeature("octetTotalCount", ...) would register reverseOctetTotalCount)
+func RegisterStandardReverseFeature(name string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+	ie, err := ipfix.GetInformationElement(name)
+	if err != nil {
+		log.Panic(err)
+	}
+	ie = ie.Reverse()
 	RegisterFeature(ie, "", ret, make, arguments...)
 }
 
