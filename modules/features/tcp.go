@@ -11,7 +11,7 @@ func GetTCP(new interface{}) *layers.TCP {
 	if tcp == nil {
 		return nil
 	}
-	packetTCP := tcp.(*layers.TCP)
+	packetTCP, _ := tcp.(*layers.TCP)
 	return packetTCP
 }
 
