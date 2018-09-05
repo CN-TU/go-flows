@@ -374,3 +374,96 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type tcpSequenceNumber struct {
+	flows.BaseFeature
+	isn    features.Sequence
+	cutoff bool
+}
+
+func (f *tcpSequenceNumber) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.isn = features.InvalidSequence
+	f.cutoff = false
+}
+
+func (f *tcpSequenceNumber) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if f.isn != features.InvalidSequence {
+		f.SetValue(uint32(f.isn), context, f)
+	}
+}
+
+func (f *tcpSequenceNumber) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if !new.(packet.Buffer).Forward() {
+		return
+	}
+	tcp := features.GetTCP(new)
+	if tcp == nil || f.cutoff {
+		return
+	}
+	seq := features.Sequence(tcp.Seq)
+	if f.isn == features.InvalidSequence {
+		// no sequence number recorded
+		f.isn = seq
+		return
+	}
+	if f.isn.Add(0x40000000).Difference(seq) > 0 {
+		// stop searching for out of order packets if we went through lots of data...
+		// otherwise search for out of order would be impossible due to wraparound of sequence number
+		f.cutoff = true
+		return
+	}
+	if f.isn.Difference(seq) < 0 {
+		// sequence number is before the recorded one (out of order packet)
+		f.isn = seq
+	}
+}
+
+type reverseTCPSequenceNumber struct {
+	flows.BaseFeature
+	isn    features.Sequence
+	cutoff bool
+}
+
+func (f *reverseTCPSequenceNumber) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.isn = features.InvalidSequence
+	f.cutoff = false
+}
+
+func (f *reverseTCPSequenceNumber) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if f.isn != features.InvalidSequence {
+		f.SetValue(uint32(f.isn), context, f)
+	}
+}
+
+func (f *reverseTCPSequenceNumber) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if new.(packet.Buffer).Forward() {
+		return
+	}
+	tcp := features.GetTCP(new)
+	if tcp == nil || f.cutoff {
+		return
+	}
+	seq := features.Sequence(tcp.Seq)
+	if f.isn == features.InvalidSequence {
+		// no sequence number recorded
+		f.isn = seq
+		return
+	}
+	if f.isn.Add(0x40000000).Difference(seq) > 0 {
+		// stop searching for out of order packets if we went through lots of data...
+		// otherwise search for out of order would be impossible due to wraparound of sequence number
+		f.cutoff = true
+		return
+	}
+	if f.isn.Difference(seq) < 0 {
+		// sequence number is before the recorded one (out of order packet)
+		f.isn = seq
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &tcpSequenceNumber{} }, flows.RawPacket)
+	flows.RegisterStandardReverseFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &reverseTCPSequenceNumber{} }, flows.RawPacket)
+}
