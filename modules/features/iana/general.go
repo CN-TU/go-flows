@@ -21,10 +21,15 @@ func init() {
 
 type flowEndNanoseconds struct {
 	flows.BaseFeature
+	lastTime flows.DateTimeNanoseconds
+}
+
+func (f *flowEndNanoseconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.lastTime = context.When()
 }
 
 func (f *flowEndNanoseconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	f.SetValue(context.When(), context, f)
+	f.SetValue(f.lastTime, context, f)
 }
 
 func init() {
