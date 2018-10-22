@@ -90,7 +90,7 @@ type packetBuffer struct {
 // SerializableLayerType holds a packet layer, which can be serialized. This is needed for feature testing
 type SerializableLayerType interface {
 	gopacket.SerializableLayer
-	gopacket.Layer
+	LayerContents() []byte // gopacket.Layer
 }
 
 var layerSerializeLengthBufferScratch []byte
