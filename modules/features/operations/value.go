@@ -260,6 +260,9 @@ func (f *median) Start(context *flows.EventContext) {
 }
 
 func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if f.vector == nil {
+		return // No median
+	}
 	k := f.vector.Len()
 	// Start with trivial cases
 	switch k {
