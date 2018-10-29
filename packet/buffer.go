@@ -406,12 +406,6 @@ func (pb *packetBuffer) PayloadLength() int {
 
 //custom decoder for fun and speed. Borrowed from DecodingLayerParser
 func (pb *packetBuffer) decode() (ret bool) {
-	defer func() {
-		if err := recover(); err != nil {
-			ret = false
-		}
-	}()
-
 	typ := pb.first
 	data := pb.buffer
 
