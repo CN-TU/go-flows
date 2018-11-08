@@ -1,7 +1,7 @@
 package flows
 
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
-type FlowCreator func(Event, *FlowTable, string, *EventContext, uint64) Flow
+type FlowCreator func(Event, *FlowTable, string, bool, *EventContext, uint64) Flow
 
 // TableStats holds statistics for this table
 type TableStats struct {
@@ -62,6 +62,7 @@ func (tab *FlowTable) Event(event Event) {
 	tab.Stats.Packets++
 	when := event.Timestamp()
 	key := event.Key()
+	lowToHigh := event.LowToHigh()
 
 	tab.context.when = when
 
@@ -73,13 +74,14 @@ func (tab *FlowTable) Event(event Event) {
 				elem.expire(tab.context)
 				ok = elem.Active()
 			}
+			tab.context.forward = lowToHigh == elem.firstLowToHigh()
 			elem.Event(event, tab.context)
 		} else {
 			ok = false
 		}
 	}
 	if !ok {
-		elem := tab.newflow(event, tab, key, tab.context, tab.flowID)
+		elem := tab.newflow(event, tab, key, lowToHigh, tab.context, tab.flowID)
 		tab.flowID++
 		tab.Stats.Flows++
 		var new int
@@ -96,6 +98,7 @@ func (tab *FlowTable) Event(event Event) {
 		if nflows > tab.Stats.Maxflows {
 			tab.Stats.Maxflows = nflows
 		}
+		tab.context.forward = true
 		elem.Event(event, tab.context)
 	}
 }

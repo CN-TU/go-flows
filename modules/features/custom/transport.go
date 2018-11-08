@@ -264,7 +264,7 @@ func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src int
 	}
 
 	var fragments, back *uniTCPStreamFragments
-	if packet.Forward() {
+	if context.Forward() {
 		fragments = &f.forward
 		back = &f.backward
 	} else {

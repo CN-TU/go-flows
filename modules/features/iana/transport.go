@@ -394,7 +394,7 @@ func (f *tcpSequenceNumber) Stop(reason flows.FlowEndReason, context *flows.Even
 }
 
 func (f *tcpSequenceNumber) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	if !new.(packet.Buffer).Forward() {
+	if !context.Forward() {
 		return
 	}
 	tcp := features.GetTCP(new)
@@ -438,7 +438,7 @@ func (f *reverseTCPSequenceNumber) Stop(reason flows.FlowEndReason, context *flo
 }
 
 func (f *reverseTCPSequenceNumber) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	if new.(packet.Buffer).Forward() {
+	if context.Forward() {
 		return
 	}
 	tcp := features.GetTCP(new)

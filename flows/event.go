@@ -6,4 +6,6 @@ type Event interface {
 	Timestamp() DateTimeNanoseconds
 	// Key returns a flow key.
 	Key() string
+	// LowToHigh returns if the direction is from the lower key to the higher key for bidirectional
+	LowToHigh() bool
 }

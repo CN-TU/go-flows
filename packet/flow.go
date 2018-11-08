@@ -17,17 +17,17 @@ type uniFlow struct {
 // NewFlow creates a new flow based on a given event, table, key, context, and flow-id
 //
 // Depending on the event this will either be a tcp flow, or a standard flow
-func NewFlow(event flows.Event, table *flows.FlowTable, key string, context *flows.EventContext, id uint64) flows.Flow {
+func NewFlow(event flows.Event, table *flows.FlowTable, key string, lowToHigh bool, context *flows.EventContext, id uint64) flows.Flow {
 	if table.FiveTuple() {
 		tp := event.(Buffer).TransportLayer()
 		if tp != nil && tp.LayerType() == layers.LayerTypeTCP {
 			ret := new(tcpFlow)
-			ret.Init(table, key, context, id)
+			ret.Init(table, key, lowToHigh, context, id)
 			return ret
 		}
 	}
 	ret := new(uniFlow)
-	ret.Init(table, key, context, id)
+	ret.Init(table, key, lowToHigh, context, id)
 	return ret
 }
 
@@ -42,7 +42,7 @@ func (flow *tcpFlow) Event(event flows.Event, context *flows.EventContext) {
 		flow.Export(flows.FlowEndReasonEnd, context, context.When())
 		return
 	}
-	if buffer.Forward() {
+	if context.Forward() {
 		if tcp.FIN {
 			flow.srcFIN = true
 		}

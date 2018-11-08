@@ -52,12 +52,14 @@ type Flow interface {
 	//// Functions for flow initialization
 	//// ------------------------------------------------------------------
 	// Init gets called by the flow table to provide the flow table, a key, and a flow id
-	Init(*FlowTable, string, *EventContext, uint64)
+	Init(*FlowTable, string, bool, *EventContext, uint64)
 
 	// internal function which returns the point in time the next event will happen
 	nextEvent() DateTimeNanoseconds
 	// expire gets called by the flow table for handling timer expiry
 	expire(*EventContext)
+	// firstLowToHigh returns the direction of the first packet
+	firstLowToHigh() bool
 }
 
 //FlowOptions applying to each flow
@@ -70,13 +72,14 @@ type FlowOptions struct {
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
 type BaseFlow struct {
-	key        string
-	table      *FlowTable
-	timers     funcEntries
-	expireNext DateTimeNanoseconds
-	records    Record
-	id         uint64
-	active     bool
+	key          string
+	table        *FlowTable
+	timers       funcEntries
+	expireNext   DateTimeNanoseconds
+	records      Record
+	id           uint64
+	active       bool
+	firstForward bool
 }
 
 // Stop destroys the resources associated with this flow. Call this to cancel the flow without exporting it or notifying the features.
@@ -86,6 +89,7 @@ func (flow *BaseFlow) Stop() {
 }
 
 func (flow *BaseFlow) nextEvent() DateTimeNanoseconds { return flow.expireNext }
+func (flow *BaseFlow) firstLowToHigh() bool           { return flow.firstForward }
 
 // Active returns if the flow is still active.
 func (flow *BaseFlow) Active() bool { return flow.active }
@@ -174,11 +178,12 @@ func (flow *BaseFlow) ID() uint64 {
 }
 
 // Init initializes the flow and correspoding features. The associated table, key, and current time need to be provided.
-func (flow *BaseFlow) Init(table *FlowTable, key string, context *EventContext, id uint64) {
+func (flow *BaseFlow) Init(table *FlowTable, key string, forward bool, context *EventContext, id uint64) {
 	flow.key = key
 	flow.table = table
 	flow.timers = makeFuncEntries()
 	flow.active = true
+	flow.firstForward = forward
 	flow.records = table.records.make()
 	flow.id = id
 	context.initFlow(flow)

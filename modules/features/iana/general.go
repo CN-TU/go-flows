@@ -65,7 +65,7 @@ type flowDirection struct {
 
 func (f *flowDirection) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
-		f.SetValue(new.(packet.Buffer).Forward(), context, f)
+		f.SetValue(new.(packet.Buffer).LowToHigh(), context, f)
 	}
 }
 

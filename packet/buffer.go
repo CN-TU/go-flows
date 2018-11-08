@@ -19,8 +19,8 @@ type Buffer interface {
 	gopacket.Packet
 	//// Functions for querying additional packet attributes
 	//// ------------------------------------------------------------------
-	// Forward returns true if this packet is in the forward direction
-	Forward() bool
+	// LowToHigh returns true if this packet is in the direction from keyA to keyB where keyA < keyB for bidirectional flows
+	LowToHigh() bool
 	// Timestamp returns the point in time this packet was captured
 	Timestamp() flows.DateTimeNanoseconds
 	// Key returns the flow key of this packet
@@ -299,7 +299,7 @@ func (pb *packetBuffer) Timestamp() flows.DateTimeNanoseconds {
 	return pb.time
 }
 
-func (pb *packetBuffer) Forward() bool {
+func (pb *packetBuffer) LowToHigh() bool {
 	return pb.forward
 }
 

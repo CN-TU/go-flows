@@ -12,6 +12,7 @@ type EventContext struct {
 	restart bool
 	keep    bool
 	hard    bool
+	forward bool
 }
 
 // initFlow sets the flow. This must be called in a flow before passing the context to features.
@@ -27,6 +28,7 @@ func (ec *EventContext) clear() {
 	ec.restart = false
 	ec.keep = false
 	ec.hard = false
+	// ec.forward doesn't need reset
 }
 
 // When returns the time, the event happened, or the current time
@@ -70,4 +72,9 @@ func (ec *EventContext) IsHard() bool {
 // Flow returns the current flow
 func (ec *EventContext) Flow() Flow {
 	return ec.flow
+}
+
+// Forward returns true if the packet is in the same direction as the first packet
+func (ec *EventContext) Forward() bool {
+	return ec.forward
 }
