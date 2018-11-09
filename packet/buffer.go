@@ -3,6 +3,7 @@ package packet
 import (
 	"encoding/binary"
 	"log"
+	"strings"
 	"sync/atomic"
 
 	"github.com/CN-TU/go-flows/flows"
@@ -463,7 +464,14 @@ func (pb *packetBuffer) decode() (ret bool) {
 	// network layer
 	if typ == layers.LayerTypeIPv4 {
 		if err := pb.ip4.DecodeFromBytes(data, pb); err != nil {
-			return false
+			errorString := err.Error()
+			if strings.HasPrefix(errorString, "Invalid ip4 option") ||
+				strings.HasPrefix(errorString, "IP option length") ||
+				strings.HasPrefix(errorString, "Invlid IP option type") {
+				pb.ip4.Options = append(pb.ip4.Options, layers.IPv4Option{OptionType: 255, OptionLength: 0, OptionData: []byte(errorString)})
+			} else {
+				return false
+			}
 		}
 		pb.network = &pb.ip4
 		pb.proto = uint8(pb.ip4.Protocol)
@@ -514,7 +522,12 @@ func (pb *packetBuffer) decode() (ret bool) {
 		return true
 	case layers.LayerTypeTCP:
 		if err := pb.tcp.DecodeFromBytes(data, pb); err != nil {
-			return false
+			errorString := err.Error()
+			if strings.HasPrefix(errorString, "Invalid TCP option length") {
+				pb.tcp.Options = append(pb.tcp.Options, layers.TCPOption{OptionType: 255, OptionLength: 0, OptionData: []byte(errorString)})
+			} else {
+				return false
+			}
 		}
 		pb.transport = &pb.tcp
 		return true
