@@ -107,7 +107,7 @@ func (sft *singleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 // expire time, a key selector, if empty values in the key are allowed and if automatic gc should be used.
 //
 // num specifies the number of parallel flow tables.
-func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, autoGC bool) EventTable {
+func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCreator, options flows.FlowOptions, expire flows.DateTimeNanoseconds, selector DynamicKeySelector, tcpExpiry bool, autoGC bool) EventTable {
 	bt := baseTable{
 		selector: selector,
 		autoGC:   autoGC,
@@ -115,7 +115,7 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 	if num == 1 {
 		ret := &singleFlowTable{
 			baseTable:  bt,
-			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple, 0),
+			table:      flows.NewFlowTable(features, newflow, options, selector.fivetuple && tcpExpiry, 0),
 			expireTime: expire,
 		}
 		ret.buffer = newShallowMultiPacketBufferRing(fullBuffers, batchSize)
@@ -161,7 +161,7 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 		expire := make(chan struct{}, 1)
 		ret.expire[i] = expire
 		ret.buffers[i] = c
-		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple, uint8(i))
+		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple && tcpExpiry, uint8(i))
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {

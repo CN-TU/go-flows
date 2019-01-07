@@ -239,6 +239,7 @@ func parseArguments(cmd string, args []string) {
 	printStats := set.Bool("stats", false, "Output statistics")
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
+	expireTCP := set.Bool("tcpExpiry", true, "If true, tcp flows are expired upon RST or FIN-teardown")
 
 	set.Parse(args)
 	if set.NArg() == 0 {
@@ -316,7 +317,7 @@ func parseArguments(cmd string, args []string) {
 			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout) * flows.SecondsInNanoseconds,
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,
 		},
-		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *autoGC)
+		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *expireTCP, *autoGC)
 
 	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 
