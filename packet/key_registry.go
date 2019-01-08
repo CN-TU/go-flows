@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -48,70 +49,47 @@ const (
 	KeyLayerNone
 )
 
-type regexpKey struct {
-	match   *regexp.Regexp
-	keyfunc MakeKeyFunc
-	t       KeyType
-	layer   KeyLayer
-	id      int
-	pair    int
+type baseKey struct {
+	keyfunc     MakeKeyFunc
+	t           KeyType
+	layer       KeyLayer
+	description string
+	id          int
+	pair        int
 }
 
-func (k *regexpKey) make(name string) KeyFunc {
+func (k *baseKey) make(name string) KeyFunc {
 	return k.keyfunc(name)
 }
 
-func (k *regexpKey) getID() int {
+func (k *baseKey) getID() int {
 	return k.id
 }
 
-func (k *regexpKey) getPair() int {
+func (k *baseKey) getPair() int {
 	return k.pair
 }
 
-func (k *regexpKey) setPair(i int) {
+func (k *baseKey) setPair(i int) {
 	k.pair = i
 }
 
-func (k *regexpKey) getLayer() KeyLayer {
+func (k *baseKey) getLayer() KeyLayer {
 	return k.layer
 }
 
-func (k *regexpKey) getType() KeyType {
+func (k *baseKey) getType() KeyType {
 	return k.t
+}
+
+type regexpKey struct {
+	baseKey
+	match *regexp.Regexp
 }
 
 type stringKey struct {
-	match   []string
-	keyfunc MakeKeyFunc
-	t       KeyType
-	layer   KeyLayer
-	id      int
-	pair    int
-}
-
-func (k *stringKey) make(name string) KeyFunc {
-	return k.keyfunc(name)
-}
-
-func (k *stringKey) getID() int {
-	return k.id
-}
-
-func (k *stringKey) getPair() int {
-	return k.pair
-}
-
-func (k *stringKey) setPair(i int) {
-	k.pair = i
-}
-
-func (k *stringKey) getLayer() KeyLayer {
-	return k.layer
-}
-
-func (k *stringKey) getType() KeyType {
-	return k.t
+	baseKey
+	match []string
 }
 
 type keySpecification interface {
@@ -124,6 +102,7 @@ type keySpecification interface {
 }
 
 var keyRegistry []keySpecification
+var keyNames = make(map[string]bool)
 var keyPairID = 1
 
 // RegisterKeyPair registers the given key ids as a source/destination pair
@@ -149,44 +128,72 @@ func RegisterKeyPair(a, b int) {
 }
 
 // RegisterRegexpKey registers a regex key function
-func RegisterRegexpKey(name string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
+func RegisterRegexpKey(name, description string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
+	if keyNames[name] {
+		panic(fmt.Sprintf("Key with name '%s' registered twice", name))
+	}
+	keyNames[name] = true
 	id := len(keyRegistry)
 	keyRegistry = append(keyRegistry, &regexpKey{
-		match:   regexp.MustCompile(name),
-		keyfunc: make,
-		t:       t,
-		layer:   layer,
-		id:      id,
+		baseKey: baseKey{
+			keyfunc:     make,
+			t:           t,
+			description: description,
+			layer:       layer,
+			id:          id,
+		},
+		match: regexp.MustCompile(name),
 	})
 	return id
 }
 
 // RegisterStringKey registers a regex key function
-func RegisterStringKey(name string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
-	return RegisterStringsKey([]string{name}, t, layer, make)
+func RegisterStringKey(name string, description string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
+	return RegisterStringsKey([]string{name}, description, t, layer, make)
 }
 
 // RegisterStringsKey registers a regex key function
-func RegisterStringsKey(name []string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
+func RegisterStringsKey(name []string, description string, t KeyType, layer KeyLayer, make MakeKeyFunc) int {
+	for _, name := range name {
+		if keyNames[name] {
+			panic(fmt.Sprintf("Key with name '%s' registered twice", name))
+		}
+		keyNames[name] = true
+	}
 	id := len(keyRegistry)
 	keyRegistry = append(keyRegistry, &stringKey{
-		match:   name,
-		keyfunc: make,
-		t:       t,
-		layer:   layer,
-		id:      id,
+		baseKey: baseKey{
+			keyfunc:     make,
+			t:           t,
+			description: description,
+			layer:       layer,
+			id:          id,
+		},
+		match: name,
 	})
 	return id
 }
 
 // ListKeys writes a list of keys to w
 func ListKeys(w io.Writer) {
+	fmt.Fprint(w, "For TCP expiry sourceAddress, destinationAddress, protocolIdentifier, sourcePort, and destinationPort must be present\n\n")
+	type desc struct {
+		name        string
+		description string
+	}
+	var list []desc
 	for _, key := range keyRegistry {
 		switch k := key.(type) {
 		case *regexpKey:
-			fmt.Fprintln(w, k.match.String())
+			list = append(list, desc{k.match.String(), k.description})
 		case *stringKey:
-			fmt.Fprintln(w, strings.Join(k.match, "|"))
+			list = append(list, desc{strings.Join(k.match, "|"), k.description})
 		}
+	}
+
+	sort.Slice(list, func(i, j int) bool { return list[i].name < list[j].name })
+
+	for _, key := range list {
+		fmt.Fprintf(w, "%s: %s\n", key.name, key.description)
 	}
 }

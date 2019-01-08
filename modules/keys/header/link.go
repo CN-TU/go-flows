@@ -20,8 +20,12 @@ func destinationMacAddressKey(packet packet.Buffer, scratch, scratchNoSort []byt
 
 func init() {
 	packet.RegisterKeyPair(
-		packet.RegisterStringKey("sourceMacAddress", packet.KeyTypeSource, packet.KeyLayerLink, func(string) packet.KeyFunc { return sourceMacAddressKey }),
-		packet.RegisterStringKey("destinationMacAddress", packet.KeyTypeDestination, packet.KeyLayerLink, func(string) packet.KeyFunc { return destinationMacAddressKey }),
+		packet.RegisterStringKey("sourceMacAddress",
+			"source address of link layer",
+			packet.KeyTypeSource, packet.KeyLayerLink, func(string) packet.KeyFunc { return sourceMacAddressKey }),
+		packet.RegisterStringKey("destinationMacAddress",
+			"destination address of link layer",
+			packet.KeyTypeDestination, packet.KeyLayerLink, func(string) packet.KeyFunc { return destinationMacAddressKey }),
 	)
 }
 
@@ -35,5 +39,7 @@ func ethernetTypeKey(packet packet.Buffer, scratch, scratchNoSort []byte) (int, 
 }
 
 func init() {
-	packet.RegisterStringKey("ethernetType", packet.KeyTypeUnidirectional, packet.KeyLayerLink, func(string) packet.KeyFunc { return ethernetTypeKey })
+	packet.RegisterStringKey("ethernetType",
+		"protocol identifier of link layer",
+		packet.KeyTypeUnidirectional, packet.KeyLayerLink, func(string) packet.KeyFunc { return ethernetTypeKey })
 }

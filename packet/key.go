@@ -172,13 +172,21 @@ var fivetupleMust []int
 
 func init() {
 	srcIP := RegisterStringsKey([]string{"sourceIPv4Address", "sourceIPv6Address", "sourceIPAddress"},
+		"source address of network layer",
 		KeyTypeSource, KeyLayerNetwork, func(string) KeyFunc { return sourceIPAddressKey })
 	dstIP := RegisterStringsKey([]string{"destinationIPv4Address", "destinationIPv6Address", "destinationIPAddress"},
+		"destination address of network layer",
 		KeyTypeDestination, KeyLayerNetwork, func(string) KeyFunc { return destinationIPAddressKey })
 	RegisterKeyPair(srcIP, dstIP)
-	proto := RegisterStringKey("protocolIdentifier", KeyTypeUnidirectional, KeyLayerNetwork, func(string) KeyFunc { return protocolIdentifierKey })
-	srcPort := RegisterStringKey("sourceTransportPort", KeyTypeSource, KeyLayerTransport, func(string) KeyFunc { return sourceTransportPortKey })
-	dstPort := RegisterStringKey("destinationTransportPort", KeyTypeDestination, KeyLayerTransport, func(string) KeyFunc { return destinationTransportPortKey })
+	proto := RegisterStringKey("protocolIdentifier",
+		"protocol identifier field of network layer",
+		KeyTypeUnidirectional, KeyLayerNetwork, func(string) KeyFunc { return protocolIdentifierKey })
+	srcPort := RegisterStringKey("sourceTransportPort",
+		"source port of transport layer",
+		KeyTypeSource, KeyLayerTransport, func(string) KeyFunc { return sourceTransportPortKey })
+	dstPort := RegisterStringKey("destinationTransportPort",
+		"destination port of transport layer",
+		KeyTypeDestination, KeyLayerTransport, func(string) KeyFunc { return destinationTransportPortKey })
 	RegisterKeyPair(srcPort, dstPort)
 
 	fivetupleMust = []int{srcIP, dstIP, proto, srcPort, dstPort}
