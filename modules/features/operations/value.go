@@ -60,6 +60,7 @@ func (f *count) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 
 func init() {
 	flows.RegisterTemporaryFeature("count", "returns number of selected objects", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.Selection)
+	flows.RegisterTemporaryFeature("_countEvents", "returns number events", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
