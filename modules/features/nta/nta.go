@@ -245,6 +245,12 @@ func (f *toff) Event(new interface{}, context *flows.EventContext, src interface
 	f.last = t
 }
 
+func (f *toff) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if f.Value() == nil {
+		f.SetValue(0, context, f)
+	}
+}
+
 func init() {
 	flows.RegisterTemporaryFeature("__NTATOff", "returns off time (consec. seconds without packet)", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &toff{} }, flows.Selection)
 }
