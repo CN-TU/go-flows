@@ -58,23 +58,35 @@ func init() {
 
 type ports struct {
 	flows.BaseFeature
-	src  uint16
-	dst  uint16
-	init bool
+	src       uint16
+	dst       uint16
+	proto     uint8
+	initPort  bool
+	initProto bool
 }
 
 func (f *ports) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.src = 0
 	f.dst = 0
-	f.init = false
+	f.proto = 0
+	f.initPort = false
+	f.initProto = false
 }
 
 func (f *ports) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() != nil {
 		return
 	}
-	transport := new.(packet.Buffer).TransportLayer()
+	buffer := new.(packet.Buffer)
+	if !f.initProto {
+		f.proto = buffer.Proto()
+		f.initProto = true
+	} else if f.proto != buffer.Proto() {
+		f.SetValue("-1", context, f)
+		return
+	}
+	transport := buffer.TransportLayer()
 	if transport == nil {
 		return
 	}
@@ -87,7 +99,7 @@ func (f *ports) Event(new interface{}, context *flows.EventContext, src interfac
 	}
 	s := binary.BigEndian.Uint16(srcRaw)
 	dst := binary.BigEndian.Uint16(dstRaw)
-	if !f.init {
+	if !f.initPort {
 		f.src = s
 		f.dst = dst
 		return
