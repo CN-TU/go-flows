@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/CN-TU/go-ipfix"
 
@@ -19,6 +20,7 @@ type csvExporter struct {
 	id         string
 	outfile    string
 	exportlist chan []string
+	listBuffer sync.Map
 	finished   chan struct{}
 }
 
@@ -28,13 +30,22 @@ func (pe *csvExporter) Fields(fields []string) {
 
 //Export export given features
 func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	list := make([]string, len(features))
+	var list []string
+	if pool, ok := pe.listBuffer.Load(len(features)); ok {
+		select {
+		case list = <-pool.(chan []string):
+		default:
+			list = make([]string, len(features))
+		}
+	} else {
+		list = make([]string, len(features))
+	}
 	ies := template.InformationElements()[:len(features)]
 	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.Value().(type) {
 		case nil:
-			// empty string
+			list[i] = ""
 		case byte:
 			list[i] = fmt.Sprint(int(val))
 		case flows.DateTimeNanoseconds:
@@ -93,6 +104,8 @@ func (pe *csvExporter) Export(template flows.Template, features []flows.Feature,
 			list[i] = fmt.Sprint(int(val))
 		case []byte:
 			list[i] = string(val)
+		case string:
+			list[i] = val
 		default:
 			list[i] = fmt.Sprint(val)
 		}
@@ -128,6 +141,18 @@ func (pe *csvExporter) Init() {
 		defer close(pe.finished)
 		for data := range pe.exportlist {
 			writer.Write(data)
+			pool, ok := pe.listBuffer.Load(len(data))
+			var p chan []string
+			if !ok {
+				p = make(chan []string, 100)
+				pe.listBuffer.Store(len(data), p)
+			} else {
+				p = pool.(chan []string)
+			}
+			select {
+			case p <- data:
+			default:
+			}
 		}
 		writer.Flush()
 	}()
