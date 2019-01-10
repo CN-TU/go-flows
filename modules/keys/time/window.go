@@ -26,6 +26,7 @@ func makeTimeWindowKey(name string) packet.KeyFunc {
 			start += num * duration
 			id += uint64(num)
 		}
+		packet.SetWindow(id)
 		binary.BigEndian.PutUint64(scratch, id)
 		return 8, 0
 	}

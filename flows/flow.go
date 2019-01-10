@@ -35,6 +35,8 @@ type Flow interface {
 	Event(Event, *EventContext)
 	// EOF gets called from the main program after the last event was read from the input
 	EOF(*EventContext)
+	// Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.
+	Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds)
 	// ExportWithoutContext exports the features of the flow (see Export). This function can be used from within timers.
 	ExportWithoutContext(reason FlowEndReason, expire, now DateTimeNanoseconds)
 
@@ -68,6 +70,10 @@ type FlowOptions struct {
 	ActiveTimeout DateTimeNanoseconds
 	// IdleTimeout is the idle timeout in nanoseconds
 	IdleTimeout DateTimeNanoseconds
+	// WindowExpiry specifies if all packets should be expired after a window ended
+	WindowExpiry bool
+	// PerPacket specifies single flow per packet
+	PerPacket bool
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
@@ -159,7 +165,7 @@ func (flow *BaseFlow) EOF(context *EventContext) {
 // Event handles the given event and the active and idle timers.
 func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	context.initFlow(flow)
-	if flow.table.ActiveTimeout != 0 {
+	if flow.table.IdleTimeout != 0 {
 		flow.AddTimer(TimerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 	}
 	flow.records.Event(event, context)
@@ -167,7 +173,7 @@ func (flow *BaseFlow) Event(event Event, context *EventContext) {
 		flow.Stop()
 		return
 	}
-	if flow.table.ActiveTimeout == 0 {
+	if flow.table.PerPacket {
 		flow.Export(FlowEndReasonEnd, context, context.when)
 	}
 }
@@ -181,7 +187,9 @@ func (flow *BaseFlow) ID() uint64 {
 func (flow *BaseFlow) Init(table *FlowTable, key string, forward bool, context *EventContext, id uint64) {
 	flow.key = key
 	flow.table = table
-	flow.timers = makeFuncEntries()
+	if flow.table.ActiveTimeout+flow.table.IdleTimeout != 0 {
+		flow.timers = makeFuncEntries()
+	}
 	flow.active = true
 	flow.firstForward = forward
 	flow.records = table.records.make()

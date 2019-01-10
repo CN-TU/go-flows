@@ -18,14 +18,9 @@ import (
 // copy later destroyed with Recycle()
 type Buffer interface {
 	gopacket.Packet
+	flows.Event
 	//// Functions for querying additional packet attributes
 	//// ------------------------------------------------------------------
-	// LowToHigh returns true if this packet is in the direction from keyA to keyB where keyA < keyB for bidirectional flows
-	LowToHigh() bool
-	// Timestamp returns the point in time this packet was captured
-	Timestamp() flows.DateTimeNanoseconds
-	// Key returns the flow key of this packet
-	Key() string
 	// EtherType returns the EthernetType of the link layer
 	EtherType() layers.EthernetType
 	// Proto returns the protocol field
@@ -82,6 +77,7 @@ type packetBuffer struct {
 	ip6headers  int
 	refcnt      int
 	packetnr    uint64
+	window      uint64
 	ethertype   layers.EthernetType
 	proto       uint8
 	forward     bool
@@ -230,6 +226,14 @@ func BufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 		}
 	}
 	return pb
+}
+
+func (pb *packetBuffer) SetWindow(w uint64) {
+	pb.window = w
+}
+
+func (pb *packetBuffer) Window() uint64 {
+	return pb.window
 }
 
 func (pb *packetBuffer) Proto() uint8 {
