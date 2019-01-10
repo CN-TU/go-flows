@@ -231,15 +231,15 @@ func parseArguments(cmd string, args []string) {
 	set := flag.NewFlagSet("table", flag.ExitOnError)
 	set.Usage = func() { tableUsage(cmd, set) }
 	numProcessing := set.Uint("n", 4, "Number of parallel processing tables")
-	activeTimeout := set.Uint("active", 1800, "Active timeout in seconds")
-	idleTimeout := set.Uint("idle", 300, "Idle timeout in seconds")
+	activeTimeout := set.Float64("active", 1800, "Active timeout in seconds")
+	idleTimeout := set.Float64("idle", 300, "Idle timeout in seconds")
 	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
 	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
 	printStats := set.Bool("stats", false, "Output statistics")
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
-	expireTCP := set.Bool("tcpExpiry", true, "If true, tcp flows are expired upon RST or FIN-teardown")
+	expireTCP := set.Bool("expireTCP", true, "If true, tcp flows are expired upon RST or FIN-teardown")
 
 	set.Parse(args)
 	if set.NArg() == 0 {
@@ -314,8 +314,8 @@ func parseArguments(cmd string, args []string) {
 
 	flowtable := packet.NewFlowTable(int(*numProcessing), recordList, packet.NewFlow,
 		flows.FlowOptions{
-			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout) * flows.SecondsInNanoseconds,
-			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout) * flows.SecondsInNanoseconds,
+			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout * float64(flows.SecondsInNanoseconds)),
+			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout * float64(flows.SecondsInNanoseconds)),
 		},
 		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *expireTCP, *autoGC)
 
