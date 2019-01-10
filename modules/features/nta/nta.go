@@ -162,7 +162,7 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 
 type secwindow struct {
-	flows.BaseFeature
+	flows.BaseFeature //FIXME
 }
 
 func (f *secwindow) Event(new interface{}, context *flows.EventContext, src interface{}) {

@@ -234,6 +234,7 @@ func parseArguments(cmd string, args []string) {
 	activeTimeout := set.Float64("active", 1800, "Active timeout in seconds")
 	idleTimeout := set.Float64("idle", 300, "Idle timeout in seconds")
 	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
+	expireWindow := set.Bool("expireWindow", false, "Expire all flows after every window. Useful if flow key contains a window function")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
 	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
 	printStats := set.Bool("stats", false, "Output statistics")
@@ -308,14 +309,12 @@ func parseArguments(cmd string, args []string) {
 		debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 	}
 
-	if *perPacket {
-		*activeTimeout = 0
-	}
-
 	flowtable := packet.NewFlowTable(int(*numProcessing), recordList, packet.NewFlow,
 		flows.FlowOptions{
 			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout * float64(flows.SecondsInNanoseconds)),
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout * float64(flows.SecondsInNanoseconds)),
+			PerPacket:     *perPacket,
+			WindowExpiry:  *expireWindow,
 		},
 		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *expireTCP, *autoGC)
 

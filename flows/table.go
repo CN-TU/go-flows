@@ -24,6 +24,7 @@ type FlowTable struct {
 	Stats     TableStats
 	context   *EventContext
 	flowID    uint64
+	window    uint64
 	id        uint8
 	fivetuple bool
 	eof       bool
@@ -65,6 +66,14 @@ func (tab *FlowTable) Event(event Event) {
 	lowToHigh := event.LowToHigh()
 
 	tab.context.when = when
+
+	if tab.WindowExpiry {
+		window := event.Window()
+		if window != tab.window {
+			tab.expireWindow()
+			tab.window = window
+		}
+	}
 
 	elem, ok := tab.flows[key]
 	if ok {
@@ -130,6 +139,33 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.flows = make(map[string]int)
 	tab.flowlist = nil
 	tab.freelist = nil
+	tab.eof = false
+}
+
+// expireWindow expires all flows in the table due to end of the window. All outstanding timers get expired, and the rest of the flows terminated with a flowReaonEnd event.
+func (tab *FlowTable) expireWindow() {
+	tab.eof = true
+	context := tab.context
+	now := tab.context.when
+	for _, v := range tab.flowlist {
+		if v == nil {
+			continue
+		}
+		if now > v.nextEvent() {
+			v.expire(context)
+		}
+		if v.Active() {
+			v.Export(FlowEndReasonEnd, context, now)
+		}
+	}
+	for k := range tab.flows {
+		delete(tab.flows, k)
+	}
+	for i := range tab.flowlist {
+		tab.flowlist[i] = nil
+	}
+	tab.flowlist = tab.flowlist[:0]
+	tab.freelist = tab.freelist[:0]
 	tab.eof = false
 }
 

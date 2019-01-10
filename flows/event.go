@@ -8,4 +8,8 @@ type Event interface {
 	Key() string
 	// LowToHigh returns if the direction is from the lower key to the higher key for bidirectional
 	LowToHigh() bool
+	// SetWindow sets the window id. Must be unique for every window, and packets belong to the same window must be consecutive.
+	SetWindow(uint64)
+	// Window returns the window id
+	Window() uint64
 }
