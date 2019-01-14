@@ -5,7 +5,7 @@ type Feature interface {
 	// Event gets called for every event. Data is provided via the first argument and a context providing addional information/control via the second argument.
 	Event(interface{}, *EventContext, interface{})
 	// FinishEvent gets called after every Feature was processed for the current event.
-	FinishEvent()
+	FinishEvent(*EventContext)
 	// Value provides the current stored value.
 	Value() interface{}
 	// SetValue stores a new value with the associated time.
@@ -21,7 +21,7 @@ type Feature interface {
 	// IsConstant must return true, if this feature is a constant
 	IsConstant() bool
 	// setDependent is used internally for setting features that depend on this features' value.
-	setDependent([]Feature)
+	setDependent([]int)
 }
 
 // FeatureWithArguments represents a feature that needs arguments (e.g. MultiBase*Feature or select)
@@ -42,7 +42,7 @@ type NoopFeature struct{}
 func (f *NoopFeature) Event(interface{}, *EventContext, interface{}) {}
 
 // FinishEvent is an empty function to ignore end of event-processing. Overload this if you need such events.
-func (f *NoopFeature) FinishEvent() {}
+func (f *NoopFeature) FinishEvent(*EventContext) {}
 
 // Value returns the empty value (nil). Overload this if you need to return a value.
 func (f *NoopFeature) Value() interface{} { return nil }
@@ -63,7 +63,7 @@ func (f *NoopFeature) Variant() int { return NoVariant }
 func (f *NoopFeature) Emit(new interface{}, context *EventContext, self interface{}) {}
 
 // setDependent is an empty function to adding dependent features. Overload this if you need to support dependent features.
-func (f *NoopFeature) setDependent(dep []Feature) {}
+func (f *NoopFeature) setDependent(dep []int) {}
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
 func (f *NoopFeature) IsConstant() bool { return false }
@@ -75,16 +75,16 @@ var _ Feature = (*NoopFeature)(nil)
 //
 // Use this as a base for features that don't need to hold values.
 type EmptyBaseFeature struct {
-	dependent []Feature
+	dependent []int
 }
 
 // Event is an empty function to ignore every event. Overload this if you need events.
 func (f *EmptyBaseFeature) Event(interface{}, *EventContext, interface{}) {}
 
 // FinishEvent propagates this event to all dependent features. Do not overload unless you know what you're doing!
-func (f *EmptyBaseFeature) FinishEvent() {
+func (f *EmptyBaseFeature) FinishEvent(context *EventContext) {
 	for _, v := range f.dependent {
-		v.FinishEvent()
+		context.record.features[v].FinishEvent(context)
 	}
 }
 
@@ -106,12 +106,12 @@ func (f *EmptyBaseFeature) Variant() int { return NoVariant }
 // Emit propagates the new value to all dependent features. Do not overload unless you know what you're doing!
 func (f *EmptyBaseFeature) Emit(new interface{}, context *EventContext, self interface{}) {
 	for _, v := range f.dependent {
-		v.Event(new, context, self)
+		context.record.features[v].Event(new, context, self)
 	}
 }
 
 // setDependent sets the given list of features for forwarding events to
-func (f *EmptyBaseFeature) setDependent(dep []Feature) { f.dependent = dep }
+func (f *EmptyBaseFeature) setDependent(dep []int) { f.dependent = dep }
 
 // IsConstant returns false to signal that this feature is not a constant. Overload this if you need to emulate a constant.
 func (f *EmptyBaseFeature) IsConstant() bool { return false }
@@ -256,9 +256,9 @@ func (f *MultiBasePacketFeature) EventResult(new interface{}, which interface{})
 }
 
 // FinishEvent resets event tracking for all the arguments. Do not overload unless you know what you're doing!
-func (f *MultiBasePacketFeature) FinishEvent() {
+func (f *MultiBasePacketFeature) FinishEvent(context *EventContext) {
 	f.eventReady.Reset()
-	f.BaseFeature.FinishEvent()
+	f.BaseFeature.FinishEvent(context)
 }
 
 // SetArguments prepares the internal argument list for event tracking. Do not overload unless you know what you're doing!

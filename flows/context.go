@@ -6,6 +6,7 @@ type EventContext struct {
 	flow    Flow
 	reason  FlowEndReason
 	event   func(interface{}, *EventContext, interface{})
+	record  *record
 	now     bool
 	stop    bool
 	export  bool

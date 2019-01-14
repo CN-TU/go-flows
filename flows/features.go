@@ -11,14 +11,14 @@ type constantFeature struct {
 }
 
 func (f *constantFeature) Event(interface{}, *EventContext, interface{})    {}
-func (f *constantFeature) FinishEvent()                                     {}
+func (f *constantFeature) FinishEvent(*EventContext)                        {}
 func (f *constantFeature) Value() interface{}                               { return f.value }
 func (f *constantFeature) SetValue(interface{}, *EventContext, interface{}) {}
 func (f *constantFeature) Start(*EventContext)                              {}
 func (f *constantFeature) Stop(FlowEndReason, *EventContext)                {}
 func (f *constantFeature) Variant() int                                     { return NoVariant }
 func (f *constantFeature) Emit(interface{}, *EventContext, interface{})     {}
-func (f *constantFeature) setDependent([]Feature)                           {}
+func (f *constantFeature) setDependent([]int)                               {}
 func (f *constantFeature) IsConstant() bool                                 { return true }
 
 var _ Feature = (*constantFeature)(nil)

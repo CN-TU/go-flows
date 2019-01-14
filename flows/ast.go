@@ -885,3 +885,31 @@ func (a *ast) compile(verbose bool) error {
 
 	return nil
 }
+
+func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][]int, tocall [][]int, ctrl control) {
+	args = make([][]int, len(a.Fragments))
+	tocall = make([][]int, len(a.Fragments))
+	for _, fragment := range a.Fragments {
+		fm := fragment.FeatureMaker()
+		features = append(features, fm.make)
+		// ctrl.control!
+
+		for _, arg := range fragment.Arguments() {
+			if arg.IsRaw() {
+				ctrl.event = append(ctrl.event, fragment.Register())
+			} else {
+				args[fragment.Register()] = append(args[fragment.Register()], arg.Register())
+				tocall[arg.Register()] = append(tocall[arg.Register()], fragment.Register())
+			}
+		}
+
+		if fragment.Export() {
+			ctrl.export = append(ctrl.export, fragment.Register())
+		}
+
+		if len(fm.variants) > 0 {
+			ctrl.variant = append(ctrl.variant, fragment.Register())
+		}
+	}
+	return
+}

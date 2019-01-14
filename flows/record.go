@@ -1,10 +1,8 @@
 package flows
 
 import (
-	"fmt"
 	"io"
 	"log"
-	"strconv"
 	"strings"
 	"text/template"
 )
@@ -23,15 +21,19 @@ type Record interface {
 	Active() bool
 }
 
-type record struct {
-	filter   []Feature
-	control  []Feature
-	event    []Feature
-	export   []Feature
-	startup  []Feature
+type control struct {
+	control  []int
+	event    []int
+	export   []int
+	variant  []int
 	exporter []Exporter
-	variant  []Feature
 	template Template
+}
+
+type record struct {
+	features []Feature
+	filter   []Feature
+	control  *control
 	last     DateTimeNanoseconds
 	active   bool // this record forwards events to features
 	alive    bool // this record forwards events to filters
@@ -39,17 +41,19 @@ type record struct {
 
 func (r *record) Start(context *EventContext) {
 	r.active = true
-	for _, feature := range r.startup {
+	context.record = r
+	for _, feature := range r.features {
 		feature.Start(context)
 	}
-	for _, feature := range r.event {
-		feature.FinishEvent() //Same for finishevents
+	for _, feature := range r.control.event {
+		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
 }
 
 func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 	// make a two-level stop for filter and rest
-	for _, feature := range r.startup {
+	context.record = r
+	for _, feature := range r.features {
 		feature.Stop(reason, context)
 	}
 	r.active = false
@@ -58,8 +62,8 @@ func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 		feature.Stop(reason, context)
 		r.alive = (context.keep || r.alive) && !context.hard
 	}
-	for _, feature := range r.event {
-		feature.FinishEvent() //Same for finishevents
+	for _, feature := range r.control.event {
+		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
 }
 
@@ -69,8 +73,8 @@ RESTART:
 		r.Start(context)
 	}
 	context.clear()
-	for _, feature := range r.control {
-		feature.Event(data, context, nil) // no tree for control
+	for _, feature := range r.control.control {
+		r.features[feature].Event(data, context, nil) // no tree for control
 		if context.stop {
 			r.Stop(context.reason, context)
 			goto OUT
@@ -88,11 +92,11 @@ RESTART:
 			}
 		}
 	}
-	for _, feature := range r.event {
-		feature.Event(data, context, nil) //Events trickle down the tree
+	for _, feature := range r.control.event {
+		r.features[feature].Event(data, context, nil) //Events trickle down the tree
 	}
-	for _, feature := range r.event {
-		feature.FinishEvent() //Same for finishevents
+	for _, feature := range r.control.event {
+		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
 	if !context.now {
 		if context.export {
@@ -108,6 +112,7 @@ OUT:
 
 func (r *record) Event(data interface{}, context *EventContext) {
 	nfilter := len(r.filter)
+	context.record = r
 	if nfilter == 0 {
 		r.filteredEvent(data, context)
 	} else {
@@ -134,13 +139,18 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 	if !r.active {
 		return
 	}
+	context.record = r
 	r.Stop(reason, context)
-	template := r.template
-	for _, variant := range r.variant {
-		template = template.subTemplate(variant.Variant())
+	template := r.control.template
+	for _, variant := range r.control.variant {
+		template = template.subTemplate(r.features[variant].Variant())
 	}
-	for _, exporter := range r.exporter {
-		exporter.Export(template, r.export, now)
+	for _, exporter := range r.control.exporter {
+		export := make([]Feature, len(r.control.export)) //TODO: performance check
+		for i := range export {
+			export[i] = r.features[r.control.export[i]]
+		}
+		exporter.Export(template, export, now)
 	}
 }
 
@@ -211,11 +221,9 @@ func (rl RecordListMaker) Init() {
 
 // RecordMaker holds metadata for instantiating a record
 type RecordMaker struct {
-	init       []featureToInit
-	exportList []int
-	exporter   []Exporter
-	fields     []string
-	make       func() *record
+	exporter []Exporter
+	fields   []string
+	make     func() *record
 }
 
 // Init must be called after a Record was instantiated
@@ -223,30 +231,6 @@ func (rm RecordMaker) Init() {
 	for _, exporter := range rm.exporter {
 		exporter.Fields(rm.fields)
 	}
-}
-
-type graphInfo struct {
-	ret          FeatureType
-	data         interface{}
-	nonComposite bool
-	apply        string
-}
-
-type featureToInit struct {
-	feature   featureMaker
-	info      graphInfo
-	name      string
-	arguments []int
-	call      []int
-	event     bool
-	eventid   int
-	control   bool
-	controlid int
-	variant   bool
-	variantid int
-	export    bool
-	exportid  int
-	hasargs   bool
 }
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
@@ -267,147 +251,49 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Expor
 		log.Println("Template(s): ", template)
 	}
 
-	// TODO rework starting from here:
+	featureMakers, filterMakers, args, tocall, ctrl := tree.convert()
+	ctrl.exporter = exporter
+	ctrl.template = template
 
-	init := make([]featureToInit, len(tree.Fragments))
-	var exportList []int
-	exportid := 0
-	for i := range init {
-		fragment := tree.Fragments[i]
-		init[i].feature = fragment.FeatureMaker()
-		init[i].info = graphInfo{
-			ret:          fragment.Returns(),
-			data:         fragment.Data(), //constant
-			nonComposite: false,           //TODO
-			apply:        "",              //TODO apply or map
-		}
-		init[i].name = fragment.ExportName()
-		for _, arg := range fragment.Arguments() {
-			raw := arg.IsRaw()
-			if raw {
-				init[i].event = true
-			} else {
-				init[i].arguments = append(init[i].arguments, arg.Register())
-			}
-		}
-		init[i].control = false //FIXME
-		if fragment.Export() {
-			init[i].export = true
-			init[i].exportid = exportid
-			exportid++
-			exportList = append(exportList, i)
-		}
-	}
-
-	// here was old
-
-	for i, f := range init {
-		for _, arg := range f.arguments {
-			init[arg].call = append(init[arg].call, i)
-		}
-	}
-
-	nevent := 0
-	ncontrol := 0
-	nvariants := 0
-	type callSpec struct {
-		id   int
-		args []int
-	}
-	var tocall []callSpec
-
-	for i, feature := range init {
-		if len(feature.feature.variants) != 0 {
-			init[i].variant = true
-			init[i].variantid = nvariants
-			nvariants++
-		}
-		if feature.event {
-			init[i].eventid = nevent
-			nevent++
-		}
-		if feature.control {
-			init[i].controlid = ncontrol
-			ncontrol++
-		}
-		if len(feature.call) > 0 {
-			tocall = append(tocall, callSpec{i, feature.call})
-		}
-		if _, ok := feature.feature.make().(FeatureWithArguments); ok && len(feature.arguments) > 0 {
-			init[i].hasargs = true
-		}
-	}
-
-	hasfilter := false
-	var tofilter []featureToInit // FIXME: fill
-	if len(tofilter) > 0 {
-		hasfilter = true
-	}
+	hasfilter := len(filterMakers) > 0
 
 	rl.list = append(rl.list, RecordMaker{
-		init,
-		exportList,
 		exporter,
 		fields,
 		func() *record {
-			toinit := init
-			control := make([]Feature, ncontrol)       //TODO
-			event := make([]Feature, nevent)           // has IsRaw()
-			export := make([]Feature, len(exportList)) // Export()
-			exporter := exporter
-			variant := make([]Feature, nvariants) // len(Type()) > 1
-			template := template
-			startup := make([]Feature, len(toinit))
-			startup = startup[:len(toinit)] //BCE
-			for i := range toinit {
-				f := toinit[i].feature.make()
-				startup[i] = f
-				if toinit[i].event {
-					event[toinit[i].eventid] = f
-				}
-				if toinit[i].control {
-					control[toinit[i].controlid] = f
-				}
-				if toinit[i].variant {
-					variant[toinit[i].variantid] = f
-				}
-				if toinit[i].export {
-					export[toinit[i].exportid] = f
-				}
-				if toinit[i].hasargs {
-					args := make([]Feature, len(toinit[i].arguments))
-					args = args[:len(toinit[i].arguments)] //BCE
-					for i, arg := range toinit[i].arguments {
-						args[i] = startup[arg]
+			features := make([]Feature, len(featureMakers))
+			features = features[:len(featureMakers)] //BCE
+			for i, maker := range featureMakers {
+				features[i] = maker()
+			}
+			for i, arg := range args {
+				if len(arg) > 0 {
+					if f, ok := features[i].(FeatureWithArguments); ok {
+						args := make([]Feature, len(arg))
+						args = args[:len(arg)] //BCE
+						for i, arg := range arg {
+							args[i] = features[arg]
+						}
+						f.SetArguments(args)
 					}
-					startup[i].(FeatureWithArguments).SetArguments(args)
 				}
+			}
+			for i, tocall := range tocall {
+				features[i].setDependent(tocall)
 			}
 			var filter []Feature
 			if hasfilter {
-				filter = make([]Feature, len(tofilter))
-				filter = filter[:len(tofilter)] //BCE
-				for i, feature := range tofilter {
-					filter[i] = feature.feature.make()
+				filter = make([]Feature, len(filterMakers))
+				filter = filter[:len(filterMakers)] //BCE
+				for i, feature := range filterMakers {
+					filter[i] = feature()
 				}
 			}
-			for _, spec := range tocall {
-				args := make([]Feature, len(spec.args))
-				args = args[:len(spec.args)] //BCE
-				for i, call := range spec.args {
-					args[i] = startup[call]
-				}
-				startup[spec.id].setDependent(args)
-			}
+
 			return &record{
-				startup:  startup,
+				features: features,
 				filter:   filter,
-				control:  control,
-				event:    event,
-				export:   export,
-				exporter: exporter,
-				variant:  variant,
-				template: template,
+				control:  &ctrl,
 			}
 
 		},
@@ -435,98 +321,102 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 
 // CallGraph generates a call graph in the graphviz language and writes the result to w.
 func (rl RecordListMaker) CallGraph(w io.Writer) {
-	toID := func(id, i int) string {
-		return fmt.Sprintf("%d,%d", id, i)
-	}
-	styles := map[FeatureType][][]string{
-		FlowFeature: {
-			{"shape", "invhouse"},
-			{"style", "filled"},
-		},
-		PacketFeature: {
-			{"style", "filled"},
-		},
-		Const: {
-			{"shape", "oval"},
-		},
-	}
-	type Node struct {
-		Name  string
-		Label string
-		HTML  string
-		Style [][]string
-	}
-	type Edge struct {
-		Start     string
-		StartNode string
-		Stop      string
-		StopNode  string
-	}
-	type Subgraph struct {
-		Nodes  []Node
-		Export []Node
-	}
-	data := struct {
-		Nodes []Subgraph
-		Edges []Edge
-	}{}
-	for listID, fl := range rl.list {
-		var nodes []Node
-		export := make([]Node, len(fl.exporter))
-		for i, exporter := range fl.exporter {
-			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
+	panic("not implemented")
+	/*
+		FIXME
+		toID := func(id, i int) string {
+			return fmt.Sprintf("%d,%d", id, i)
 		}
-		for i, feature := range fl.init {
-			var node Node
-			node.Label = feature.name
-			if node.Label != feature.feature.ie.Name { //FIXME
-				node.Label = fmt.Sprintf("%s\\n%s", feature.feature.ie.Name, node.Label)
+		styles := map[FeatureType][][]string{
+			FlowFeature: {
+				{"shape", "invhouse"},
+				{"style", "filled"},
+			},
+			PacketFeature: {
+				{"style", "filled"},
+			},
+			Const: {
+				{"shape", "oval"},
+			},
+		}
+		type Node struct {
+			Name  string
+			Label string
+			HTML  string
+			Style [][]string
+		}
+		type Edge struct {
+			Start     string
+			StartNode string
+			Stop      string
+			StopNode  string
+		}
+		type Subgraph struct {
+			Nodes  []Node
+			Export []Node
+		}
+		data := struct {
+			Nodes []Subgraph
+			Edges []Edge
+		}{}
+		for listID, fl := range rl.list {
+			var nodes []Node
+			export := make([]Node, len(fl.exporter))
+			for i, exporter := range fl.exporter {
+				export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
 			}
-			if feature.info.apply != "" {
-				node.Label = fmt.Sprintf("%s\\n%s", feature.info.apply, node.Label)
-			}
-			node.Name = toID(listID, i)
-			if feature.info.data == nil {
-				if len(feature.arguments) == 0 {
-					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
-				} else if len(feature.arguments) == 1 {
-					if feature.info.nonComposite {
-						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
+			for i, feature := range fl.init {
+				var node Node
+				node.Label = feature.name
+				if node.Label != feature.feature.ie.Name { //FIXME
+					node.Label = fmt.Sprintf("%s\\n%s", feature.feature.ie.Name, node.Label)
+				}
+				if feature.info.apply != "" {
+					node.Label = fmt.Sprintf("%s\\n%s", feature.info.apply, node.Label)
+				}
+				node.Name = toID(listID, i)
+				if feature.info.data == nil {
+					if len(feature.arguments) == 0 {
+						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
+					} else if len(feature.arguments) == 1 {
+						if feature.info.nonComposite {
+							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
+						} else {
+							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
+						}
 					} else {
-						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
+						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
+						args := make([]string, len(feature.arguments))
+						for i := range args {
+							args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
+						}
+						node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), strings.Replace(node.Label, "\\n", "<BR/>", -1))
+						node.Label = ""
 					}
 				} else {
-					node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
-					args := make([]string, len(feature.arguments))
-					for i := range args {
-						args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
-					}
-					node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), strings.Replace(node.Label, "\\n", "<BR/>", -1))
-					node.Label = ""
+					node.Label = fmt.Sprint(feature.info.data)
+					node.Style = styles[Const]
 				}
-			} else {
-				node.Label = fmt.Sprint(feature.info.data)
-				node.Style = styles[Const]
-			}
 
-			nodes = append(nodes, node)
-		}
-		for i, feature := range fl.init {
-			if feature.event {
-				data.Edges = append(data.Edges, Edge{"event", "", toID(listID, i), ""})
+				nodes = append(nodes, node)
 			}
-			for index, j := range feature.arguments {
-				index := strconv.Itoa(index)
-				if len(feature.arguments) <= 1 {
-					index = ""
+			for i, feature := range fl.init {
+				if feature.event {
+					data.Edges = append(data.Edges, Edge{"event", "", toID(listID, i), ""})
 				}
-				data.Edges = append(data.Edges, Edge{toID(listID, j), "", toID(listID, i), index})
+				for index, j := range feature.arguments {
+					index := strconv.Itoa(index)
+					if len(feature.arguments) <= 1 {
+						index = ""
+					}
+					data.Edges = append(data.Edges, Edge{toID(listID, j), "", toID(listID, i), index})
+				}
 			}
+			for _, i := range fl.exportList {
+				data.Edges = append(data.Edges, Edge{toID(listID, i), "", fmt.Sprintf("export%d", listID), ""})
+			}
+			data.Nodes = append(data.Nodes, Subgraph{nodes, export})
 		}
-		for _, i := range fl.exportList {
-			data.Edges = append(data.Edges, Edge{toID(listID, i), "", fmt.Sprintf("export%d", listID), ""})
-		}
-		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
-	}
-	graphTemplate.Execute(w, data)
+		graphTemplate.Execute(w, data)
+	*/
 }
