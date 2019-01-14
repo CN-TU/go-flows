@@ -13,7 +13,7 @@
         {"min": [{"__NTATOn": ["__NTASecWindow"]}]},
         {"max": [{"__NTATOff": ["__NTASecWindow"]}]},
         {"min": [{"__NTATOff": ["__NTASecWindow"]}]},
-        {"_countEvents": [{"__NTATOn": ["__NTASecWindow"]}]}
+        {"count": [{"__NTATOn": ["__NTASecWindow"]}]}
     ],
     "bidirectional": false,
     "key_features": [

@@ -13,12 +13,12 @@ import (
 )
 
 // TypeResolver is a resolution function. It must return an ipfix information element for a givent list of feature argument types.
-type TypeResolver func([]ipfix.InformationElement) ipfix.InformationElement
+type TypeResolver func([]ipfix.InformationElement) (ipfix.InformationElement, error)
 
 // MakeFeature is a function that returns an instantiated Feature
 type MakeFeature func() Feature
 
-// featureMake is used internally to hold information about how to create a specific feature and the needed metadata
+// featureMaker is used internally to hold information about how to create a specific feature and the needed metadata
 type featureMaker struct {
 	ret         FeatureType
 	make        MakeFeature
@@ -33,42 +33,6 @@ type featureMaker struct {
 
 func (f featureMaker) String() string {
 	return fmt.Sprintf("<%s>%s(%s)", f.ret, f.ie, f.arguments)
-}
-
-// getArguments returns the argument types needed for a given return type and number of arguments of a single feature
-func (f featureMaker) getArguments(ret FeatureType, nargs int) []FeatureType {
-	if f.arguments[len(f.arguments)-1] == Ellipsis {
-		r := make([]FeatureType, nargs)
-		last := len(f.arguments) - 2
-		variadic := f.arguments[last]
-		if variadic == MatchType {
-			variadic = ret
-		}
-		for i := 0; i < nargs; i++ {
-			if i > last {
-				r[i] = variadic
-			} else {
-				if f.arguments[i] == MatchType {
-					r[i] = ret
-				} else {
-					r[i] = f.arguments[i]
-				}
-			}
-		}
-		return r
-	}
-	if f.ret == MatchType {
-		r := make([]FeatureType, nargs)
-		for i := range r {
-			if f.arguments[i] == MatchType {
-				r[i] = ret
-			} else {
-				r[i] = f.arguments[i]
-			}
-		}
-		return r
-	}
-	return f.arguments
 }
 
 var featureRegistry = make([]map[string][]featureMaker, featureTypeMax) // variable holding all registered features
@@ -101,8 +65,8 @@ func RegisterFeature(ie ipfix.InformationElement, description string, ret Featur
 // type, and n-argument functions, where the return type is the maximum numeric type resolved from the
 // arguments (e.g. add)
 func RegisterFunction(name string, description string, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
-	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
-	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
+	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
+	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
 			ret:         ret,
 			make:        make,
@@ -115,8 +79,8 @@ func RegisterFunction(name string, description string, ret FeatureType, make Mak
 
 // RegisterTypedFunction registers a function that has a specific return type.
 func RegisterTypedFunction(name string, description string, t ipfix.Type, tl uint16, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
-	ie := ipfix.NewInformationElement(name, 0, 0, t, tl)
-	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
+	ie := ipfix.NewInformationElement("", 0, 0, t, tl)
+	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
 			ret:         ret,
 			make:        make,
@@ -129,12 +93,14 @@ func RegisterTypedFunction(name string, description string, t ipfix.Type, tl uin
 
 // RegisterCustomFunction registers a function that needs custom type resolution to get the return type
 func RegisterCustomFunction(name string, description string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
+	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
 	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
 			ret:         ret,
 			make:        make,
 			arguments:   arguments,
 			resolver:    resolver,
+			ie:          ie,
 			function:    true,
 			description: description,
 		})
@@ -142,8 +108,8 @@ func RegisterCustomFunction(name string, description string, resolver TypeResolv
 
 // RegisterVariantFeature registers a feature that represents more than one information element depending on the data
 func RegisterVariantFeature(name string, description string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
-	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
-	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
+	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
+	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
 			ret:         ret,
 			make:        make,
@@ -156,8 +122,8 @@ func RegisterVariantFeature(name string, description string, ies []ipfix.Informa
 
 // RegisterStandardVariantFeature registers a feature that represents more than one information element depending on the data and is part of the iana ipfix list (e.g. sourceIpv4Address/sourceIpv6Address)
 func RegisterStandardVariantFeature(name string, description string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
-	ie := ipfix.NewInformationElement(name, 0, 0, ipfix.IllegalType, 0)
-	featureRegistry[ret][ie.Name] = append(featureRegistry[ret][ie.Name],
+	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
+	featureRegistry[ret][name] = append(featureRegistry[ret][name],
 		featureMaker{
 			ret:         ret,
 			make:        make,
@@ -233,24 +199,20 @@ func RegisterTemporaryCompositeFeature(name string, description string, t ipfix.
 	RegisterCompositeFeature(ie, description, definition...)
 }
 
-// getFeature returns the feature metadata for a feature with the given name, return type, and number of arguments, and true if such a feature exists
-func getFeature(feature string, ret FeatureType, nargs int) (featureMaker, bool) {
-	variadicFound := false
-	var variadic featureMaker
+// getFeatures returns the feature metadata for a feature with the given name, return type, and number of arguments, and true if such a feature exists
+func getFeatures(feature string, ret FeatureType, nargs int) []featureMaker {
+	var candidates []featureMaker
+	var variadic []featureMaker
 	for _, t := range []FeatureType{ret, MatchType} {
 		for _, f := range featureRegistry[t][feature] {
 			if len(f.arguments) >= 1 && f.arguments[len(f.arguments)-1] == Ellipsis {
-				variadicFound = true
-				variadic = f
+				variadic = append(variadic, f)
 			} else if len(f.arguments) == nargs {
-				return f, true
+				candidates = append(candidates, f)
 			}
 		}
 	}
-	if variadicFound {
-		return variadic, true
-	}
-	return featureMaker{}, false
+	return append(candidates, variadic...)
 }
 
 // ListFeatures creates a table of available features and outputs it to w.

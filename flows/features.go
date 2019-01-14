@@ -2,7 +2,6 @@ package flows
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/CN-TU/go-ipfix"
 )
@@ -21,12 +20,11 @@ func (f *constantFeature) Variant() int                                     { re
 func (f *constantFeature) Emit(interface{}, *EventContext, interface{})     {}
 func (f *constantFeature) setDependent([]Feature)                           {}
 func (f *constantFeature) IsConstant() bool                                 { return true }
-func (f *constantFeature) setRecord(*record)                                {}
 
 var _ Feature = (*constantFeature)(nil)
 
 // newConstantMetaFeature creates a new constant feature, which holds the given value
-func newConstantMetaFeature(value interface{}) featureMaker {
+func newConstantMetaFeature(value interface{}) (featureMaker, error) {
 	var t ipfix.Type
 	switch cv := value.(type) {
 	case bool:
@@ -44,14 +42,14 @@ func newConstantMetaFeature(value interface{}) featureMaker {
 	case uint64:
 		t = ipfix.Unsigned64Type
 	default:
-		panic(fmt.Sprint("Can't create constant of type ", reflect.TypeOf(value)))
+		return featureMaker{}, fmt.Errorf("can't create constant of type %T", value)
 	}
 	feature := &constantFeature{value}
 	return featureMaker{
 		ret:  Const,
 		make: func() Feature { return feature },
 		ie:   ipfix.NewInformationElement(fmt.Sprintf("_const{%v}", value), 0, 0, t, 0),
-	}
+	}, nil
 }
 
 //apply and map pseudofeatures; those are handled during callgraph building

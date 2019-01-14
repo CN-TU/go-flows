@@ -4,8 +4,9 @@ package flows
 type FeatureType int
 
 const (
+	_ FeatureType = iota
 	// Const is a constant
-	Const FeatureType = iota
+	Const
 
 	// RawPacket is a packet from the packet source
 	RawPacket
@@ -34,6 +35,8 @@ const (
 
 func (f FeatureType) String() string {
 	switch f {
+	case 0:
+		return "Unknown"
 	case Const:
 		return "Const"
 	case RawPacket:

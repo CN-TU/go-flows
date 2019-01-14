@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"errors"
 	"math"
 
 	"github.com/wangjohn/quickselect"
@@ -30,8 +31,11 @@ func (f *get) Event(new interface{}, context *flows.EventContext, src interface{
 	f.current++
 }
 
-func resolveGet(args []ipfix.InformationElement) ipfix.InformationElement {
-	return args[1]
+func resolveGet(args []ipfix.InformationElement) (ipfix.InformationElement, error) {
+	if len(args) != 2 {
+		return ipfix.InformationElement{}, errors.New("get must have exactly 2 arguments")
+	}
+	return args[1], nil
 }
 
 func init() {
@@ -60,7 +64,7 @@ func (f *count) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 
 func init() {
 	flows.RegisterTemporaryFeature("count", "returns number of selected objects", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.Selection)
-	flows.RegisterTemporaryFeature("_countEvents", "returns number events", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("count", "returns number of selected objects", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &count{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

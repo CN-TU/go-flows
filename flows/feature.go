@@ -1,34 +1,5 @@
 package flows
 
-import (
-	"fmt"
-	"strings"
-)
-
-// generates a textual representation of a feature usable for comparison loosely based on <type>name
-// or [<type>name,argumentA,...] (with argumentX being an id) for composites
-func feature2id(feature interface{}, ret FeatureType) string {
-	switch feature := feature.(type) {
-	case string:
-		return fmt.Sprintf("<%d>%s", ret, feature)
-	case bool, float64, int64, uint64, int, uint:
-		return fmt.Sprintf("Const{%v}", feature)
-	case []interface{}:
-		features := make([]string, len(feature))
-		f, found := getFeature(feature[0].(string), ret, len(feature)-1)
-		if !found {
-			panic(fmt.Sprintf("Feature %s with return type %s and %d arguments not found!", feature[0].(string), ret, len(feature)-1))
-		}
-		arguments := append([]FeatureType{ret}, f.getArguments(ret, len(feature)-1)...)
-		for i, f := range feature {
-			features[i] = feature2id(f, arguments[i])
-		}
-		return "[" + strings.Join(features, ",") + "]"
-	default:
-		panic(fmt.Sprint("Don't know what to do with ", feature))
-	}
-}
-
 // Feature interfaces, which all features need to implement
 type Feature interface {
 	// Event gets called for every event. Data is provided via the first argument and a context providing addional information/control via the second argument.

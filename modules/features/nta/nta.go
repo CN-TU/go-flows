@@ -215,7 +215,6 @@ func (f *ton) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 
 func init() {
 	flows.RegisterTemporaryFeature("__NTATOn", "returns on time (consec. seconds with packet)", ipfix.Unsigned64Type, 0, flows.PacketFeature, func() flows.Feature { return &ton{} }, flows.Selection)
-	//	flows.RegisterTemporaryFeature("__NTATOn", "returns on time (consec. seconds with packet)", ipfix.Unsigned64Type, 0, flows.Selection, func() flows.Feature { return &ton{} }, flows.Selection)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,9 @@ func MakeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt 
 		featuresI[i] = feature
 	}
 	var f flows.RecordListMaker
-	f.AppendRecord(featuresI, []flows.Exporter{ret.exporter}, ft)
+	if err := f.AppendRecord(featuresI, []flows.Exporter{ret.exporter}, false); err != nil {
+		t.Fatalf("Couldn't parse features: %s", err)
+	}
 	ret.table = flows.NewFlowTable(f, packet.NewFlow, opt, true, 0)
 	ret.selector = packet.MakeDynamicKeySelector([]string{
 		"sourceIPAddress",

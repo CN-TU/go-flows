@@ -1,6 +1,8 @@
 package operations
 
 import (
+	"errors"
+
 	"github.com/CN-TU/go-flows/flows"
 	ipfix "github.com/CN-TU/go-ipfix"
 )
@@ -26,8 +28,11 @@ func (f *slice) Event(new interface{}, context *flows.EventContext, src interfac
 	f.current++
 }
 
-func resolveSlice(args []ipfix.InformationElement) ipfix.InformationElement {
-	return args[2]
+func resolveSlice(args []ipfix.InformationElement) (ipfix.InformationElement, error) {
+	if len(args) != 3 {
+		return ipfix.InformationElement{}, errors.New("slice must have exactly 3 arguments")
+	}
+	return args[2], nil
 }
 
 func init() {

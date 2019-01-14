@@ -2,6 +2,7 @@ package operations
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/CN-TU/go-flows/flows"
@@ -46,8 +47,11 @@ func (f *accumulate) Event(new interface{}, context *flows.EventContext, src int
 	f.vector = append(f.vector, new)
 }
 
-func resolveAccumulate(args []ipfix.InformationElement) ipfix.InformationElement {
-	return ipfix.NewBasicList("accumulate", args[0], 0)
+func resolveAccumulate(args []ipfix.InformationElement) (ipfix.InformationElement, error) {
+	if len(args) != 1 {
+		return ipfix.InformationElement{}, errors.New("accumulate must have exactly one argument")
+	}
+	return ipfix.NewBasicList("accumulate", args[0], 0), nil
 }
 
 //FIXME: this has a bad name

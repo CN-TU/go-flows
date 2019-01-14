@@ -3,11 +3,10 @@ package flows
 import (
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"text/template"
-
-	"github.com/CN-TU/go-ipfix"
 )
 
 // Record holds multiple features that belong to a single record
@@ -236,7 +235,7 @@ type graphInfo struct {
 type featureToInit struct {
 	feature   featureMaker
 	info      graphInfo
-	ie        ipfix.InformationElement
+	name      string
 	arguments []int
 	call      []int
 	event     bool
@@ -252,248 +251,55 @@ type featureToInit struct {
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
 // specification, a list of exporters and a needed base (only FlowFeature supported so far)
-func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Exporter, base FeatureType) {
-	type featureWithType struct {
-		feature     interface{}
-		ret         FeatureType
-		ie          ipfix.InformationElement
-		export      bool
-		reset       bool
-		selection   string
-		compositeID string
-		apply       string
+func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Exporter, verbose bool) error {
+	// TODO: handle control and filter!
+	tree, err := makeAST(features, exporter, RawPacket, FlowFeature) // only packets -> flows for now
+	if err != nil {
+		return err
+	}
+	if err := tree.compile(verbose); err != nil {
+		return err
 	}
 
-	init := make([]featureToInit, 0, len(features))
-	var tofilter []featureToInit
-
-	stack := make([]featureWithType, len(features))
-	for i := range features {
-		stack[i] = featureWithType{
-			feature: features[i],
-			ret:     base,
-			export:  true,
-		}
+	template, fields := tree.template(&rl.templates)
+	if verbose {
+		log.Println("Fields: ", strings.Join(fields, ", "))
+		log.Println("Template(s): ", template)
 	}
 
-	type selection struct {
-		argument []int
-		seen     map[string]int
-	}
+	// TODO rework starting from here:
 
-	selections := make(map[string]*selection)
-
-	mainSelection := &selection{nil, make(map[string]int, len(features))}
-	selections[feature2id([]interface{}{"select", true}, Selection)] = mainSelection
-	currentSelection := mainSelection
-
+	init := make([]featureToInit, len(tree.Fragments))
 	var exportList []int
-
-	var currentFeature featureWithType
-MAIN:
-	for len(stack) > 0 {
-		currentFeature, stack = stack[0], stack[1:]
-		id := feature2id(currentFeature.feature, currentFeature.ret)
-		seen := currentSelection.seen
-		if i, ok := seen[id]; ok {
-			if currentFeature.export {
-				exportList = append(exportList, i)
-			}
-			continue MAIN
+	exportid := 0
+	for i := range init {
+		fragment := tree.Fragments[i]
+		init[i].feature = fragment.FeatureMaker()
+		init[i].info = graphInfo{
+			ret:          fragment.Returns(),
+			data:         fragment.Data(), //constant
+			nonComposite: false,           //TODO
+			apply:        "",              //TODO apply or map
 		}
-		switch typedFeature := currentFeature.feature.(type) {
-		case string:
-			if feature, ok := getFeature(typedFeature, currentFeature.ret, 1); !ok {
-				if composite, ok := compositeFeatures[typedFeature]; !ok {
-					if currentSelection == mainSelection {
-						if feature, ok := getFeature(typedFeature, ControlFeature, 1); ok {
-							seen[id] = len(init)
-							init = append(init, featureToInit{
-								feature: feature,
-								control: true,
-							})
-						} else {
-							if feature, ok := getFeature(typedFeature, RawPacket, 1); ok {
-								tofilter = append(tofilter, featureToInit{
-									feature: feature,
-								})
-							} else {
-								panic(fmt.Sprintf("(Control/Filter)Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
-							}
-						}
-					} else {
-						panic(fmt.Sprintf("Feature %s returning %s with input raw packet/flow not found", currentFeature.feature, currentFeature.ret))
-					}
-				} else {
-					stack = append([]featureWithType{
-						{
-							feature:     composite.definition,
-							ie:          composite.ie,
-							ret:         currentFeature.ret,
-							export:      currentFeature.export,
-							compositeID: id,
-						}}, stack...)
-				}
+		init[i].name = fragment.ExportName()
+		for _, arg := range fragment.Arguments() {
+			raw := arg.IsRaw()
+			if raw {
+				init[i].event = true
 			} else {
-				if feature.arguments[0] != RawPacket { //TODO: implement flow input
-					panic(fmt.Sprintf("Feature %s returning %s with input raw packet not found", currentFeature.feature, currentFeature.ret))
-				}
-				seen[id] = len(init)
-				if currentFeature.export {
-					exportList = append(exportList, len(init))
-				}
-				ie := feature.ie
-				if currentFeature.ie.Name != "" {
-					ie.Name = currentFeature.ie.Name
-					ie.Pen = 0
-					ie.ID = 0
-				}
-				init = append(init, featureToInit{
-					feature: feature,
-					info: graphInfo{
-						ret:   currentFeature.ret,
-						apply: currentFeature.apply,
-					},
-					ie:        ie,
-					arguments: currentSelection.argument,
-					event:     currentSelection.argument == nil,
-				})
+				init[i].arguments = append(init[i].arguments, arg.Register())
 			}
-		case bool, float64, int64, uint64, int:
-			feature := newConstantMetaFeature(typedFeature)
-			seen[id] = len(init)
-			if currentFeature.export {
-				exportList = append(exportList, len(init))
-			}
-			init = append(init, featureToInit{
-				feature: feature,
-				info: graphInfo{
-					data: typedFeature,
-				},
-				ie: feature.ie,
-			})
-		case []interface{}:
-			fun := typedFeature[0].(string)
-			if feature, ok := getFeature(fun, currentFeature.ret, len(typedFeature)-1); !ok {
-				panic(fmt.Sprintf("Feature %s returning %s with arguments %v not found", fun, currentFeature.ret, typedFeature[1:]))
-			} else {
-				if fun == "apply" || fun == "map" {
-					sel := feature2id(typedFeature[2], Selection)
-					if fun == "apply" && currentFeature.ret != FlowFeature {
-						panic("Unexpected apply - did you mean map?")
-					} else if fun == "map" && currentFeature.ret != PacketFeature {
-						panic("Unexpected map - did you mean apply?")
-					}
-					ie := ipfix.InformationElement{Name: strings.Join(compositeToCall(typedFeature), ""), Type: ipfix.IllegalType}
-					if s, ok := selections[sel]; ok {
-						stack = append([]featureWithType{
-							{
-								feature: typedFeature[1],
-								ret:     currentFeature.ret,
-								export:  currentFeature.export,
-								apply:   fun,
-								reset:   true,
-								ie:      ie,
-							},
-						}, stack...)
-						currentSelection = s
-					} else {
-						stack = append([]featureWithType{
-							{
-								feature:   typedFeature[2],
-								ret:       Selection,
-								selection: sel,
-							},
-							{
-								feature: typedFeature[1],
-								ret:     currentFeature.ret,
-								export:  currentFeature.export,
-								apply:   fun,
-								reset:   true,
-								ie:      ie,
-							},
-						}, stack...)
-					}
-					continue MAIN
-				}
-				argumentTypes := feature.getArguments(currentFeature.ret, len(typedFeature)-1)
-				argumentPos := make([]int, 0, len(typedFeature)-1)
-				for i, f := range typedFeature[1:] {
-					if pos, ok := seen[feature2id(f, argumentTypes[i])]; !ok {
-						newstack := make([]featureWithType, len(typedFeature)-1)
-						for i, arg := range typedFeature[1:] {
-							newstack[i] = featureWithType{
-								feature: arg,
-								ret:     argumentTypes[i],
-							}
-						}
-						stack = append(append(newstack, currentFeature), stack...)
-						continue MAIN
-					} else {
-						argumentPos = append(argumentPos, pos)
-					}
-				}
-				seen[id] = len(init)
-				if currentFeature.export {
-					exportList = append(exportList, len(init))
-				}
-				ie := feature.ie
-				ie.Pen = 0
-				ie.ID = 0
-				if currentFeature.compositeID != "" {
-					seen[currentFeature.compositeID] = len(init)
-					ie = currentFeature.ie
-				} else {
-					if feature.function {
-						if feature.resolver != nil {
-							ieargs := make([]ipfix.InformationElement, len(argumentPos))
-							for i := range ieargs {
-								ieargs[i] = init[argumentPos[i]].ie
-							}
-							ie = feature.resolver(ieargs)
-						} else if feature.ie.Type != ipfix.IllegalType {
-							ie.Type = feature.ie.Type
-							ie.Length = feature.ie.Length
-						} else {
-							if len(argumentPos) == 1 {
-								ie.Type = init[argumentPos[0]].ie.Type
-								ie.Length = init[argumentPos[0]].ie.Length
-							} else if len(argumentPos) == 2 {
-								ie.Type = UpConvertTypes(init[argumentPos[0]].ie.Type, init[argumentPos[1]].ie.Type)
-								ie.Length = ipfix.DefaultSize[ie.Type]
-							} else {
-								ie.Type = ipfix.IllegalType //FIXME
-							}
-						}
-					}
-					if currentFeature.export {
-						ie.Name = strings.Join(compositeToCall(typedFeature), "")
-					}
-				}
-				if currentFeature.selection != "" {
-					currentSelection = &selection{[]int{len(init)}, make(map[string]int, len(features))}
-					selections[currentFeature.selection] = currentSelection
-				}
-				//select: set event true (event from logic + event from base)
-				init = append(init, featureToInit{
-					feature: feature,
-					info: graphInfo{
-						ret:          currentFeature.ret,
-						nonComposite: currentFeature.compositeID == "",
-						apply:        currentFeature.apply,
-					},
-					arguments: argumentPos,
-					ie:        ie,
-					event:     fun == "select" || (fun == "select_slice" && len(argumentPos) == 2),
-				})
-			}
-		default:
-			panic(fmt.Sprint("Don't know what to do with ", currentFeature))
 		}
-		if currentFeature.reset {
-			currentSelection = mainSelection
+		init[i].control = false //FIXME
+		if fragment.Export() {
+			init[i].export = true
+			init[i].exportid = exportid
+			exportid++
+			exportList = append(exportList, i)
 		}
 	}
+
+	// here was old
 
 	for i, f := range init {
 		for _, arg := range f.arguments {
@@ -532,17 +338,8 @@ MAIN:
 		}
 	}
 
-	toexport := make([]featureToInit, len(exportList))
-	toexport = toexport[:len(exportList)]
-	for i, val := range exportList {
-		toexport[i] = init[val]
-		init[val].export = true
-		init[val].exportid = i
-	}
-
-	template, fields := makeTemplate(toexport, &rl.templates)
-
 	hasfilter := false
+	var tofilter []featureToInit // FIXME: fill
 	if len(tofilter) > 0 {
 		hasfilter = true
 	}
@@ -554,11 +351,11 @@ MAIN:
 		fields,
 		func() *record {
 			toinit := init
-			control := make([]Feature, ncontrol)
-			event := make([]Feature, nevent)
-			export := make([]Feature, len(exportList))
+			control := make([]Feature, ncontrol)       //TODO
+			event := make([]Feature, nevent)           // has IsRaw()
+			export := make([]Feature, len(exportList)) // Export()
 			exporter := exporter
-			variant := make([]Feature, nvariants)
+			variant := make([]Feature, nvariants) // len(Type()) > 1
 			template := template
 			startup := make([]Feature, len(toinit))
 			startup = startup[:len(toinit)] //BCE
@@ -615,6 +412,7 @@ MAIN:
 
 		},
 	})
+	return nil
 }
 
 var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
@@ -680,8 +478,8 @@ func (rl RecordListMaker) CallGraph(w io.Writer) {
 		}
 		for i, feature := range fl.init {
 			var node Node
-			node.Label = feature.ie.Name
-			if node.Label != feature.feature.ie.Name {
+			node.Label = feature.name
+			if node.Label != feature.feature.ie.Name { //FIXME
 				node.Label = fmt.Sprintf("%s\\n%s", feature.feature.ie.Name, node.Label)
 			}
 			if feature.info.apply != "" {

@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"errors"
 	"fmt"
 
 	ipfix "github.com/CN-TU/go-ipfix"
@@ -457,6 +458,18 @@ func cleanUpType(a ipfix.Type) ipfix.Type {
 		return ipfix.IllegalType
 	}
 	panic(fmt.Sprintf("Can't upconvert %s", a))
+}
+
+// UpConvertInformationElements returns the upconverted InformationElement for numeric operations with 2 arguments
+func UpConvertInformationElements(ies []ipfix.InformationElement) (ipfix.InformationElement, error) {
+	if len(ies) != 2 {
+		return ipfix.InformationElement{}, errors.New("must provide exactly 2 ies to UpConvert. Maybe you need a resolved function?")
+	}
+	newType := UpConvertTypes(ies[0].Type, ies[1].Type)
+	if newType == ipfix.IllegalType {
+		return ipfix.InformationElement{}, MakeIncompatibleVariantError("can't upconvert %s and %s. Maybe you need a resolved function?", ies[0], ies[1])
+	}
+	return ipfix.InformationElement{Type: newType}, nil
 }
 
 // UpConvertTypes returns the shared type of two types to which data must be converted to for operations.
