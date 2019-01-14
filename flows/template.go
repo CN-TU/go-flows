@@ -78,7 +78,7 @@ func makeLeafTemplate(ies []ipfix.InformationElement, id *int) Template {
 func (a *ast) makeSubTemplateRec(variants, max []int, choose map[int]int, which int, id *int) Template {
 	if which == len(variants) {
 		var ies []ipfix.InformationElement
-		for _, fragment := range a.Fragments {
+		for _, fragment := range a.fragments {
 			if fragment.Export() {
 				ie := fragment.Type()
 				if ie == nil {
@@ -101,7 +101,7 @@ func (a *ast) makeSubTemplateRec(variants, max []int, choose map[int]int, which 
 func (a *ast) makeSubTemplate(variants, max []int, id *int) Template {
 	if len(variants) == 0 {
 		var ies []ipfix.InformationElement
-		for _, fragment := range a.Fragments {
+		for _, fragment := range a.fragments {
 			if fragment.Export() {
 				ie := fragment.Type()
 				if ie == nil {
@@ -118,7 +118,7 @@ func (a *ast) makeSubTemplate(variants, max []int, id *int) Template {
 func (a *ast) template(id *int) (Template, []string) {
 	var variants, max []int
 	var fields []string
-	for _, fragment := range a.Fragments {
+	for _, fragment := range a.fragments {
 		maker := fragment.FeatureMaker()
 		if len(maker.variants) > 0 {
 			variants = append(variants, fragment.Register())

@@ -74,6 +74,8 @@ V1-formated file:
 	  "flows": [
 	    {
 	      "features": [...],
+	      "_control_features": [...],
+	      "_filter_features": [...],
 	      "key": {
 	        "bidirectional": <bool>|"string",
 	        "key_features": [...]
@@ -86,6 +88,8 @@ Simpleformat specification:
 
 	{
 	  "features": [...],
+	  "_control_features": [...],
+	  "_filter_features": [...],
 	  "key_features": [...],
 	  "bidirectional": <bool>
 	}
@@ -101,7 +105,7 @@ V2-formated file:
 	  }
 	}
 
-key featurs give a list of features, which are used to compute a flow key. features is a formated list
+key features give a list of features, which are used to compute a flow key. features is a formated list
 of features to export. This list can also contain combinations of features and operations
 (https://nta-meta-analysis.readthedocs.io/en/latest/features.html).
 Only single pass operations can ever be supported due to design restrictions in the flow exporter.

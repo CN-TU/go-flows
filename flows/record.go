@@ -235,9 +235,8 @@ func (rm RecordMaker) Init() {
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
 // specification, a list of exporters and a needed base (only FlowFeature supported so far)
-func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Exporter, verbose bool) error {
-	// TODO: handle control and filter!
-	tree, err := makeAST(features, exporter, RawPacket, FlowFeature) // only packets -> flows for now
+func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter []string, exporter []Exporter, verbose bool) error {
+	tree, err := makeAST(features, control, filter, exporter, RawPacket, FlowFeature) // only packets -> flows for now
 	if err != nil {
 		return err
 	}

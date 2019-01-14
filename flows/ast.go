@@ -34,6 +34,8 @@ type astFragment interface {
 	Export() bool
 	IsRaw() bool
 	ID() int
+	Control() bool
+	SetControl(bool)
 	Variants() maybeASTVariant
 	SetVariants(maybeASTVariant)
 	Type() maybeVariant
@@ -76,8 +78,17 @@ type astBase struct {
 	ret        FeatureType
 	variants   maybeASTVariant
 	t          maybeVariant
+	control    bool
 	resolved   bool
 	register   int
+}
+
+func (a *astBase) Control() bool {
+	return a.control
+}
+
+func (a *astBase) SetControl(v bool) {
+	a.control = v
 }
 
 func (a *astBase) Arguments() []astFragment {
@@ -157,6 +168,14 @@ func (a *astBase) Name() string {
 }
 
 type astEmpty struct{}
+
+func (a *astEmpty) Control() bool {
+	panic("Control called on astEmpty")
+}
+
+func (a *astEmpty) SetControl(v bool) {
+	panic("SetControl called on astEmpty")
+}
 
 func (a *astEmpty) Arguments() []astFragment {
 	panic("Arguments called on astEmpty")
@@ -410,6 +429,15 @@ func (me multiError) Error() string {
 }
 
 func (a *astCall) build(ret FeatureType) error {
+	if a.control {
+		candidates := getFeatures(a.name, ControlFeature, 1)
+		if len(candidates) == 0 {
+			return fmt.Errorf("couldn't find control feature '%s'", a.name)
+		}
+		a.feature = candidates[0]
+		a.ret = ControlFeature
+		return nil
+	}
 	candidates := getFeatures(a.name, ret, len(a.args))
 	if len(candidates) == 0 {
 		return fmt.Errorf("couldn't find feature '%s' returning %s with %d argument(s)", a.name, ret, len(a.args))
@@ -549,28 +577,39 @@ func (a *astCall) String() string {
 }
 
 type ast struct {
-	ret       FeatureType
-	input     FeatureType
-	Fragments []astFragment
-	exporter  []Exporter
+	ret            FeatureType
+	input          FeatureType
+	filter         []string
+	filterFeatures []MakeFeature
+	fragments      []astFragment
+	exporter       []Exporter
 }
 
 // makeAST builds a basic ast for the given feature specification (no verification done yet)
-func makeAST(features []interface{}, exporter []Exporter, input, ret FeatureType) (ast, error) {
+func makeAST(features []interface{}, control, filter []string, exporter []Exporter, input, ret FeatureType) (ast, error) {
 	r := ast{
 		ret:      ret,
 		input:    input,
+		filter:   filter,
 		exporter: exporter,
 	}
 
-	r.Fragments = make([]astFragment, len(features))
+	r.fragments = make([]astFragment, len(features))
 	var err error
 	for i := range features {
-		r.Fragments[i], err = makeASTFragment(features[i], input, i+1)
+		r.fragments[i], err = makeASTFragment(features[i], input, i+1)
 		if err != nil {
-			return r, FeatureError{r.Fragments[i].ID(), fmt.Sprint(r.Fragments[i]), err}
+			return r, FeatureError{r.fragments[i].ID(), fmt.Sprint(r.fragments[i]), err}
 		}
-		r.Fragments[i].SetExport(r.Fragments[i].MakeExportName())
+		r.fragments[i].SetExport(r.fragments[i].MakeExportName())
+	}
+	for i, feature := range control {
+		frag, err := makeASTFragment(feature, input, i+1)
+		frag.SetControl(true)
+		if err != nil {
+			return r, FeatureError{frag.ID(), fmt.Sprint(frag), err}
+		}
+		r.fragments = append(r.fragments, frag)
 	}
 
 	return r, nil
@@ -583,7 +622,7 @@ func (a ast) String() string {
 		fmt.Fprintf(ret, " %s", exporter.ID())
 	}
 	fmt.Fprintln(ret)
-	for _, fragment := range a.Fragments {
+	for _, fragment := range a.fragments {
 		exp := ""
 		if fragment.Export() {
 			var t interface{}
@@ -598,6 +637,9 @@ func (a ast) String() string {
 			exp = fmt.Sprintf(" -> %s {%s}", fragment.ExportName(), ts)
 		}
 		fmt.Fprintf(ret, "\t%02d: $%d = %s%s\n", fragment.ID(), fragment.Register(), fragment, exp)
+	}
+	if len(a.filter) > 0 {
+		fmt.Fprintln(ret, "Filters: ", strings.Join(a.filter, ", "))
 	}
 	return ret.String()
 }
@@ -617,9 +659,19 @@ func makeFeatureError(fragment astFragment, err error) error {
 
 // build inserts actual feature definitions in the call chain
 func (a *ast) build() error {
-	for _, fragment := range a.Fragments {
+	for _, fragment := range a.fragments {
 		if err := fragment.build(a.ret); err != nil {
 			return makeExpandedError(fragment, err)
+		}
+	}
+	if len(a.filter) > 0 {
+		a.filterFeatures = make([]MakeFeature, len(a.filter))
+		for i, filter := range a.filter {
+			candidates := getFeatures(filter, RawPacket, 1)
+			if len(candidates) == 0 {
+				return fmt.Errorf("couldn't find filter feature '%s'", filter)
+			}
+			a.filterFeatures[i] = candidates[0].make
 		}
 	}
 	return nil
@@ -669,10 +721,10 @@ func expandASTFragment(f astFragment, input FeatureType) (astFragment, error) {
 // expand expands macros
 func (a *ast) expand() error {
 	var err error
-	for i := range a.Fragments {
-		a.Fragments[i], err = expandASTFragment(a.Fragments[i], a.input)
+	for i := range a.fragments {
+		a.fragments[i], err = expandASTFragment(a.fragments[i], a.input)
 		if err != nil {
-			return makeFeatureError(a.Fragments[i], err)
+			return makeFeatureError(a.fragments[i], err)
 		}
 	}
 	return nil
@@ -703,10 +755,10 @@ func expandSelectASTFragment(f astFragment, input FeatureType) (astFragment, err
 // expandSelect expands select* functions (= add input as last argument)
 func (a *ast) expandSelect() error {
 	var err error
-	for i := range a.Fragments {
-		a.Fragments[i], err = expandSelectASTFragment(a.Fragments[i], a.input)
+	for i := range a.fragments {
+		a.fragments[i], err = expandSelectASTFragment(a.fragments[i], a.input)
 		if err != nil {
-			return makeFeatureError(a.Fragments[i], err)
+			return makeFeatureError(a.fragments[i], err)
 		}
 	}
 	return nil
@@ -753,10 +805,10 @@ func lowerASTFragment(f astFragment, replacement astFragment) (astFragment, erro
 // lowerASTFragments modifies the ast to emulate map and apply
 func (a *ast) lower() error {
 	var err error
-	for i := range a.Fragments {
-		a.Fragments[i], err = lowerASTFragment(a.Fragments[i], nil)
+	for i := range a.fragments {
+		a.fragments[i], err = lowerASTFragment(a.fragments[i], nil)
 		if err != nil {
-			return makeExpandedError(a.Fragments[i], err)
+			return makeExpandedError(a.fragments[i], err)
 		}
 	}
 	return nil
@@ -764,7 +816,10 @@ func (a *ast) lower() error {
 
 // resolve does type resolution
 func (a *ast) resolve() error {
-	for _, fragment := range a.Fragments {
+	for _, fragment := range a.fragments {
+		if fragment.Control() {
+			continue
+		}
 		err := fragment.resolve()
 		if err != nil {
 			return makeExpandedError(fragment, err)
@@ -822,13 +877,13 @@ func (a *ast) simplify() error {
 	subtrees := make(map[string]astFragment)
 	var out []astFragment
 	register := 0
-	for _, fragment := range a.Fragments {
+	for _, fragment := range a.fragments {
 		err := simplifyFragments(fragment, subtrees, &out, &register)
 		if err != nil {
 			return makeExpandedError(fragment, err)
 		}
 	}
-	a.Fragments = out
+	a.fragments = out
 	return nil
 }
 
@@ -888,12 +943,15 @@ func (a *ast) compile(verbose bool) error {
 
 func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][]int, tocall [][]int, ctrl *control) {
 	ctrl = &control{}
-	args = make([][]int, len(a.Fragments))
-	tocall = make([][]int, len(a.Fragments))
-	for _, fragment := range a.Fragments {
+	args = make([][]int, len(a.fragments))
+	tocall = make([][]int, len(a.fragments))
+	for _, fragment := range a.fragments {
 		fm := fragment.FeatureMaker()
 		features = append(features, fm.make)
-		// ctrl.control!
+		if fragment.Control() {
+			ctrl.control = append(ctrl.control, fragment.Register())
+			continue
+		}
 
 		for _, arg := range fragment.Arguments() {
 			if arg.IsRaw() {
@@ -912,5 +970,6 @@ func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][
 			ctrl.variant = append(ctrl.variant, fragment.Register())
 		}
 	}
+	filters = a.filterFeatures
 	return
 }

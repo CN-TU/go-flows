@@ -75,7 +75,7 @@ func fetchToken(dec *json.Decoder, fun string) json.Token {
 	return t
 }
 
-func decodeV1(decoded featureJSONv1, id int) (features []interface{}, key []string, bidirectional bool) {
+func decodeV1(decoded featureJSONv1, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
 	flows := decoded.Flows
 	if id < 0 || id >= len(flows) {
 		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
@@ -84,10 +84,12 @@ func decodeV1(decoded featureJSONv1, id int) (features []interface{}, key []stri
 	features = decodeFeatures(flow.Features)
 	key = flow.Key.Key
 	bidirectional = flow.Key.Bidirectional
+	control = flow.Control
+	filter = flow.Filter
 	return
 }
 
-func decodeV2(decoded featureJSONv2, id int) (features []interface{}, key []string, bidirectional bool) {
+func decodeV2(decoded featureJSONv2, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
 	flows := decoded.Preprocessing.Flows
 	if id < 0 || id >= len(flows) {
 		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
@@ -95,10 +97,12 @@ func decodeV2(decoded featureJSONv2, id int) (features []interface{}, key []stri
 	return decodeSimple(flows[id], id)
 }
 
-func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, key []string, bidirectional bool) {
+func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, control, filter, key []string, bidirectional bool) {
 	features = decodeFeatures(decoded.Features)
 	key = decoded.Key
 	bidirectional = decoded.Bidirectional
+	control = decoded.Control
+	filter = decoded.Filter
 	return
 }
 
@@ -106,12 +110,16 @@ func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, key
 	{
 		"features": [...],
 		"key_features": [...],
+		"_control_features": [...],
+		"_filter_features": [...],
 		"bidirectional": <bool>
 	}
 */
 
 type featureJSONsimple struct {
 	Features      interface{}
+	Control       []string `json:"_control_features"`
+	Filter        []string `json:"_filter_features"`
 	Bidirectional bool
 	Key           []string `json:"key_features"`
 }
@@ -121,6 +129,8 @@ type featureJSONsimple struct {
 		"flows": [
 			{
 				"features": [...],
+				"_control_features": [...],
+				"_filter_features": [...],
 				"key": {
 					"bidirectional": <bool>|"string",
 					"key_features": [...]
@@ -133,6 +143,8 @@ type featureJSONsimple struct {
 type featureJSONv1 struct {
 	Flows []struct {
 		Features interface{}
+		Control  []string `json:"_control_features"`
+		Filter   []string `json:"_filter_features"`
 		Key      struct {
 			Bidirectional bool
 			Key           []string `json:"key_features"`
@@ -158,7 +170,7 @@ type featureJSONv2 struct {
 	}
 }
 
-func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, key []string, bidirectional bool) {
+func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
 	f, err := os.Open(inputfile)
 	if err != nil {
 		log.Fatalln("Can't open ", inputfile)

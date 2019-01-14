@@ -75,7 +75,7 @@ func init() {
 	addCommand("callgraph", "Create a callgraph from a flowspecification", parseArguments)
 }
 
-func parseFeatures(cmd string, args []string) (arguments []string, features []interface{}, key []string, bidirectional bool) {
+func parseFeatures(cmd string, args []string) (arguments []string, features []interface{}, control, filter, key []string, bidirectional bool) {
 	set := flag.NewFlagSet("features", flag.ExitOnError)
 	set.Usage = func() {
 		fmt.Fprint(os.Stderr, `
@@ -111,7 +111,7 @@ Args:
 		format = jsonSimple
 	}
 
-	features, key, bidirectional = decodeJSON(set.Arg(0), format, int(*selection))
+	features, control, filter, key, bidirectional = decodeJSON(set.Arg(0), format, int(*selection))
 	if features == nil {
 		log.Fatalf("Couldn't parse %s (%d) - features missing\n", set.Arg(0), *selection)
 	}
@@ -127,6 +127,8 @@ func parseExport(args []string) ([]string, bool) {
 
 type featureSpec struct {
 	features      []interface{}
+	control       []string
+	filter        []string
 	key           []string
 	bidirectional bool
 }
@@ -159,7 +161,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				exportset = nil
 			}
 			var f featureSpec
-			args, f.features, f.key, f.bidirectional = parseFeatures(cmd, args[1:])
+			args, f.features, f.control, f.filter, f.key, f.bidirectional = parseFeatures(cmd, args[1:])
 			featureset = append(featureset, f)
 		case "export":
 			if firstexporter == nil {
@@ -286,7 +288,7 @@ func parseArguments(cmd string, args []string) {
 					log.Fatalln("bidirectional of every flow must match")
 				}
 			}
-			if err := recordList.AppendRecord(feature.features, featureset.exporter, *verbose); err != nil {
+			if err := recordList.AppendRecord(feature.features, feature.control, feature.filter, featureset.exporter, *verbose); err != nil {
 				log.Fatalf("Couldn't parse feature specification: %s\n", err)
 			}
 		}
