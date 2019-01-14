@@ -65,7 +65,7 @@ type {{.Name}}Flow struct {
 }
 
 func (f *{{.Name}}Flow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {

@@ -31,7 +31,7 @@ type andFlow struct {
 }
 
 func (f *andFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	val := values[0].(bool)
 	for _, v := range values[1:] {
@@ -77,7 +77,7 @@ type orFlow struct {
 }
 
 func (f *orFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	val := values[0].(bool)
 	for _, v := range values[1:] {

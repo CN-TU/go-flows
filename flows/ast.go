@@ -886,7 +886,8 @@ func (a *ast) compile(verbose bool) error {
 	return nil
 }
 
-func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][]int, tocall [][]int, ctrl control) {
+func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][]int, tocall [][]int, ctrl *control) {
+	ctrl = &control{}
 	args = make([][]int, len(a.Fragments))
 	tocall = make([][]int, len(a.Fragments))
 	for _, fragment := range a.Fragments {

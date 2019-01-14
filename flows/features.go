@@ -86,9 +86,9 @@ type selectS struct {
 	start, stop, current int64
 }
 
-func (f *selectS) SetArguments(arguments []Feature) {
-	f.start = ToInt(arguments[0].Value())
-	f.stop = ToInt(arguments[1].Value())
+func (f *selectS) SetArguments(arguments []int, features []Feature) {
+	f.start = ToInt(features[arguments[0]].Value())
+	f.stop = ToInt(features[arguments[1]].Value())
 }
 func (f *selectS) Start(*EventContext) { f.current = 0 }
 

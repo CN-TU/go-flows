@@ -1,7 +1,7 @@
 package operations
 
 // Created by gen_math.go, don't edit manually!
-// Generated at 2018-08-20 14:07:29.66653769 +0200 CEST m=+0.001376418
+// Generated at 2019-01-14 16:24:04.23343348 +0100 CET m=+0.001406589
 
 import (
 	"github.com/CN-TU/go-flows/flows"
@@ -128,7 +128,7 @@ type addFlow struct {
 }
 
 func (f *addFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	dst, fl, a, b := flows.UpConvert(values[0], values[1])
 	var result interface{}
@@ -176,7 +176,7 @@ type subtractFlow struct {
 }
 
 func (f *subtractFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	dst, fl, a, b := flows.UpConvert(values[0], values[1])
 	var result interface{}
@@ -224,7 +224,7 @@ type multiplyFlow struct {
 }
 
 func (f *multiplyFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	dst, fl, a, b := flows.UpConvert(values[0], values[1])
 	var result interface{}
@@ -272,7 +272,7 @@ type divideFlow struct {
 }
 
 func (f *divideFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	dst, fl, a, b := flows.UpConvert(values[0], values[1])
 	var result interface{}

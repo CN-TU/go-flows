@@ -26,8 +26,8 @@ type Feature interface {
 
 // FeatureWithArguments represents a feature that needs arguments (e.g. MultiBase*Feature or select)
 type FeatureWithArguments interface {
-	// SetArguments gets called during Feature initialization with the arguments of the features (needed for operations)
-	SetArguments([]Feature)
+	// SetArguments gets called during Feature initialization with the arguments of the features (needed for operations). arguments contains indizes into features
+	SetArguments(arguments []int, features []Feature)
 }
 
 // NoVariant represents the value returned from Variant if this Feature has only a single type.
@@ -155,23 +155,42 @@ type multiEvent interface {
 
 // singleMultiEvent (one not const) (every event is the right one!)
 type singleMultiEvent struct {
-	c   []interface{}
-	ret []interface{}
+	whichN int
+	ret    [2]interface{}
 }
 
 func (m *singleMultiEvent) CheckAll(new interface{}, which interface{}) []interface{} {
-	ret := m.ret[:len(m.c)]
-	for i, c := range m.c {
-		if c == nil {
-			ret[i] = new
-		} else {
-			ret[i] = c
-		}
-	}
-	return ret
+	m.ret[m.whichN] = new
+	return m.ret[:]
 }
 
 func (m *singleMultiEvent) Reset() {}
+
+// dualMultiEventNoConst (exactly two not const)
+type dualMultiEventNoConst struct {
+	c     [2]interface{}
+	nc    [2]Feature
+	state [2]bool
+}
+
+func (m *dualMultiEventNoConst) CheckAll(new interface{}, which interface{}) []interface{} {
+	if which == m.nc[0] {
+		m.state[0] = true
+		m.c[0] = new
+	} else if which == m.nc[1] {
+		m.state[1] = true
+		m.c[1] = new
+	}
+	if m.state[0] && m.state[1] {
+		return m.c[:]
+	}
+	return nil
+}
+
+func (m *dualMultiEventNoConst) Reset() {
+	m.state[0] = false
+	m.state[1] = false
+}
 
 // dualMultiEvent (two not const)
 type dualMultiEvent struct {
@@ -262,11 +281,30 @@ func (f *MultiBasePacketFeature) FinishEvent(context *EventContext) {
 }
 
 // SetArguments prepares the internal argument list for event tracking. Do not overload unless you know what you're doing!
-func (f *MultiBasePacketFeature) SetArguments(args []Feature) {
+func (f *MultiBasePacketFeature) SetArguments(args []int, all []Feature) {
+	if len(args) == 2 {
+		arg0 := all[args[0]]
+		arg1 := all[args[1]]
+		if arg0.IsConstant() {
+			ret := &singleMultiEvent{whichN: 1}
+			ret.ret[0] = arg0.Value()
+			f.eventReady = ret
+			return
+		}
+		if arg1.IsConstant() {
+			ret := &singleMultiEvent{whichN: 0}
+			ret.ret[1] = arg1.Value()
+			f.eventReady = ret
+			return
+		}
+		f.eventReady = &dualMultiEventNoConst{nc: [2]Feature{arg0, arg1}}
+		return
+	}
 	featurelist := make([]interface{}, len(args))
 	featurelist = featurelist[:len(args)]
 	features := make([]int, 0, len(args))
-	for i, feature := range args {
+	for i, which := range args {
+		feature := all[which]
 		if feature.IsConstant() {
 			featurelist[i] = feature.Value()
 		} else {
@@ -275,9 +313,6 @@ func (f *MultiBasePacketFeature) SetArguments(args []Feature) {
 		}
 	}
 	switch len(features) {
-	case 1:
-		featurelist[features[0]] = nil
-		f.eventReady = &singleMultiEvent{featurelist, make([]interface{}, len(featurelist))}
 	case 2:
 		event := &dualMultiEvent{} //FIXME preallocate ret
 		event.nc[0] = featurelist[features[0]].(Feature)
@@ -300,20 +335,20 @@ func (f *MultiBasePacketFeature) SetArguments(args []Feature) {
 // Use this as base for creating new features returning FlowFeature with multiple arguments.
 type MultiBaseFlowFeature struct {
 	BaseFeature
-	arguments []Feature
+	arguments []int
 }
 
 // SetArguments prepares the internal argument list for argument tracking. Do not overload unless you know what you're doing!
-func (f *MultiBaseFlowFeature) SetArguments(args []Feature) {
+func (f *MultiBaseFlowFeature) SetArguments(args []int, features []Feature) {
 	f.arguments = args
 }
 
 // GetValues returns the values of every argument
-func (f *MultiBaseFlowFeature) GetValues() []interface{} {
+func (f *MultiBaseFlowFeature) GetValues(context *EventContext) []interface{} {
 	ret := make([]interface{}, len(f.arguments))
 	ret = ret[:len(f.arguments)]
 	for i, c := range f.arguments {
-		ret[i] = c.Value()
+		ret[i] = context.record.features[c].Value()
 	}
 	return ret
 }

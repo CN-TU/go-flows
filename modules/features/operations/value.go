@@ -16,8 +16,8 @@ type get struct {
 	index, current int64
 }
 
-func (f *get) SetArguments(arguments []flows.Feature) {
-	f.index = flows.ToInt(arguments[0].Value())
+func (f *get) SetArguments(arguments []int, features []flows.Feature) {
+	f.index = flows.ToInt(features[arguments[0]].Value())
 }
 func (f *get) Start(ec *flows.EventContext) {
 	f.BaseFeature.Start(ec)

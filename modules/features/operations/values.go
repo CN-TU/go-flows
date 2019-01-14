@@ -12,9 +12,9 @@ type slice struct {
 	start, stop, current int64
 }
 
-func (f *slice) SetArguments(arguments []flows.Feature) {
-	f.start = flows.ToInt(arguments[0].Value())
-	f.stop = flows.ToInt(arguments[1].Value())
+func (f *slice) SetArguments(arguments []int, features []flows.Feature) {
+	f.start = flows.ToInt(features[arguments[0]].Value())
+	f.stop = flows.ToInt(features[arguments[1]].Value())
 }
 func (f *slice) Start(ec *flows.EventContext) {
 	f.BaseFeature.Start(ec)

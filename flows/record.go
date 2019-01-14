@@ -269,12 +269,7 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Expor
 			for i, arg := range args {
 				if len(arg) > 0 {
 					if f, ok := features[i].(FeatureWithArguments); ok {
-						args := make([]Feature, len(arg))
-						args = args[:len(arg)] //BCE
-						for i, arg := range arg {
-							args[i] = features[arg]
-						}
-						f.SetArguments(args)
+						f.SetArguments(arg, features)
 					}
 				}
 			}
@@ -293,7 +288,7 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, exporter []Expor
 			return &record{
 				features: features,
 				filter:   filter,
-				control:  &ctrl,
+				control:  ctrl,
 			}
 
 		},

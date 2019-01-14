@@ -155,9 +155,9 @@ the needed methods:
 Less commonly used functions
 
   * Variant() gets called to determine which variant to use, if a feature can different types depending on data (see sourceIPAddress for an example)
-  * SetArguments([]Feature) gets called during instantiation if a feature expects constand arguments (see select_slice for an example)
+  * SetArguments(args []int, all []Feature) gets called during instantiation if a feature expects constant arguments (args contains indizes of all; see select_slice for an example)
 
-
+See also documentation of flows for more details about which base to choose.
 
 A simple example is the protocolIdentifier:
 

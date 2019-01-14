@@ -1,7 +1,7 @@
 package operations
 
 // Created by gen_logic.go, don't edit manually!
-// Generated at 2018-08-20 14:07:48.811639685 +0200 CEST m=+0.001084240
+// Generated at 2019-01-14 16:24:14.288346497 +0100 CET m=+0.000808639
 
 import (
 	"github.com/CN-TU/go-flows/flows"
@@ -34,7 +34,7 @@ type geqFlow struct {
 }
 
 func (f *geqFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {
@@ -78,7 +78,7 @@ type leqFlow struct {
 }
 
 func (f *leqFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {
@@ -122,7 +122,7 @@ type lessFlow struct {
 }
 
 func (f *lessFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {
@@ -166,7 +166,7 @@ type greaterFlow struct {
 }
 
 func (f *greaterFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {
@@ -210,7 +210,7 @@ type equalFlow struct {
 }
 
 func (f *equalFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	values := f.GetValues()
+	values := f.GetValues(context)
 
 	_, fl, a, b := flows.UpConvert(values[0], values[1])
 	switch fl {
