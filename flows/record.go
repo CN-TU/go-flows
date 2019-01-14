@@ -146,7 +146,7 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 		template = template.subTemplate(r.features[variant].Variant())
 	}
 	for _, exporter := range r.control.exporter {
-		export := make([]Feature, len(r.control.export)) //TODO: performance check
+		export := make([]Feature, len(r.control.export))
 		for i := range export {
 			export[i] = r.features[r.control.export[i]]
 		}

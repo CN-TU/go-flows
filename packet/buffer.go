@@ -90,31 +90,6 @@ type SerializableLayerType interface {
 	LayerContents() []byte // gopacket.Layer
 }
 
-var layerSerializeLengthBufferScratch []byte
-
-type layerSerializeLengthBuffer struct {
-	len int
-}
-
-func (w *layerSerializeLengthBuffer) Bytes() []byte {
-	return layerSerializeLengthBufferScratch
-}
-
-func (w *layerSerializeLengthBuffer) PrependBytes(num int) ([]byte, error) {
-	w.len += num
-	return layerSerializeLengthBufferScratch, nil
-}
-
-func (w *layerSerializeLengthBuffer) AppendBytes(num int) ([]byte, error) {
-	w.len += num
-	return layerSerializeLengthBufferScratch, nil
-}
-
-func (w *layerSerializeLengthBuffer) Clear() error {
-	w.len = 0
-	return nil
-}
-
 // BufferFromLayers creates a new Buffer for the given time and layers. Used for testing.
 func BufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableLayerType) Buffer {
 	pb := &packetBuffer{}

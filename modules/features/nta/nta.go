@@ -222,7 +222,6 @@ func init() {
 type toff struct {
 	flows.BaseFeature
 	last uint32
-	ton  uint32
 }
 
 func (f *toff) Start(context *flows.EventContext) {

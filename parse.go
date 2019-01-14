@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -63,17 +62,6 @@ const (
 	jsonV2
 	jsonSimple
 )
-
-func fetchToken(dec *json.Decoder, fun string) json.Token {
-	t, err := dec.Token()
-	if err == io.EOF {
-		log.Fatalf("File ended prematurely while decoding%s.\n", fun)
-	}
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return t
-}
 
 func decodeV1(decoded featureJSONv1, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
 	flows := decoded.Flows

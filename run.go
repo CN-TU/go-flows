@@ -121,10 +121,6 @@ Args:
 	return
 }
 
-func parseExport(args []string) ([]string, bool) {
-	return args, true
-}
-
 type featureSpec struct {
 	features      []interface{}
 	control       []string

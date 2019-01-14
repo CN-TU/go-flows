@@ -89,7 +89,7 @@ func (cl *csvLabels) GetLabel(packet packet.Buffer) (interface{}, error) {
 	if err != nil {
 		panic(err)
 	}
-	if cl.nextPos <= 0 {
+	if cl.nextPos == 0 {
 		panic("Label packet position must be >= 0")
 	}
 	if cl.nextPos == packetnr {

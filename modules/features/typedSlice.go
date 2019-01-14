@@ -207,7 +207,7 @@ func (s *bytesSlice) Less(i, j int) bool {
 }
 
 func (s *bytesSlice) Equal(i, j int) bool {
-	return bytes.Compare((*s)[i], (*s)[j]) == 0
+	return bytes.Equal((*s)[i], (*s)[j])
 }
 
 func (s *bytesSlice) Swap(i, j int) {

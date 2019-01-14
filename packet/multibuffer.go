@@ -25,17 +25,6 @@ func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacket
 	return buf
 }
 
-func (mpb *multiPacketBuffer) close() {
-	num := int32(len(mpb.buffers))
-	mpb.cond.L.Lock()
-	if atomic.LoadInt32(&mpb.numFree) < num {
-		for atomic.LoadInt32(&mpb.numFree) < num {
-			mpb.cond.Wait()
-		}
-	}
-	mpb.cond.L.Unlock()
-}
-
 func (mpb *multiPacketBuffer) free(num int32) {
 	if atomic.AddInt32(&mpb.numFree, num) > batchSize {
 		mpb.cond.Signal()
@@ -164,9 +153,7 @@ func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
 func (smpb *shallowMultiPacketBuffer) Copy(other *shallowMultiPacketBuffer) {
 	src := smpb.buffers[:smpb.windex]
 	target := other.buffers[:len(src)]
-	for i, buf := range src {
-		target[i] = buf
-	}
+	copy(target, src)
 	other.rindex = 0
 	other.windex = smpb.windex
 }
