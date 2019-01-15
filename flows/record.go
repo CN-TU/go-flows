@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -219,10 +220,18 @@ func (rl RecordListMaker) Init() {
 	}
 }
 
+// Clean execution graph, which is not needed for execution
+func (rl RecordListMaker) Clean() {
+	for _, record := range rl.list {
+		record.ast = nil
+	}
+}
+
 // RecordMaker holds metadata for instantiating a record
 type RecordMaker struct {
 	exporter []Exporter
 	fields   []string
+	ast      *ast
 	make     func() *record
 }
 
@@ -259,6 +268,7 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter 
 	rl.list = append(rl.list, RecordMaker{
 		exporter,
 		fields,
+		tree,
 		func() *record {
 			features := make([]Feature, len(featureMakers))
 			features = features[:len(featureMakers)] //BCE
@@ -298,12 +308,12 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter 
 var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callgraph {
 	label="call graph"
 	node [shape=box, gradientangle=90]
-	"event" [style="rounded,filled", fillcolor=red]
+	"source" [style="rounded,filled", fillcolor=red]
 	{{ range $index, $element := .Nodes }}
 	subgraph cluster_{{$index}} {
 	{{ range $element.Nodes }}	"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
-	{{end}}}
-	"export{{$index}}" [label="export",style="rounded,filled", fillcolor=red]
+	{{end}}	"export{{$index}}" [label="export",style="rounded,filled", fillcolor=red]
+	}
 	{{ range $element.Export }}"{{.Name}}" [label={{if .Label}}"{{.Label}}"{{else}}<{{.HTML}}>{{end}}{{range .Style}}, {{index . 0}}="{{index . 1}}"{{end}}]
 	"export{{$index}}" -> "{{.Name}}"
 	{{end}}
@@ -315,102 +325,163 @@ var graphTemplate = template.Must(template.New("callgraph").Parse(`digraph callg
 
 // CallGraph generates a call graph in the graphviz language and writes the result to w.
 func (rl RecordListMaker) CallGraph(w io.Writer) {
-	panic("not implemented")
-	/*
-		FIXME
-		toID := func(id, i int) string {
-			return fmt.Sprintf("%d,%d", id, i)
-		}
-		styles := map[FeatureType][][]string{
-			FlowFeature: {
-				{"shape", "invhouse"},
-				{"style", "filled"},
-			},
-			PacketFeature: {
-				{"style", "filled"},
-			},
-			Const: {
-				{"shape", "oval"},
-			},
-		}
-		type Node struct {
-			Name  string
-			Label string
-			HTML  string
-			Style [][]string
-		}
-		type Edge struct {
-			Start     string
-			StartNode string
-			Stop      string
-			StopNode  string
-		}
-		type Subgraph struct {
-			Nodes  []Node
-			Export []Node
-		}
-		data := struct {
-			Nodes []Subgraph
-			Edges []Edge
-		}{}
-		for listID, fl := range rl.list {
-			var nodes []Node
-			export := make([]Node, len(fl.exporter))
-			for i, exporter := range fl.exporter {
-				export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
-			}
-			for i, feature := range fl.init {
-				var node Node
-				node.Label = feature.name
-				if node.Label != feature.feature.ie.Name { //FIXME
-					node.Label = fmt.Sprintf("%s\\n%s", feature.feature.ie.Name, node.Label)
-				}
-				if feature.info.apply != "" {
-					node.Label = fmt.Sprintf("%s\\n%s", feature.info.apply, node.Label)
-				}
-				node.Name = toID(listID, i)
-				if feature.info.data == nil {
-					if len(feature.arguments) == 0 {
-						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green"})
-					} else if len(feature.arguments) == 1 {
-						if feature.info.nonComposite {
-							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
-						} else {
-							node.Style = append(styles[feature.info.ret], []string{"fillcolor", "green:orange"})
-						}
-					} else {
-						node.Style = append(styles[feature.info.ret], []string{"fillcolor", "orange"})
-						args := make([]string, len(feature.arguments))
-						for i := range args {
-							args[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
-						}
-						node.HTML = fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(args, ""), len(feature.arguments), strings.Replace(node.Label, "\\n", "<BR/>", -1))
-						node.Label = ""
-					}
-				} else {
-					node.Label = fmt.Sprint(feature.info.data)
-					node.Style = styles[Const]
-				}
+	styles := map[FeatureType][][]string{
+		FlowFeature: {
+			{"shape", "invhouse"},
+			{"style", "filled"},
+		},
+		PacketFeature: {
+			{"style", "filled"},
+		},
+		Const: {
+			{"shape", "oval"},
+		},
+		RawPacket: {
+			{"shape", "invtrapezium"},
+		},
+	}
+	type Node struct {
+		Name  string
+		Label string
+		HTML  string
+		Style [][]string
+	}
+	type Edge struct {
+		Start     string
+		StartNode string
+		Stop      string
+		StopNode  string
+	}
+	type Subgraph struct {
+		Nodes  []Node
+		Export []Node
+	}
+	data := struct {
+		Nodes []Subgraph
+		Edges []Edge
+	}{}
 
-				nodes = append(nodes, node)
-			}
-			for i, feature := range fl.init {
-				if feature.event {
-					data.Edges = append(data.Edges, Edge{"event", "", toID(listID, i), ""})
-				}
-				for index, j := range feature.arguments {
-					index := strconv.Itoa(index)
-					if len(feature.arguments) <= 1 {
-						index = ""
-					}
-					data.Edges = append(data.Edges, Edge{toID(listID, j), "", toID(listID, i), index})
-				}
-			}
-			for _, i := range fl.exportList {
-				data.Edges = append(data.Edges, Edge{toID(listID, i), "", fmt.Sprintf("export%d", listID), ""})
-			}
-			data.Nodes = append(data.Nodes, Subgraph{nodes, export})
+	for listID, fl := range rl.list {
+		var nodes []Node
+		export := make([]Node, len(fl.exporter))
+		for i, exporter := range fl.exporter {
+			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
 		}
-		graphTemplate.Execute(w, data)
-	*/
+
+		raw := fmt.Sprintf("%draw", listID)
+
+		nodes = append(nodes, Node{
+			Name:  raw,
+			Label: "RawPacket",
+		})
+
+		data.Edges = append(data.Edges, Edge{
+			Start: "source",
+			Stop:  raw,
+		})
+
+		for i, filter := range fl.ast.filter {
+			f := fmt.Sprintf("%d,fi%d", listID, i)
+			nodes = append(nodes, Node{
+				Name:  f,
+				Label: filter,
+				Style: styles[RawPacket],
+			})
+			data.Edges = append(data.Edges, Edge{
+				Start: raw,
+				Stop:  f,
+			})
+			raw = f
+		}
+
+		for _, fragment := range fl.ast.fragments {
+			var node Node
+			var html func() string
+			if fragment.Control() {
+				//SMELL maybe make control a list instead of single nodes
+				node.Name = fmt.Sprintf("%d,c%d", listID, fragment.Register())
+				node.Label = fragment.Name()
+				node.Style = [][]string{{"shape", "doubleoctagon"}}
+
+				data.Edges = append(data.Edges, Edge{
+					Start: raw,
+					Stop:  node.Name,
+				})
+			} else {
+				node.Name = fmt.Sprintf("%d,f%d", listID, fragment.Register())
+				if fragment.Data() != nil {
+					node.Label = fmt.Sprint(fragment.Data())
+					node.Style = styles[Const]
+				} else {
+					node.Label = fragment.Name()
+					args := fragment.Arguments()
+					if len(args) == 1 {
+						if args[0].IsRaw() {
+							node.Style = append(styles[fragment.Returns()], []string{"fillcolor", "green"})
+							data.Edges = append(data.Edges, Edge{
+								Start: raw,
+								Stop:  node.Name,
+							})
+						} else {
+							composite := fragment.Composite()
+							if composite == "" {
+								node.Style = append(styles[fragment.Returns()], []string{"fillcolor", "orange"})
+							} else {
+								node.Style = append(styles[fragment.Returns()], []string{"fillcolor", "green:orange"})
+								node.Label = fmt.Sprintf("%s\n%s", node.Label, composite)
+							}
+							data.Edges = append(data.Edges, Edge{
+								Start: fmt.Sprintf("%d,f%d", listID, args[0].Register()),
+								Stop:  node.Name,
+							})
+						}
+					} else if len(args) > 1 {
+						node.Style = append([][]string{}, styles[fragment.Returns()]...)
+						if node.Label != "select" && node.Label != "select_slice" {
+							composite := fragment.Composite()
+							if composite == "" {
+								node.Style = append(node.Style, []string{"fillcolor", "orange"})
+							} else {
+								node.Style = append(node.Style, []string{"fillcolor", "green:orange"})
+								node.Label = fmt.Sprintf("%s\n%s", node.Label, composite)
+							}
+						}
+						stringArgs := make([]string, len(args))
+						for i := range stringArgs {
+							stringArgs[i] = fmt.Sprintf(`<TD PORT="%d" BORDER="1">%d</TD>`, i, i)
+							start := raw
+							if !args[i].IsRaw() {
+								start = fmt.Sprintf("%d,f%d", listID, args[i].Register())
+							}
+							data.Edges = append(data.Edges, Edge{
+								Start:    start,
+								Stop:     node.Name,
+								StopNode: fmt.Sprint(i),
+							})
+						}
+						html = func() string {
+							return fmt.Sprintf(`<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="2"><TR>%s</TR><TR><TD COLSPAN="%d">%s</TD></TR></TABLE>`, strings.Join(stringArgs, ""), len(args), strings.Replace(node.Label, "\\n", "<BR/>", -1))
+						}
+					}
+				}
+				if fragment.Export() { //FIXME: doesn't work for composite
+					if node.Label != fragment.ExportName() && fragment.Composite() != fragment.ExportName() {
+						node.Label = fmt.Sprintf("%s\\n%s", node.Label, fragment.ExportName())
+					}
+					data.Edges = append(data.Edges, Edge{
+						Start: node.Name,
+						Stop:  fmt.Sprintf("export%d", listID),
+					})
+				}
+				if html != nil {
+					node.HTML = html()
+					node.Label = ""
+				}
+			}
+
+			nodes = append(nodes, node)
+		}
+		data.Nodes = append(data.Nodes, Subgraph{nodes, export})
+	}
+	graphTemplate.Execute(w, data)
 }

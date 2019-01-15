@@ -305,6 +305,7 @@ func parseArguments(cmd string, args []string) {
 
 	flows.CleanupFeatures()
 	util.CleanupModules()
+	recordList.Clean()
 
 	if !*autoGC {
 		debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?

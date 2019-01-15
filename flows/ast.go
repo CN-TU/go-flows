@@ -30,6 +30,8 @@ type astFragment interface {
 	Name() string
 	MakeExportName() string
 	ExportName() string
+	Composite() string
+	SetComposite(string)
 	SetExport(string)
 	Export() bool
 	IsRaw() bool
@@ -73,6 +75,7 @@ type astBase struct {
 	id         int
 	name       string
 	exportName string
+	composite  string
 	export     bool
 	feature    featureMaker
 	ret        FeatureType
@@ -81,6 +84,14 @@ type astBase struct {
 	control    bool
 	resolved   bool
 	register   int
+}
+
+func (a *astBase) SetComposite(c string) {
+	a.composite = c
+}
+
+func (a *astBase) Composite() string {
+	return a.composite
 }
 
 func (a *astBase) Control() bool {
@@ -168,6 +179,14 @@ func (a *astBase) Name() string {
 }
 
 type astEmpty struct{}
+
+func (a *astEmpty) SetComposite(string) {
+	panic("SetComposite called on astEmpty")
+}
+
+func (a *astEmpty) Composite() string {
+	panic("Composite called on astEmpty")
+}
 
 func (a *astEmpty) Control() bool {
 	panic("Control called on astEmpty")
@@ -336,6 +355,10 @@ func makeASTRegister(register int, ret FeatureType) astFragment {
 type astConstant struct {
 	astBase
 	value interface{}
+}
+
+func (a *astConstant) Data() interface{} {
+	return a.value
 }
 
 func (a *astConstant) String() string {
@@ -586,8 +609,8 @@ type ast struct {
 }
 
 // makeAST builds a basic ast for the given feature specification (no verification done yet)
-func makeAST(features []interface{}, control, filter []string, exporter []Exporter, input, ret FeatureType) (ast, error) {
-	r := ast{
+func makeAST(features []interface{}, control, filter []string, exporter []Exporter, input, ret FeatureType) (*ast, error) {
+	r := &ast{
 		ret:      ret,
 		input:    input,
 		filter:   filter,
@@ -708,6 +731,7 @@ func expandASTFragment(f astFragment, input FeatureType) (astFragment, error) {
 	n.assign(c)
 	// directly set to resolved and type - we loose information of original fragment here
 	n.SetVariants(toVariant(spec.ie, n)) //SMELL: composite has no variants
+	n.SetComposite(f.Name())
 	// recurse down for compositeFeatures that consist of compositeFeatures
 	c, ok = n.(*astCall)
 	if ok {
