@@ -162,13 +162,19 @@ func init() {
 ////////////////////////////////////////////////////////////////////////////////
 
 type secwindow struct {
-	flows.BaseFeature //FIXME
+	flows.EmptyBaseFeature
+	tsec uint32
+}
+
+func (f *secwindow) Start(context *flows.EventContext) {
+	f.tsec = 0
 }
 
 func (f *secwindow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	tsec := uint32(new.(packet.Buffer).Timestamp() / flows.SecondsInNanoseconds)
-	if f.Value() != tsec {
-		f.SetValue(tsec, context, src)
+	if f.tsec != tsec {
+		f.tsec = tsec
+		f.Emit(tsec, context, src)
 	}
 }
 
