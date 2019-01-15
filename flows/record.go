@@ -365,7 +365,7 @@ func (rl RecordListMaker) CallGraph(w io.Writer) {
 		var nodes []Node
 		export := make([]Node, len(fl.exporter))
 		for i, exporter := range fl.exporter {
-			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()} //FIXME: better style
+			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()}
 		}
 
 		raw := fmt.Sprintf("%draw", listID)
@@ -398,7 +398,6 @@ func (rl RecordListMaker) CallGraph(w io.Writer) {
 			var node Node
 			var html func() string
 			if fragment.Control() {
-				//SMELL maybe make control a list instead of single nodes
 				node.Name = fmt.Sprintf("%d,c%d", listID, fragment.Register())
 				node.Label = fragment.Name()
 				node.Style = [][]string{{"shape", "doubleoctagon"}}
@@ -464,7 +463,7 @@ func (rl RecordListMaker) CallGraph(w io.Writer) {
 						}
 					}
 				}
-				if fragment.Export() { //FIXME: doesn't work for composite
+				if fragment.Export() {
 					if node.Label != fragment.ExportName() && fragment.Composite() != fragment.ExportName() {
 						node.Label = fmt.Sprintf("%s\\n%s", node.Label, fragment.ExportName())
 					}

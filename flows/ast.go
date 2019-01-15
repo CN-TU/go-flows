@@ -848,7 +848,6 @@ func (a *ast) resolve() error {
 		if err != nil {
 			return makeExpandedError(fragment, err)
 		}
-		// TODO: set export name here?
 	}
 	return nil
 }

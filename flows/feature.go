@@ -314,7 +314,7 @@ func (f *MultiBasePacketFeature) SetArguments(args []int, all []Feature) {
 	}
 	switch len(features) {
 	case 2:
-		event := &dualMultiEvent{} //FIXME preallocate ret
+		event := &dualMultiEvent{}
 		event.nc[0] = featurelist[features[0]].(Feature)
 		event.nc[1] = featurelist[features[1]].(Feature)
 		featurelist[features[0]] = nil
@@ -326,7 +326,7 @@ func (f *MultiBasePacketFeature) SetArguments(args []int, all []Feature) {
 		for _, feature := range features {
 			nc[featurelist[feature].(Feature)] = feature
 		}
-		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))} //FIXME preallocate ret
+		f.eventReady = &genericMultiEvent{c: featurelist, nc: nc, state: make([]bool, len(features))}
 	}
 }
 
