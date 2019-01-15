@@ -13,15 +13,23 @@ import (
 var LayerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
 
 const (
-	batchSize   = 1000
-	fullBuffers = 10
+	batchSize    = 1000
+	fullBuffers  = 5
+	releaseMark  = 10
+	freeMark     = 3000
+	lowMark      = 1
+	highMark     = 2
+	debugBuffers = false
 )
 
 // Stats holds number of packets, skipped packets, and filtered packets
 type Stats struct {
-	packets  uint64
-	skipped  uint64
-	filtered uint64
+	packets          uint64
+	skipped          uint64
+	filtered         uint64
+	maxBuffers       int
+	buffersAllocated int
+	buffersReleased  int
 }
 
 // Engine holds and manages buffers, sources, filters and forwards packets to the flowtable
@@ -30,6 +38,7 @@ type Engine struct {
 	todecode    *shallowMultiPacketBufferRing
 	current     *shallowMultiPacketBuffer
 	packetStats Stats
+	full        int
 	plen        int
 	flowtable   EventTable
 	done        chan struct{}
@@ -43,10 +52,10 @@ type Engine struct {
 func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources, labels Labels) *Engine {
 	prealloc := plen
 	if plen == 0 {
-		prealloc = 4096
+		prealloc = 1500
 	}
 	ret := &Engine{
-		empty:     newMultiPacketBuffer(batchSize*fullBuffers, prealloc, plen == 0),
+		empty:     newMultiPacketBuffer(batchSize, prealloc, plen == 0),
 		todecode:  newShallowMultiPacketBufferRing(fullBuffers, batchSize),
 		plen:      plen,
 		flowtable: flowtable,
@@ -109,7 +118,11 @@ func (input *Engine) PrintStats(w io.Writer) {
 	overall: %d
 	skipped: %d
 	filtered: %d
-`, input.packetStats.packets, input.packetStats.skipped, input.packetStats.filtered)
+Buffer statistics:
+	peak: %d
+	allocated: %d
+	freed: %d
+`, input.packetStats.packets, input.packetStats.skipped, input.packetStats.filtered, input.packetStats.maxBuffers, input.packetStats.buffersAllocated, input.packetStats.buffersReleased)
 }
 
 // Finish submits eventual partially filled buffers, flushes the packet handling pipeline and waits for everything to finish.
@@ -121,6 +134,58 @@ func (input *Engine) Finish() {
 	<-input.done
 
 	input.flowtable.flush()
+}
+
+func (input *Engine) starved(have int, max int) {
+	todecode := input.todecode.usage()
+	table := input.flowtable.usage()
+	alloc := false
+	stop := false
+	if todecode.buffers < lowMark {
+		alloc = true
+	}
+	if todecode.buffers > highMark {
+		stop = true
+	}
+	for _, usage := range table {
+		if usage.buffers < lowMark {
+			alloc = true
+		}
+		if usage.buffers > highMark {
+			stop = true
+		}
+	}
+	if stop {
+		alloc = false
+	}
+	if debugBuffers {
+		fmt.Println("too small ", have, max, todecode.buffers, todecode.packets, table, alloc)
+	}
+	if alloc {
+		input.packetStats.buffersAllocated += batchSize
+		input.empty.replenish()
+	}
+}
+
+func (input *Engine) ok(have int, max int) {
+	if max > input.packetStats.maxBuffers {
+		input.packetStats.maxBuffers = max
+	}
+	if have > freeMark {
+		input.full++
+		if debugBuffers {
+			todecode := input.todecode.usage()
+			table := input.flowtable.usage()
+			fmt.Println("     high ", have, max, todecode.buffers, todecode.packets, table, input.full > releaseMark)
+		}
+		if input.full > releaseMark {
+			input.packetStats.buffersReleased += batchSize
+			input.empty.release()
+			input.full = 0
+		}
+	} else {
+		input.full = 0
+	}
 }
 
 // Run reads all the packets from the sources and forwards those to the flowtable
@@ -144,7 +209,7 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 		}
 
 		if input.current.empty() {
-			input.empty.Pop(input.current)
+			input.empty.Pop(input.current, input.starved, input.ok)
 		}
 		buffer := input.current.read()
 		time = buffer.assign(data, ci, lt, npackets)

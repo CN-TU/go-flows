@@ -7,22 +7,56 @@ import (
 	"github.com/CN-TU/go-flows/flows"
 )
 
+type bufferUsage struct {
+	buffers int
+	packets int
+}
+
 type multiPacketBuffer struct {
-	numFree int32
-	buffers []*packetBuffer
-	cond    *sync.Cond
+	numFree   int32
+	allocSize int32
+	prealloc  int
+	buffers   []*packetBuffer
+	cond      *sync.Cond
+	resize    bool
 }
 
 func newMultiPacketBuffer(buffers int32, prealloc int, resize bool) *multiPacketBuffer {
-	buf := &multiPacketBuffer{
-		numFree: buffers,
-		buffers: make([]*packetBuffer, buffers),
+	return &multiPacketBuffer{
+		numFree:   0,
+		allocSize: buffers,
+		prealloc:  prealloc,
+		resize:    resize,
+		cond:      sync.NewCond(&sync.Mutex{}),
 	}
-	buf.cond = sync.NewCond(&sync.Mutex{})
-	for j := range buf.buffers {
-		buf.buffers[j] = &packetBuffer{buffer: make([]byte, prealloc), owner: buf, resize: resize}
+}
+
+func (mpb *multiPacketBuffer) replenish() {
+	new := make([]*packetBuffer, mpb.allocSize)
+	for j := range new {
+		new[j] = &packetBuffer{buffer: make([]byte, mpb.prealloc), owner: mpb, resize: mpb.resize}
 	}
-	return buf
+	mpb.buffers = append(mpb.buffers, new...)
+	atomic.AddInt32(&mpb.numFree, mpb.allocSize)
+}
+
+func (mpb *multiPacketBuffer) release() {
+	newlist := make([]*packetBuffer, len(mpb.buffers)-1000)
+	i := 0
+	freed := 0
+	for _, b := range mpb.buffers {
+		if atomic.LoadInt32(&b.inUse) != 0 {
+			newlist[i] = b
+			i++
+		} else if freed == 1000 {
+			newlist[i] = b
+			i++
+		} else {
+			freed++
+		}
+	}
+	mpb.buffers = newlist
+	atomic.AddInt32(&mpb.numFree, -int32(freed))
 }
 
 func (mpb *multiPacketBuffer) free(num int32) {
@@ -31,29 +65,31 @@ func (mpb *multiPacketBuffer) free(num int32) {
 	}
 }
 
-func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer) {
+func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer, low func(int, int), high func(int, int)) {
 	var num int32
 	buffer.reset()
-	for num == 0 { //return a buffer with at least one element
-		if atomic.LoadInt32(&mpb.numFree) < batchSize {
-			mpb.cond.L.Lock()
-			for atomic.LoadInt32(&mpb.numFree) < batchSize {
+	if atomic.LoadInt32(&mpb.numFree) < batchSize {
+		mpb.cond.L.Lock()
+		for atomic.LoadInt32(&mpb.numFree) < batchSize {
+			low(int(atomic.LoadInt32(&mpb.numFree)), len(mpb.buffers))
+			if atomic.LoadInt32(&mpb.numFree) < batchSize {
 				mpb.cond.Wait()
 			}
-			mpb.cond.L.Unlock()
 		}
+		mpb.cond.L.Unlock()
+	}
 
-		for _, b := range mpb.buffers {
-			if atomic.LoadInt32(&b.inUse) == 0 {
-				if !buffer.push(b) {
-					break
-				}
-				atomic.StoreInt32(&b.inUse, 1)
-				num++
+	for _, b := range mpb.buffers {
+		if atomic.LoadInt32(&b.inUse) == 0 {
+			if !buffer.push(b) {
+				break
 			}
+			atomic.StoreInt32(&b.inUse, 1)
+			num++
 		}
 	}
 	atomic.AddInt32(&mpb.numFree, -num)
+	high(int(atomic.LoadInt32(&mpb.numFree)), len(mpb.buffers))
 }
 
 type shallowMultiPacketBuffer struct {
@@ -104,6 +140,8 @@ func (smpb *shallowMultiPacketBuffer) read() (ret *packetBuffer) {
 func (smpb *shallowMultiPacketBuffer) finalize() {
 	smpb.rindex = 0
 	if smpb.owner != nil {
+		atomic.AddInt32(&smpb.owner.currentBuffers, 1)
+		atomic.AddInt32(&smpb.owner.currentPackets, int32(smpb.windex))
 		smpb.owner.full <- smpb
 	}
 }
@@ -159,8 +197,10 @@ func (smpb *shallowMultiPacketBuffer) Copy(other *shallowMultiPacketBuffer) {
 }
 
 type shallowMultiPacketBufferRing struct {
-	empty chan *shallowMultiPacketBuffer
-	full  chan *shallowMultiPacketBuffer
+	currentPackets int32
+	currentBuffers int32
+	empty          chan *shallowMultiPacketBuffer
+	full           chan *shallowMultiPacketBuffer
 }
 
 func newShallowMultiPacketBufferRing(buffers, batch int) (ret *shallowMultiPacketBufferRing) {
@@ -174,6 +214,13 @@ func newShallowMultiPacketBufferRing(buffers, batch int) (ret *shallowMultiPacke
 	return
 }
 
+func (smpbr *shallowMultiPacketBufferRing) usage() bufferUsage {
+	return bufferUsage{
+		buffers: int(atomic.LoadInt32(&smpbr.currentBuffers)),
+		packets: int(atomic.LoadInt32(&smpbr.currentPackets)),
+	}
+}
+
 func (smpbr *shallowMultiPacketBufferRing) popEmpty() (ret *shallowMultiPacketBuffer, ok bool) {
 	ret, ok = <-smpbr.empty
 	return
@@ -181,6 +228,10 @@ func (smpbr *shallowMultiPacketBufferRing) popEmpty() (ret *shallowMultiPacketBu
 
 func (smpbr *shallowMultiPacketBufferRing) popFull() (ret *shallowMultiPacketBuffer, ok bool) {
 	ret, ok = <-smpbr.full
+	if ok {
+		atomic.AddInt32(&smpbr.currentBuffers, -1)
+		atomic.AddInt32(&smpbr.currentPackets, -int32(ret.windex))
+	}
 	return
 }
 

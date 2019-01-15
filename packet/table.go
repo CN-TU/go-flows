@@ -5,6 +5,7 @@ import (
 	"io"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/CN-TU/go-flows/flows"
 )
@@ -20,6 +21,7 @@ type EventTable interface {
 	EOF(flows.DateTimeNanoseconds)
 	// Print table statistics to the given writer
 	PrintStats(io.Writer)
+	usage() []bufferUsage
 	event(buffer *shallowMultiPacketBuffer)
 	flush()
 	getDecodeStats() *decodeStats
@@ -43,6 +45,7 @@ type parallelFlowTable struct {
 	buffers     []*shallowMultiPacketBufferRing
 	tmp         []*shallowMultiPacketBuffer
 	wg          sync.WaitGroup
+	usageBuffer []bufferUsage
 	decodeStats decodeStats
 	expireTime  flows.DateTimeNanoseconds
 	nextExpire  flows.DateTimeNanoseconds
@@ -54,6 +57,7 @@ type singleFlowTable struct {
 	buffer      *shallowMultiPacketBufferRing
 	expire      chan struct{}
 	done        chan struct{}
+	usageBuffer [1]bufferUsage
 	decodeStats decodeStats
 	expireTime  flows.DateTimeNanoseconds
 	nextExpire  flows.DateTimeNanoseconds
@@ -103,6 +107,11 @@ func (sft *singleFlowTable) EOF(now flows.DateTimeNanoseconds) {
 	sft.table.EOF(now)
 }
 
+func (sft *singleFlowTable) usage() []bufferUsage {
+	sft.usageBuffer[0] = sft.buffer.usage()
+	return sft.usageBuffer[:]
+}
+
 // NewFlowTable creates a new flowtable with the given record list, a flow creator, flow options,
 // expire time, a key selector, if empty values in the key are allowed and if automatic gc should be used.
 //
@@ -132,6 +141,9 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 					if !ok {
 						return
 					}
+					// fixup buffer stats -> not possible with popFull due to select
+					atomic.AddInt32(&ret.buffer.currentBuffers, -1)
+					atomic.AddInt32(&ret.buffer.currentPackets, -int32(buffer.windex))
 					for {
 						b := buffer.read()
 						if b == nil {
@@ -149,12 +161,13 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 		panic("Maximum of 256 tables allowed")
 	}
 	ret := &parallelFlowTable{
-		baseTable:  bt,
-		tables:     make([]*flows.FlowTable, num),
-		buffers:    make([]*shallowMultiPacketBufferRing, num),
-		tmp:        make([]*shallowMultiPacketBuffer, num),
-		expire:     make([]chan struct{}, num),
-		expireTime: expire,
+		baseTable:   bt,
+		tables:      make([]*flows.FlowTable, num),
+		buffers:     make([]*shallowMultiPacketBufferRing, num),
+		usageBuffer: make([]bufferUsage, num),
+		tmp:         make([]*shallowMultiPacketBuffer, num),
+		expire:      make([]chan struct{}, num),
+		expireTime:  expire,
 	}
 	for i := 0; i < num; i++ {
 		c := newShallowMultiPacketBufferRing(fullBuffers, batchSize)
@@ -175,6 +188,9 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 					if !ok {
 						return
 					}
+					// fixup buffer stats -> not possible with popFull due to select
+					atomic.AddInt32(&c.currentBuffers, -1)
+					atomic.AddInt32(&c.currentPackets, -int32(buffer.windex))
 					for {
 						b := buffer.read()
 						if b == nil {
@@ -188,6 +204,13 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 		}()
 	}
 	return ret
+}
+
+func (pft *parallelFlowTable) usage() []bufferUsage {
+	for i, buffer := range pft.buffers {
+		pft.usageBuffer[i] = buffer.usage()
+	}
+	return pft.usageBuffer
 }
 
 func (pft *parallelFlowTable) PrintStats(w io.Writer) {
