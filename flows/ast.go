@@ -596,7 +596,11 @@ func (a *astCall) String() string {
 	for i := range a.args {
 		args[i] = a.args[i].String()
 	}
-	return fmt.Sprintf("<%s>%s(%s)", a.ret, a.name, strings.Join(args, ", "))
+	t := fmt.Sprintf("<%s>", a.ret)
+	if a.ret == 0 {
+		t = ""
+	}
+	return fmt.Sprintf("%s%s(%s)", t, a.name, strings.Join(args, ", "))
 }
 
 type ast struct {
