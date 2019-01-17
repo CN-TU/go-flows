@@ -191,6 +191,8 @@ func (input *Engine) ok(have int, max int) {
 // Run reads all the packets from the sources and forwards those to the flowtable
 func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 	var npackets, nskipped, nfiltered uint64
+	var lastTime flows.DateTimeNanoseconds
+	warned := false
 	for {
 		lt, data, ci, skipped, filtered, err := input.sources.ReadPacket()
 		if err != nil {
@@ -213,6 +215,11 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 		}
 		buffer := input.current.read()
 		time = buffer.assign(data, ci, lt, npackets)
+		if !warned && time < lastTime {
+			log.Printf("Warning: Jump back in time (from %d to %d)\n", lastTime, time)
+			warned = true
+		}
+		lastTime = time
 		if input.current.full() {
 			input.current.finalize()
 			var ok bool
