@@ -81,8 +81,10 @@ func (tab *FlowTable) Event(event Event) {
 				elem.expire(tab.context)
 				ok = elem.Active()
 			}
-			tab.context.forward = lowToHigh == elem.firstLowToHigh()
-			elem.Event(event, tab.context)
+			if ok {
+				tab.context.forward = lowToHigh == elem.firstLowToHigh()
+				elem.Event(event, tab.context)
+			}
 		} else {
 			ok = false
 		}
