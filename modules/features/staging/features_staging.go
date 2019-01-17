@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/CN-TU/go-ipfix"
+	ipfix "github.com/CN-TU/go-ipfix"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/modules/features"
@@ -389,4 +389,19 @@ func (f *_label) Event(new interface{}, context *flows.EventContext, src interfa
 
 func init() {
 	flows.RegisterTemporaryFeature("__label", "label of the packet", ipfix.OctetArrayType, 0, flows.PacketFeature, func() flows.Feature { return &_label{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _flowKey struct {
+	flows.BaseFeature
+}
+
+func (f *_flowKey) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	flowkey := context.Flow().Key()
+	f.SetValue(flowkey, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("__flowKey", "string go-flows uses as a key", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_flowKey{} }, flows.RawPacket)
 }
