@@ -94,7 +94,7 @@ func MakeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt 
 		"protocolIdentifier",
 		"sourceTransportPort",
 		"destinationTransportPort",
-	}, true, false)
+	}, true, true)
 	return
 }
 
@@ -105,7 +105,7 @@ func MakeFlowFeatureTest(t *testing.T, feature string) TestTable {
 
 // MakePacketFeatureTest returns a flow table for testing a single packet feature
 func MakePacketFeatureTest(t *testing.T, feature string) TestTable {
-	return MakeFeatureTest(t, []string{feature}, flows.PacketFeature, flows.FlowOptions{ActiveTimeout: 0})
+	return MakeFeatureTest(t, []string{feature}, flows.PacketFeature, flows.FlowOptions{PerPacket: true})
 }
 
 // EventLayers simulates a packet arriving at the given point in time with the given layers populated
