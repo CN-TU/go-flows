@@ -10,37 +10,40 @@ import (
 
 // Record holds multiple features that belong to a single record
 type Record interface {
-	// Start gets called after flow initialisation
-	Start(*EventContext)
+	// Destroy must be called before a record is removed to clean up unexported exportlists
+	Destroy()
 	// Event gets called for every event
-	Event(interface{}, *EventContext)
-	// Stop gets called before export
-	Stop(FlowEndReason, *EventContext)
+	Event(Event, *EventContext, *FlowTable, int)
 	// Export exports this record
-	Export(FlowEndReason, *EventContext, DateTimeNanoseconds)
+	Export(FlowEndReason, *EventContext, DateTimeNanoseconds, *FlowTable, int)
 	// Returns true if this record is still active
 	Active() bool
 }
 
 type control struct {
-	control  []int
-	event    []int
-	export   []int
-	variant  []int
-	exporter []Exporter
-	template Template
+	control []int
+	event   []int
+	export  []int
+	variant []int
 }
 
 type record struct {
 	features []Feature
 	filter   []Feature
 	control  *control
+	export   *exportRecord
 	last     DateTimeNanoseconds
 	active   bool // this record forwards events to features
 	alive    bool // this record forwards events to filters
 }
 
-func (r *record) Start(context *EventContext) {
+func (r *record) Destroy() {
+	if r.export != nil {
+		r.export.unlink()
+	}
+}
+
+func (r *record) start(data Event, context *EventContext, table *FlowTable, recordID int) {
 	r.active = true
 	context.record = r
 	for _, feature := range r.features {
@@ -49,9 +52,23 @@ func (r *record) Start(context *EventContext) {
 	for _, feature := range r.control.event {
 		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
+	if table.SortOutput == SortTypeNone {
+		return
+	}
+	if r.export != nil {
+		// clean up stopped + unexported leftovers
+		r.export.unlink()
+	}
+	r.export = &exportRecord{
+		exportKey: exportKey{
+			packetID: data.EventNr(),
+			recordID: recordID,
+		},
+	}
+	table.pushExport(recordID, r.export)
 }
 
-func (r *record) Stop(reason FlowEndReason, context *EventContext) {
+func (r *record) stop(reason FlowEndReason, context *EventContext, recordID int) {
 	// make a two-level stop for filter and rest
 	context.record = r
 	for _, feature := range r.features {
@@ -68,27 +85,27 @@ func (r *record) Stop(reason FlowEndReason, context *EventContext) {
 	}
 }
 
-func (r *record) filteredEvent(data interface{}, context *EventContext) {
+func (r *record) filteredEvent(data Event, context *EventContext, table *FlowTable, recordID int) {
 RESTART:
 	if !r.active {
-		r.Start(context)
+		r.start(data, context, table, recordID)
 	}
 	context.clear()
 	for _, feature := range r.control.control {
 		r.features[feature].Event(data, context, nil) // no tree for control
 		if context.stop {
-			r.Stop(context.reason, context)
+			r.stop(context.reason, context, recordID)
 			goto OUT
 		}
 		if context.now {
 			if context.export {
 				tmp := *context
 				tmp.when = r.last
-				r.Export(context.reason, &tmp, context.when)
+				r.Export(context.reason, &tmp, context.when, table, recordID)
 				goto RESTART
 			}
 			if context.restart {
-				r.Start(context)
+				r.start(data, context, table, recordID)
 				goto RESTART
 			}
 		}
@@ -99,23 +116,28 @@ RESTART:
 	for _, feature := range r.control.event {
 		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
+	if table.SortOutput == SortTypeStopTime || table.SortOutput == SortTypeExportTime {
+		r.export.packetID = data.EventNr()
+		r.export.unlink()
+		table.pushExport(recordID, r.export)
+	}
 	if !context.now {
 		if context.export {
-			r.Export(context.reason, context, context.when)
+			r.Export(context.reason, context, context.when, table, recordID)
 		}
 		if context.restart {
-			r.Start(context)
+			r.start(data, context, table, recordID)
 		}
 	}
 OUT:
 	r.last = context.when
 }
 
-func (r *record) Event(data interface{}, context *EventContext) {
+func (r *record) Event(data Event, context *EventContext, table *FlowTable, recordID int) {
 	nfilter := len(r.filter)
 	context.record = r
 	if nfilter == 0 {
-		r.filteredEvent(data, context)
+		r.filteredEvent(data, context, table, recordID)
 	} else {
 		if !r.alive {
 			for _, feature := range r.filter {
@@ -127,7 +149,7 @@ func (r *record) Event(data interface{}, context *EventContext) {
 		context.event = func(data interface{}, context *EventContext, pos interface{}) {
 			i := pos.(int)
 			if i == nfilter {
-				r.filteredEvent(data, context)
+				r.filteredEvent(data.(Event), context, table, recordID)
 				return
 			}
 			filter[i].Event(data, context, i+1)
@@ -136,22 +158,40 @@ func (r *record) Event(data interface{}, context *EventContext) {
 	}
 }
 
-func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
+func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds, table *FlowTable, recordID int) {
 	if !r.active {
 		return
 	}
 	context.record = r
-	r.Stop(reason, context)
-	template := r.control.template
+	r.stop(reason, context, recordID)
+
+	record := table.records.list[recordID]
+	template := record.template
 	for _, variant := range r.control.variant {
 		template = template.subTemplate(r.features[variant].Variant())
 	}
-	for _, exporter := range r.control.exporter {
-		export := make([]Feature, len(r.control.export))
-		for i := range export {
-			export[i] = r.features[r.control.export[i]]
+	export := make([]interface{}, len(r.control.export))
+	for i := range export {
+		export[i] = r.features[r.control.export[i]].Value()
+	}
+
+	if table.SortOutput == SortTypeNone {
+		record.export.export(&exportRecord{
+			exportKey: exportKey{
+				exportTime: now,
+			},
+			template: template,
+			features: export,
+		}, int(table.id))
+	} else {
+		r.export.exportTime = now
+		r.export.template = template
+		r.export.features = export
+		if table.SortOutput == SortTypeExportTime {
+			r.export.unlink()
+			table.pushExport(recordID, r.export)
 		}
-		exporter.Export(template, export, now)
+		r.export = nil
 	}
 }
 
@@ -161,27 +201,21 @@ func (r *record) Active() bool {
 
 type recordList []*record
 
-func (r recordList) Start(context *EventContext) {
+func (r recordList) Destroy() {
 	for _, record := range r {
-		record.Start(context)
+		record.Destroy()
 	}
 }
 
-func (r recordList) Stop(reason FlowEndReason, context *EventContext) {
-	for _, record := range r {
-		record.Stop(reason, context)
+func (r recordList) Event(data Event, context *EventContext, table *FlowTable, recordID int) {
+	for i, record := range r {
+		record.Event(data, context, table, i)
 	}
 }
 
-func (r recordList) Event(data interface{}, context *EventContext) {
-	for _, record := range r {
-		record.Event(data, context)
-	}
-}
-
-func (r recordList) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds) {
-	for _, record := range r {
-		record.Export(reason, context, now)
+func (r recordList) Export(reason FlowEndReason, context *EventContext, now DateTimeNanoseconds, table *FlowTable, recordID int) {
+	for i, record := range r {
+		record.Export(reason, context, now, table, i)
 	}
 }
 
@@ -227,25 +261,34 @@ func (rl RecordListMaker) Clean() {
 	}
 }
 
+// Flush flushes all outstanding exports and waits for them to finish. Must be called before exporters can be shut down
+func (rl RecordListMaker) Flush() {
+	for _, record := range rl.list {
+		record.export.shutdown()
+	}
+	for _, record := range rl.list {
+		record.export.wait()
+	}
+}
+
 // RecordMaker holds metadata for instantiating a record
 type RecordMaker struct {
-	exporter []Exporter
+	export   *ExportPipeline
+	template Template
 	fields   []string
 	ast      *ast
 	make     func() *record
 }
 
 // Init must be called after a Record was instantiated
-func (rm RecordMaker) Init() {
-	for _, exporter := range rm.exporter {
-		exporter.Fields(rm.fields)
-	}
+func (rm *RecordMaker) Init() {
+	rm.export.init(rm.fields)
 }
 
 // AppendRecord creates a internal representation needed for instantiating records from a feature
 // specification, a list of exporters and a needed base (only FlowFeature supported so far)
-func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter []string, exporter []Exporter, verbose bool) error {
-	tree, err := makeAST(features, control, filter, exporter, RawPacket, FlowFeature) // only packets -> flows for now
+func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter []string, exporter *ExportPipeline, verbose bool) error {
+	tree, err := makeAST(features, control, filter, exporter.exporter, RawPacket, FlowFeature) // only packets -> flows for now
 	if err != nil {
 		return err
 	}
@@ -260,13 +303,12 @@ func (rl *RecordListMaker) AppendRecord(features []interface{}, control, filter 
 	}
 
 	featureMakers, filterMakers, args, tocall, ctrl := tree.convert()
-	ctrl.exporter = exporter
-	ctrl.template = template
 
 	hasfilter := len(filterMakers) > 0
 
 	rl.list = append(rl.list, RecordMaker{
 		exporter,
+		template,
 		fields,
 		tree,
 		func() *record {
@@ -363,8 +405,8 @@ func (rl RecordListMaker) CallGraph(w io.Writer) {
 
 	for listID, fl := range rl.list {
 		var nodes []Node
-		export := make([]Node, len(fl.exporter))
-		for i, exporter := range fl.exporter {
+		export := make([]Node, len(fl.export.exporter))
+		for i, exporter := range fl.export.exporter {
 			export[i] = Node{Name: fmt.Sprintf("%p", exporter), Label: exporter.ID()}
 		}
 

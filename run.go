@@ -269,7 +269,13 @@ func parseArguments(cmd string, args []string) {
 	var bidirectional bool
 	first := true
 
+	sortOrder := flows.SortTypeNone //FIXME
+
 	for _, featureset := range result {
+		pipeline, err := flows.MakeExportPipeline(featureset.exporter, sortOrder, *numProcessing)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for _, feature := range featureset.featureset {
 			sort.Strings(feature.key)
 			if first {
@@ -284,7 +290,7 @@ func parseArguments(cmd string, args []string) {
 					log.Fatalln("bidirectional of every flow must match")
 				}
 			}
-			if err := recordList.AppendRecord(feature.features, feature.control, feature.filter, featureset.exporter, *verbose); err != nil {
+			if err := recordList.AppendRecord(feature.features, feature.control, feature.filter, pipeline, *verbose); err != nil {
 				log.Fatalf("Couldn't parse feature specification: %s\n", err)
 			}
 		}
@@ -317,6 +323,7 @@ func parseArguments(cmd string, args []string) {
 			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout * float64(flows.SecondsInNanoseconds)),
 			PerPacket:     *perPacket,
 			WindowExpiry:  *expireWindow,
+			SortOutput:    sortOrder,
 		},
 		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *expireTCP, *autoGC)
 
@@ -349,6 +356,9 @@ func parseArguments(cmd string, args []string) {
 	}
 
 	flowtable.EOF(stopped)
+
+	recordList.Flush()
+
 	for _, exporter := range exporters {
 		exporter.Finish()
 	}

@@ -35,13 +35,8 @@ type ipfixRecord struct {
 func (pe *ipfixExporter) Fields([]string) {}
 
 //Export export given features
-func (pe *ipfixExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	list := make([]interface{}, len(features))
-	list = list[:len(features)]
-	for i, elem := range features {
-		list[i] = elem.Value()
-	}
-	pe.exportlist <- ipfixRecord{template, list, when}
+func (pe *ipfixExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
+	pe.exportlist <- ipfixRecord{template, features, when}
 }
 
 //Finish Write outstanding data and wait for completion

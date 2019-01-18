@@ -223,6 +223,10 @@ func (pb *packetBuffer) PacketNr() uint64 {
 	return pb.packetnr
 }
 
+func (pb *packetBuffer) EventNr() uint64 {
+	return pb.packetnr
+}
+
 func (pb *packetBuffer) Copy() Buffer {
 	pb.refcnt++
 	return pb

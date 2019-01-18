@@ -158,7 +158,7 @@ func TestAST(t *testing.T) {
 		},
 	} {
 		rl := flows.RecordListMaker{}
-		err := rl.AppendRecord(test.def, nil, nil, nil, testing.Verbose())
+		err := rl.AppendRecord(test.def, nil, nil, &flows.ExportPipeline{}, testing.Verbose())
 		id := -1
 		if err != nil {
 			if e, ok := err.(flows.FeatureError); ok {

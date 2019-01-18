@@ -12,4 +12,6 @@ type Event interface {
 	SetWindow(uint64)
 	// Window returns the window id
 	Window() uint64
+	// EventNr returns the number of the event
+	EventNr() uint64
 }

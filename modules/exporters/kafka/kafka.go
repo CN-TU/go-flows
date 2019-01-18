@@ -25,12 +25,12 @@ func (pe *kafkaExporter) Fields(fields []string) {
 }
 
 //Export export given features
-func (pe *kafkaExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
+func (pe *kafkaExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
 	list := make([]interface{}, len(features))
 	ies := template.InformationElements()[:len(features)]
 	list = list[:len(features)]
 	for i, elem := range features {
-		switch val := elem.Value().(type) {
+		switch val := elem.(type) {
 		case byte:
 			list[i] = int(val)
 		case flows.DateTimeNanoseconds:

@@ -38,11 +38,11 @@ func makeAssertExporter() *assertExporter {
 func (ae *assertExporter) Fields([]string) {}
 
 //Export export given features
-func (ae *assertExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
+func (ae *assertExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
 	line := make([]FeatureResult, len(features))
 	ies := template.InformationElements()
 	for i, feature := range features {
-		line[i] = FeatureResult{ies[i].Name, feature.Value()}
+		line[i] = FeatureResult{ies[i].Name, feature}
 	}
 	ae.seen = append(ae.seen, FeatureLine{when, line})
 }
@@ -63,6 +63,7 @@ type TestTable struct {
 	selector packet.DynamicKeySelector
 	exporter *assertExporter
 	table    *flows.FlowTable
+	pipe     *flows.ExportPipeline
 	t        *testing.T
 }
 
@@ -81,9 +82,11 @@ func MakeFeatureTest(t *testing.T, features []string, ft flows.FeatureType, opt 
 		featuresI[i] = feature
 	}
 	var f flows.RecordListMaker
-	if err := f.AppendRecord(featuresI, nil, nil, []flows.Exporter{ret.exporter}, false); err != nil {
+	ret.pipe, _ = flows.MakeExportPipeline([]flows.Exporter{ret.exporter}, flows.SortTypeNone, 1)
+	if err := f.AppendRecord(featuresI, nil, nil, ret.pipe, false); err != nil {
 		t.Fatalf("Couldn't parse features: %s", err)
 	}
+	f.Init()
 	ret.table = flows.NewFlowTable(f, packet.NewFlow, opt, true, 0)
 	ret.selector = packet.MakeDynamicKeySelector([]string{
 		"sourceIPAddress",
@@ -116,6 +119,7 @@ func (t *TestTable) EventLayers(when flows.DateTimeNanoseconds, layerList ...pac
 // Finish finalizes all the flows in the table
 func (t *TestTable) Finish(when flows.DateTimeNanoseconds) {
 	t.table.EOF(when)
+	t.pipe.Flush()
 	t.exporter.Finish()
 }
 

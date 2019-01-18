@@ -1,5 +1,7 @@
 package flows
 
+import "fmt"
+
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, string, bool, *EventContext, uint64) Flow
 
@@ -11,6 +13,11 @@ type TableStats struct {
 	Flows uint64
 	// Maxflows is the maximum number of concurrent flows processed
 	Maxflows uint64
+}
+
+type exportList struct {
+	sorted   *exportRecord
+	unsorted *exportRecord
 }
 
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
@@ -25,27 +32,49 @@ type FlowTable struct {
 	context   *EventContext
 	flowID    uint64
 	window    uint64
+	exports   []exportList
 	id        uint8
 	fivetuple bool
 	eof       bool
+	expiring  bool
 }
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
-	return &FlowTable{
+	exports := make([]exportList, len(records.list))
+	for i := range exports {
+		exports[i].sorted = makeExportHead()
+		exports[i].unsorted = makeExportHead()
+	}
+	ret := &FlowTable{
 		flows:       make(map[string]int),
 		newflow:     newflow,
 		FlowOptions: options,
 		records:     records,
 		fivetuple:   fivetuple,
 		context:     &EventContext{},
+		exports:     exports,
 		id:          id,
 	}
+	return ret
+}
+
+func (tab *FlowTable) pushExport(r int, e *exportRecord) {
+	if tab.SortOutput == SortTypeNone {
+		return
+	}
+	e.unlink()
+	if !tab.expiring && tab.SortOutput == SortTypeExportTime {
+		e.insert(tab.exports[r].unsorted)
+		return
+	}
+	e.insert(tab.exports[r].sorted)
 }
 
 // Expire expires all unhandled timer events. Can be called periodically to conserve memory.
 func (tab *FlowTable) Expire() {
 	when := tab.context.when
+	tab.expiring = true
 	for _, elem := range tab.flowlist {
 		if elem == nil {
 			continue
@@ -54,6 +83,7 @@ func (tab *FlowTable) Expire() {
 			elem.expire(tab.context)
 		}
 	}
+	tab.expiring = false
 }
 
 // Event needs to be called for every event (e.g., a received packet). Handles flow expiry if the event belongs to a flow, flow creation, and forwarding the event to the flow.
@@ -123,6 +153,7 @@ func (tab *FlowTable) remove(entry Flow) {
 
 // EOF needs to be called upon end of file (e.g., program termination). All outstanding timers get expired, and the rest of the flows terminated with an eof event.
 func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
+	tab.expiring = true
 	tab.eof = true
 	context := &EventContext{when: now}
 	for _, v := range tab.flowlist {
@@ -139,12 +170,28 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.flows = make(map[string]int)
 	tab.flowlist = nil
 	tab.freelist = nil
+	tab.expiring = false
 	tab.eof = false
+
+	//FIXME
+	for i, exports := range tab.exports {
+		if exports.sorted.prev == exports.sorted && exports.sorted.next == exports.sorted {
+			fmt.Println(tab.id, i, "sorted ok")
+		} else {
+			fmt.Println(tab.id, i, "sorted fail")
+		}
+		if exports.unsorted.prev == exports.unsorted && exports.unsorted.next == exports.unsorted {
+			fmt.Println(tab.id, i, "unsorted ok")
+		} else {
+			fmt.Println(tab.id, i, "unsorted fail")
+		}
+	}
 }
 
 // expireWindow expires all flows in the table due to end of the window. All outstanding timers get expired, and the rest of the flows terminated with a flowReaonEnd event.
 func (tab *FlowTable) expireWindow() {
 	tab.eof = true
+	tab.expiring = true
 	context := tab.context
 	now := tab.context.when
 	for _, v := range tab.flowlist {
@@ -167,6 +214,7 @@ func (tab *FlowTable) expireWindow() {
 	tab.flowlist = tab.flowlist[:0]
 	tab.freelist = tab.freelist[:0]
 	tab.eof = false
+	tab.expiring = false
 }
 
 // FiveTuple returns true if the key function is the fivetuple key

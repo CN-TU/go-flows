@@ -2,121 +2,224 @@ package csv
 
 import (
 	"bufio"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
-	"sync"
-
-	"github.com/CN-TU/go-ipfix"
+	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/util"
+	ipfix "github.com/CN-TU/go-ipfix"
 )
 
+// produces RFC4180 conforming csv (except for the line ending, which is LF instead of CRLF)
+
+const writeBufferSize = 64 * 1024
+
 type csvExporter struct {
-	id         string
-	outfile    string
-	exportlist chan []string
-	listBuffer sync.Map
-	finished   chan struct{}
+	id      string
+	outfile string
+	f       io.WriteCloser
+	writer  *bufio.Writer
+}
+
+func (pe *csvExporter) writeString(field string) {
+	if field == "" {
+		return
+	}
+	if !strings.ContainsAny(field, "\"\r\n,") {
+		r1, _ := utf8.DecodeRuneInString(field)
+		if unicode.IsSpace(r1) {
+			err := pe.writer.WriteByte('"')
+			if err != nil {
+				panic(err)
+			}
+			_, err = pe.writer.WriteString(field)
+			if err != nil {
+				panic(err)
+			}
+			err = pe.writer.WriteByte('"')
+			if err != nil {
+				panic(err)
+			}
+			return
+		}
+		_, err := pe.writer.WriteString(field)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+	err := pe.writer.WriteByte('"')
+	if err != nil {
+		panic(err)
+	}
+	for len(field) > 0 {
+		special := strings.IndexAny(field, "\"")
+		if special == -1 {
+			_, err := pe.writer.WriteString(field)
+			if err != nil {
+				panic(err)
+			}
+			break
+		}
+		_, err := pe.writer.WriteString(field[:special])
+		if err != nil {
+			panic(err)
+		}
+		_, err = pe.writer.WriteString("\"\"")
+		if err != nil {
+			panic(err)
+		}
+		field = field[special+1:]
+	}
+	err = pe.writer.WriteByte('"')
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (pe *csvExporter) Fields(fields []string) {
-	pe.exportlist <- fields
+	for i, field := range fields {
+		if i > 0 {
+			err := pe.writer.WriteByte(',')
+			if err != nil {
+				panic(err)
+			}
+		}
+		pe.writeString(field)
+	}
+	err := pe.writer.WriteByte('\n')
+	if err != nil {
+		panic(err)
+	}
 }
 
 //Export export given features
-func (pe *csvExporter) Export(template flows.Template, features []flows.Feature, when flows.DateTimeNanoseconds) {
-	var list []string
-	if pool, ok := pe.listBuffer.Load(len(features)); ok {
-		select {
-		case list = <-pool.(chan []string):
-		default:
-			list = make([]string, len(features))
-		}
-	} else {
-		list = make([]string, len(features))
-	}
+func (pe *csvExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
 	ies := template.InformationElements()[:len(features)]
-	list = list[:len(features)]
 	for i, elem := range features {
-		switch val := elem.Value().(type) {
+		var err error
+		if i > 0 {
+			err = pe.writer.WriteByte(',')
+			if err != nil {
+				panic(err)
+			}
+		}
+		switch val := elem.(type) {
+		case int:
+			_, err = pe.writer.WriteString(strconv.FormatInt(int64(val), 10))
+		case int8:
+			_, err = pe.writer.WriteString(strconv.FormatInt(int64(val), 10))
+		case int16:
+			_, err = pe.writer.WriteString(strconv.FormatInt(int64(val), 10))
+		case int32:
+			_, err = pe.writer.WriteString(strconv.FormatInt(int64(val), 10))
+		case int64:
+			_, err = pe.writer.WriteString(strconv.FormatInt(val, 10))
+		case uint:
+			_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
+		case uint8:
+			_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
+		case uint16:
+			_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
+		case uint32:
+			_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
+		case uint64:
+			_, err = pe.writer.WriteString(strconv.FormatUint(val, 10))
+		case float32:
+			_, err = pe.writer.WriteString(strconv.FormatFloat(float64(val), 'g', -1, 32))
+		case float64:
+			_, err = pe.writer.WriteString(strconv.FormatFloat(val, 'g', -1, 64))
+		case net.IP:
+			_, err = pe.writer.WriteString(val.String())
 		case nil:
-			list[i] = ""
-		case byte:
-			list[i] = fmt.Sprint(int(val))
+			continue
 		case flows.DateTimeNanoseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = fmt.Sprint(uint64(val))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e3), 10))
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e6))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e6), 10))
 			case ipfix.DateTimeSecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e9))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e9), 10))
 			default:
-				list[i] = fmt.Sprint(val)
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			}
 		case flows.DateTimeMicroseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e3), 10))
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = fmt.Sprint(uint64(val))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e3), 10))
 			case ipfix.DateTimeSecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e6))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e6), 10))
 			default:
-				list[i] = fmt.Sprint(val)
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			}
 		case flows.DateTimeMilliseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e6))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e6), 10))
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e3), 10))
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = fmt.Sprint(uint64(val))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			case ipfix.DateTimeSecondsType:
-				list[i] = fmt.Sprint(uint64(val / 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val/1e3), 10))
 			default:
-				list[i] = fmt.Sprint(val)
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			}
 		case flows.DateTimeSeconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e9))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e9), 10))
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e6))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e6), 10))
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = fmt.Sprint(uint64(val * 1e3))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val*1e3), 10))
 			case ipfix.DateTimeSecondsType:
-				list[i] = fmt.Sprint(uint64(val))
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			default:
-				list[i] = fmt.Sprint(val)
+				_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 			}
 		case flows.FlowEndReason:
-			list[i] = fmt.Sprint(int(val))
+			_, err = pe.writer.WriteString(strconv.FormatUint(uint64(val), 10))
 		case []byte:
-			list[i] = string(val)
+			pe.writeString(string(val))
 		case string:
-			list[i] = val
+			pe.writeString(val)
+		case net.HardwareAddr:
+			_, err = pe.writer.WriteString(val.String())
 		default:
-			list[i] = fmt.Sprint(val)
+			pe.writeString(fmt.Sprint(val))
+		}
+		if err != nil {
+			panic(err)
 		}
 	}
-	pe.exportlist <- list
+	err := pe.writer.WriteByte('\n')
+	if err != nil {
+		panic(err)
+	}
 }
 
 //Finish Write outstanding data and wait for completion
 func (pe *csvExporter) Finish() {
-	close(pe.exportlist)
-	<-pe.finished
+	pe.writer.Flush()
+	if pe.f != os.Stdout {
+		pe.f.Close()
+	}
 }
 
 func (pe *csvExporter) ID() string {
@@ -124,38 +227,16 @@ func (pe *csvExporter) ID() string {
 }
 
 func (pe *csvExporter) Init() {
-	pe.exportlist = make(chan []string, 100)
-	pe.finished = make(chan struct{})
-	var outfile io.WriteCloser
 	if pe.outfile == "-" {
-		outfile = os.Stdout
+		pe.f = os.Stdout
 	} else {
 		var err error
-		outfile, err = os.Create(pe.outfile)
+		pe.f, err = os.Create(pe.outfile)
 		if err != nil {
 			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
-	writer := csv.NewWriter(bufio.NewWriter(outfile))
-	go func() {
-		defer close(pe.finished)
-		for data := range pe.exportlist {
-			writer.Write(data)
-			pool, ok := pe.listBuffer.Load(len(data))
-			var p chan []string
-			if !ok {
-				p = make(chan []string, 100)
-				pe.listBuffer.Store(len(data), p)
-			} else {
-				p = pool.(chan []string)
-			}
-			select {
-			case p <- data:
-			default:
-			}
-		}
-		writer.Flush()
-	}()
+	pe.writer = bufio.NewWriterSize(pe.f, writeBufferSize)
 }
 
 func newCSVExporter(args []string) (arguments []string, ret util.Module, err error) {

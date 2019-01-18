@@ -74,6 +74,8 @@ type FlowOptions struct {
 	WindowExpiry bool
 	// PerPacket specifies single flow per packet
 	PerPacket bool
+	// SortOutput specifies how the output should be sorted
+	SortOutput SortType
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
@@ -90,6 +92,7 @@ type BaseFlow struct {
 
 // Stop destroys the resources associated with this flow. Call this to cancel the flow without exporting it or notifying the features.
 func (flow *BaseFlow) Stop() {
+	flow.records.Destroy()
 	flow.table.remove(flow)
 	flow.active = false
 }
@@ -137,7 +140,7 @@ func (flow *BaseFlow) Export(reason FlowEndReason, context *EventContext, now Da
 		return //WTF, this should not happen
 	}
 	context.hard = true
-	flow.records.Export(reason, context, now)
+	flow.records.Export(reason, context, now, flow.table, 0)
 	flow.Stop()
 }
 
@@ -168,7 +171,7 @@ func (flow *BaseFlow) Event(event Event, context *EventContext) {
 	if flow.table.IdleTimeout != 0 {
 		flow.AddTimer(TimerIdle, flow.idleEvent, context.when+flow.table.IdleTimeout)
 	}
-	flow.records.Event(event, context)
+	flow.records.Event(event, context, flow.table, 0)
 	if !flow.records.Active() {
 		flow.Stop()
 		return
