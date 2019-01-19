@@ -30,3 +30,20 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type flowExportNanoseconds struct {
+	flows.BaseFeature
+}
+
+func (f *flowExportNanoseconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(context.When(), context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("__flowExportNanoseconds", "Export time in nanoseconds", ipfix.DateTimeNanosecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowEndMilliseconds", "Export time in milliseconds", ipfix.DateTimeMillisecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowEndMicroseconds", "Export time in microseconds", ipfix.DateTimeMicrosecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowEndSeconds", "Export time in seconds", ipfix.DateTimeSecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////

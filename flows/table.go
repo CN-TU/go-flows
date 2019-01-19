@@ -1,7 +1,5 @@
 package flows
 
-import "fmt"
-
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, string, bool, *EventContext, uint64) Flow
 
@@ -84,6 +82,9 @@ func (tab *FlowTable) Expire() {
 		}
 	}
 	tab.expiring = false
+	if tab.SortOutput != SortTypeNone {
+		tab.flushExports() //FIXME maybe do that every n entries
+	}
 }
 
 // Event needs to be called for every event (e.g., a received packet). Handles flow expiry if the event belongs to a flow, flow creation, and forwarding the event to the flow.
@@ -140,6 +141,46 @@ func (tab *FlowTable) Event(event Event) {
 		tab.context.forward = true
 		elem.Event(event, tab.context)
 	}
+	if tab.SortOutput == SortTypeNone {
+		return
+	}
+	tab.flushExports()
+}
+
+func (tab *FlowTable) flushExports() {
+	for i, exports := range tab.exports {
+		//FIXME unsorted
+		if exports.sorted.prev == exports.sorted {
+			continue
+		}
+		var head, tail *exportRecord
+		elem := exports.sorted.prev
+		nr := 0
+		for {
+			next := elem.prev
+			if elem.exported() {
+				if head == nil {
+					head = elem
+					head.next = nil
+				} else {
+					tail.next = elem
+					elem.prev = nil
+				}
+				tail = elem
+				nr++
+			} else {
+				if head != nil {
+					head.prev = tail
+					tail.next = nil
+					exports.sorted.prev = elem
+					elem.next = exports.sorted
+					tab.records.list[i].export.export(head, int(tab.id))
+				}
+				break
+			}
+			elem = next
+		}
+	}
 }
 
 func (tab *FlowTable) remove(entry Flow) {
@@ -173,19 +214,23 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.expiring = false
 	tab.eof = false
 
-	//FIXME
-	for i, exports := range tab.exports {
-		if exports.sorted.prev == exports.sorted && exports.sorted.next == exports.sorted {
-			fmt.Println(tab.id, i, "sorted ok")
-		} else {
-			fmt.Println(tab.id, i, "sorted fail")
-		}
-		if exports.unsorted.prev == exports.unsorted && exports.unsorted.next == exports.unsorted {
-			fmt.Println(tab.id, i, "unsorted ok")
-		} else {
-			fmt.Println(tab.id, i, "unsorted fail")
-		}
+	if tab.SortOutput != SortTypeNone {
+		tab.flushExports() //FIXME maybe do that every n entries
 	}
+	/*
+		//FIXME
+		for i, exports := range tab.exports {
+			if exports.sorted.prev == exports.sorted && exports.sorted.next == exports.sorted {
+				fmt.Println(tab.id, i, "sorted ok")
+			} else {
+				fmt.Println(tab.id, i, "sorted fail")
+			}
+			if exports.unsorted.prev == exports.unsorted && exports.unsorted.next == exports.unsorted {
+				fmt.Println(tab.id, i, "unsorted ok")
+			} else {
+				fmt.Println(tab.id, i, "unsorted fail")
+			}
+		}*/
 }
 
 // expireWindow expires all flows in the table due to end of the window. All outstanding timers get expired, and the rest of the flows terminated with a flowReaonEnd event.
@@ -215,6 +260,9 @@ func (tab *FlowTable) expireWindow() {
 	tab.freelist = tab.freelist[:0]
 	tab.eof = false
 	tab.expiring = false
+	if tab.SortOutput != SortTypeNone {
+		tab.flushExports() //FIXME maybe do that every n entries
+	}
 }
 
 // FiveTuple returns true if the key function is the fivetuple key

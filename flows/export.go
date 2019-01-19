@@ -13,11 +13,29 @@ type exportRecord struct {
 	prev     *exportRecord
 	template Template
 	features []interface{}
-	head     bool
+}
+
+func (e *exportRecord) less(b *exportRecord) bool {
+	if e.packetID == b.packetID {
+		if e.exportTime == b.exportTime {
+			if e.recordID < b.recordID {
+				return true
+			}
+			return false
+		}
+		if e.exportTime < b.exportTime {
+			return true
+		}
+		return false
+	}
+	if e.packetID < b.packetID {
+		return true
+	}
+	return false
 }
 
 func makeExportHead() *exportRecord {
-	ret := &exportRecord{head: true}
+	ret := &exportRecord{}
 	ret.next = ret
 	ret.prev = ret
 	return ret
@@ -42,4 +60,8 @@ func (e *exportRecord) insert(after *exportRecord) {
 
 	next.prev = e
 	e.next = next
+}
+
+func (e *exportRecord) exported() bool {
+	return len(e.features) != 0
 }

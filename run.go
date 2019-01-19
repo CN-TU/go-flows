@@ -239,6 +239,7 @@ func parseArguments(cmd string, args []string) {
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
 	expireTCP := set.Bool("expireTCP", true, "If true, tcp flows are expired upon RST or FIN-teardown")
+	sortOrderStr := set.String("sort", "none", `Sort output by "start" time, "stop" time, "export" time, or unsorted ("none")`)
 	verbose := set.Bool("verbose", false, "Verbose output")
 
 	set.Parse(args)
@@ -269,12 +270,15 @@ func parseArguments(cmd string, args []string) {
 	var bidirectional bool
 	first := true
 
-	sortOrder := flows.SortTypeNone //FIXME
+	sortOrder, err := flows.AtoSort(*sortOrderStr)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	for _, featureset := range result {
 		pipeline, err := flows.MakeExportPipeline(featureset.exporter, sortOrder, *numProcessing)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 		for _, feature := range featureset.featureset {
 			sort.Strings(feature.key)
