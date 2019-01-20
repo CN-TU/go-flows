@@ -62,7 +62,7 @@ func (tab *FlowTable) pushExport(r int, e *exportRecord) {
 		return
 	}
 	e.unlink()
-	if !tab.expiring && tab.SortOutput == SortTypeExportTime {
+	if !tab.expiring && tab.SortOutput == SortTypeExportTime { //FIXME
 		e.insert(tab.exports[r].unsorted)
 		return
 	}
@@ -155,7 +155,6 @@ func (tab *FlowTable) flushExports() {
 		}
 		var head, tail *exportRecord
 		elem := exports.sorted.prev
-		nr := 0
 		for {
 			next := elem.prev
 			if elem.exported() {
@@ -167,7 +166,6 @@ func (tab *FlowTable) flushExports() {
 					elem.prev = nil
 				}
 				tail = elem
-				nr++
 			} else {
 				if head != nil {
 					head.prev = tail

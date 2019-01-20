@@ -9,6 +9,7 @@ import (
 )
 
 const debugMerge = false
+const debugElements = false
 
 const exportQueueDepth = 100
 
@@ -91,10 +92,15 @@ func (e *mergeTreeQueues) clear() {
 }
 
 func debugList(elem *exportRecord, verbose int) {
+	nr := 0
 	for elem != nil {
-		fmt.Println(verbose, "\t", elem.exportKey, "\t", elem.features[0], "\t", elem.features[1])
+		if debugElements {
+			fmt.Println(verbose, "\t", elem.exportKey, "\t", elem.features[0], "\t", elem.features[1])
+		}
+		nr++
 		elem = elem.next
 	}
+	fmt.Println(verbose, "elements moved", nr)
 }
 
 // mergeTreeWorker fetches sorted exportRecords from a, b and sends them sorted to result
@@ -176,30 +182,28 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 		// send the merged list to the next level
 		queue.publish(verbose)
 
-		// wait for next element
-		for {
-			select {
-			case elem, ok := <-a:
-				if !ok {
-					stopped = 0
-					goto PARTIAL
-				}
-				if debugMerge {
-					fmt.Println(verbose, "gota")
-					debugList(elem, verbose)
-				}
-				queue.append(0, elem)
-			case elem, ok := <-b:
-				if !ok {
-					stopped = 1
-					goto PARTIAL
-				}
-				if debugMerge {
-					fmt.Println(verbose, "gotb")
-					debugList(elem, verbose)
-				}
-				queue.append(1, elem)
+		// fetch next element
+		select {
+		case elem, ok := <-a:
+			if !ok {
+				stopped = 0
+				goto PARTIAL
 			}
+			if debugMerge {
+				fmt.Println(verbose, "gota")
+				debugList(elem, verbose)
+			}
+			queue.append(0, elem)
+		case elem, ok := <-b:
+			if !ok {
+				stopped = 1
+				goto PARTIAL
+			}
+			if debugMerge {
+				fmt.Println(verbose, "gotb")
+				debugList(elem, verbose)
+			}
+			queue.append(1, elem)
 		}
 	}
 
