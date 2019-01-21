@@ -2,33 +2,47 @@ package flows
 
 type exportKey struct {
 	packetID   uint64
-	exportTime DateTimeNanoseconds
+	expiryTime DateTimeNanoseconds
 	recordID   int
 }
 
 // exportRecord contains a list of records to export
 type exportRecord struct {
 	exportKey
-	next     *exportRecord
-	prev     *exportRecord
-	template Template
-	features []interface{}
+	exportTime DateTimeNanoseconds
+	next       *exportRecord
+	prev       *exportRecord
+	template   Template
+	features   []interface{}
 }
 
-func (e *exportRecord) less(b *exportRecord) bool {
+func (e *exportRecord) lessPacket(b *exportRecord) bool {
 	if e.packetID == b.packetID {
-		if e.exportTime == b.exportTime {
-			if e.recordID < b.recordID {
-				return true
-			}
-			return false
-		}
-		if e.exportTime < b.exportTime {
+		if e.recordID < b.recordID {
 			return true
 		}
 		return false
 	}
 	if e.packetID < b.packetID {
+		return true
+	}
+	return false
+}
+
+func (e *exportRecord) lessExport(b *exportRecord) bool {
+	if e.expiryTime == b.expiryTime {
+		if e.packetID == b.packetID {
+			if e.recordID < b.recordID {
+				return true
+			}
+			return false
+		}
+		if e.packetID < b.packetID {
+			return true
+		}
+		return false
+	}
+	if e.expiryTime < b.expiryTime {
 		return true
 	}
 	return false

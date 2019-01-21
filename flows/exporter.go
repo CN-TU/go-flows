@@ -1,17 +1,18 @@
 package flows
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/CN-TU/go-flows/util"
 )
 
+const debugSort = false
 const debugMerge = false
 const debugElements = false
 
 const exportQueueDepth = 100
+const exportQueueWorkerDepth = 10
 
 type exportQueue chan *exportRecord
 
@@ -21,6 +22,7 @@ type exportQueue chan *exportRecord
 type mergeTreeQueues struct {
 	head, tail [3]*exportRecord
 	result     exportQueue
+	order      SortType
 }
 
 func (e *mergeTreeQueues) hasHead(which int) bool {
@@ -51,7 +53,13 @@ func (e *mergeTreeQueues) append(which int, elem *exportRecord) {
 
 func (e *mergeTreeQueues) mergeOne() {
 	var elem *exportRecord
-	if e.head[0].less(e.head[1]) {
+	var less bool
+	if e.order == SortTypeExportTime {
+		less = e.head[0].lessExport(e.head[1])
+	} else {
+		less = e.head[0].lessPacket(e.head[1])
+	}
+	if less {
 		elem = e.head[0]
 		e.head[0] = e.head[0].next
 	} else {
@@ -74,7 +82,7 @@ func (e *mergeTreeQueues) publish(verbose int) {
 	if e.head[2] != nil {
 		if debugMerge {
 			fmt.Println(verbose, "publish")
-			debugList(e.head[2], verbose)
+			debugList("publish", e.head[2], verbose)
 		}
 		e.result <- e.head[2]
 		e.head[2] = nil
@@ -91,11 +99,11 @@ func (e *mergeTreeQueues) clear() {
 	}
 }
 
-func debugList(elem *exportRecord, verbose int) {
+func debugList(prefix string, elem *exportRecord, verbose int) {
 	nr := 0
 	for elem != nil {
 		if debugElements {
-			fmt.Println(verbose, "\t", elem.exportKey, "\t", elem.features[0], "\t", elem.features[1])
+			fmt.Println(verbose, prefix, "\t", elem.exportKey, "\t", elem.features[0], "\t", elem.features[1], "\t", elem.features[2])
 		}
 		nr++
 		elem = elem.next
@@ -104,8 +112,8 @@ func debugList(elem *exportRecord, verbose int) {
 }
 
 // mergeTreeWorker fetches sorted exportRecords from a, b and sends them sorted to result
-func mergeTreeWorker(a, b, result exportQueue, verbose int) {
-	queue := mergeTreeQueues{result: result}
+func mergeTreeWorker(a, b, result exportQueue, order SortType, verbose int) {
+	queue := mergeTreeQueues{result: result, order: order}
 	var stopped int
 	// get initial elements for a and b
 	for !queue.hasBothHeads() {
@@ -117,7 +125,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 			}
 			if debugMerge {
 				fmt.Println(verbose, "gota")
-				debugList(elem, verbose)
+				debugList("gota", elem, verbose)
 			}
 			queue.append(0, elem)
 		case elem, ok := <-b:
@@ -127,7 +135,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 			}
 			if debugMerge {
 				fmt.Println(verbose, "gotb")
-				debugList(elem, verbose)
+				debugList("gotb", elem, verbose)
 			}
 			queue.append(1, elem)
 		}
@@ -149,7 +157,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 				}
 				if debugMerge {
 					fmt.Println(verbose, "gota")
-					debugList(elem, verbose)
+					debugList("gota", elem, verbose)
 				}
 				queue.append(0, elem)
 			case elem, ok := <-b:
@@ -159,7 +167,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 				}
 				if debugMerge {
 					fmt.Println(verbose, "gotb")
-					debugList(elem, verbose)
+					debugList("gotb", elem, verbose)
 				}
 				queue.append(1, elem)
 			default:
@@ -172,7 +180,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 
 		// merge the two list until we have at least one element in both queues left
 		for queue.bothHaveTwoElements() {
-			queue.mergeOne() //FIXME limit maximum list size?
+			queue.mergeOne()
 		}
 
 		if debugMerge {
@@ -191,7 +199,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 			}
 			if debugMerge {
 				fmt.Println(verbose, "gota")
-				debugList(elem, verbose)
+				debugList("gota", elem, verbose)
 			}
 			queue.append(0, elem)
 		case elem, ok := <-b:
@@ -201,7 +209,7 @@ func mergeTreeWorker(a, b, result exportQueue, verbose int) {
 			}
 			if debugMerge {
 				fmt.Println(verbose, "gotb")
-				debugList(elem, verbose)
+				debugList("gotb", elem, verbose)
 			}
 			queue.append(1, elem)
 		}
@@ -264,7 +272,7 @@ PARTIAL:
 		if ok {
 			if debugMerge {
 				fmt.Println(verbose, "got", [2]string{"a", "b"}[remaining])
-				debugList(elem, verbose)
+				debugList("got", elem, verbose)
 			}
 			queue.append(remaining, elem)
 		}
@@ -274,7 +282,7 @@ FLUSH:
 	if queue.hasHead(remaining) {
 		if debugMerge {
 			fmt.Println(verbose, "publish (FLUSH)")
-			debugList(queue.head[remaining], verbose)
+			debugList("publish", queue.head[remaining], verbose)
 		}
 		queue.head[remaining].prev = queue.tail[remaining]
 		result <- queue.head[remaining]
@@ -283,7 +291,7 @@ FLUSH:
 	for elem := range q {
 		if debugMerge {
 			fmt.Println(verbose, "publish (forward)")
-			debugList(elem, verbose)
+			debugList("publish", elem, verbose)
 		}
 		result <- elem
 	}
@@ -308,9 +316,6 @@ type ExportPipeline struct {
 
 // MakeExportPipeline creates an ExportPipeline for a list of Exporters
 func MakeExportPipeline(exporter []Exporter, sortOrder SortType, numTables uint) (*ExportPipeline, error) {
-	if sortOrder != SortTypeNone && numTables%2 != 0 {
-		return nil, errors.New("sorting requires an even number of processing tables")
-	}
 	return &ExportPipeline{exporter: exporter, sortOrder: sortOrder, tables: int(numTables)}, nil
 }
 
@@ -336,19 +341,199 @@ func (e *ExportPipeline) exportSplicer(q exportQueue) {
 	}
 }
 
-func makeMergeTree(in []exportQueue) []exportQueue {
+func makeMergeTree(in []exportQueue, order SortType) []exportQueue {
 	if len(in) == 2 {
-		ret := make(exportQueue, exportQueueDepth)
-		go mergeTreeWorker(in[0], in[1], ret, -1)
+		ret := make(exportQueue, exportQueueWorkerDepth)
+		go mergeTreeWorker(in[0], in[1], ret, order, -1)
 		return []exportQueue{ret}
 	}
-	num := len(in) / 2
+	numEven := len(in) / 2
+	num := numEven + len(in)%2
 	ret := make([]exportQueue, num)
-	for i := 0; i < num; i++ {
-		ret[i] = make(exportQueue, exportQueueDepth)
-		go mergeTreeWorker(in[i*2], in[i*2+1], ret[i], i)
+	for i := 0; i < numEven; i++ {
+		ret[i] = make(exportQueue, exportQueueWorkerDepth)
+		go mergeTreeWorker(in[i*2], in[i*2+1], ret[i], order, i)
 	}
-	return makeMergeTree(ret)
+	if numEven != num {
+		ret[num-1] = in[len(in)-1]
+	}
+	return makeMergeTree(ret, order)
+}
+
+func findNaturalSublists(heads []*exportRecord, head *exportRecord, id int) []*exportRecord {
+	if debugSort {
+		fmt.Println(id, "START")
+	}
+
+	var prev, first *exportRecord
+	more := false
+	for head != nil {
+		if prev == nil {
+			if head.next == nil {
+				// last element
+				heads = append(heads, head)
+				if debugSort {
+					fmt.Println(id, "LAST", len(heads))
+				}
+				return heads
+			}
+			first = head
+			prev = head
+			head = head.next
+			continue
+		}
+
+		if !prev.lessExport(head) {
+			if !more {
+				// two unsorted elements
+				// add reversed (== sorted)
+				newhead := head.next
+
+				head.next = prev
+				prev.next = nil
+				if debugSort {
+					fmt.Println(id, "unsorted")
+				}
+				heads = append(heads, head)
+
+				prev = nil
+				head = newhead
+				continue
+			}
+			// two or more sorted elements
+			if debugSort {
+				fmt.Println(id, "sorted")
+			}
+			heads = append(heads, first)
+			prev.next = nil
+
+			more = false
+			prev = nil
+			continue
+		}
+
+		more = true
+		prev = head
+		head = head.next
+	}
+	heads = append(heads, first)
+	if debugSort {
+		fmt.Println(id, "Went trough", len(heads))
+	}
+	return heads
+}
+
+func mergeSublist(a, b *exportRecord, last bool, id int) *exportRecord {
+	var ret, tail *exportRecord
+	for a != nil && b != nil {
+		var elem *exportRecord
+		if a.lessExport(b) {
+			elem = a
+			a = a.next
+		} else {
+			elem = b
+			b = b.next
+		}
+		if ret == nil {
+			if last {
+				elem.prev = elem
+			}
+			ret = elem
+		} else {
+			if last {
+				elem.prev = nil
+			}
+			tail.next = elem
+		}
+		tail = elem
+	}
+
+	if a != nil {
+		tail.next = a
+	}
+	if b != nil {
+		tail.next = b
+	}
+
+	if last {
+		for a != nil {
+			tail = a
+			a.prev = nil
+			a = a.next
+		}
+		for b != nil {
+			tail = b
+			b.prev = nil
+			b = b.next
+		}
+		ret.prev = tail
+	}
+	return ret
+}
+
+func sortWorker(in, out exportQueue, id int) {
+	var sortHeads []*exportRecord
+	for elem := range in {
+		// find already sorted sublists for merging
+		if debugSort {
+			fmt.Println(id, "unsorted:")
+			debugList("unsorted", elem, id)
+			fmt.Println(id, "sort:")
+		}
+		sortHeads = findNaturalSublists(sortHeads, elem, id)
+		if debugSort {
+			for i, head := range sortHeads {
+				fmt.Println(id, "list", i)
+				debugList("sort", head, id)
+			}
+			fmt.Println(id, "=========")
+		}
+		if len(sortHeads) == 1 {
+			sortHeads[0] = nil
+			sortHeads = sortHeads[:0]
+			// already sorted
+			out <- elem
+			continue
+		}
+
+		//merge lists until we have two
+		for len(sortHeads) > 2 {
+			numEven := len(sortHeads) / 2
+			for i := 0; i < numEven; i++ {
+				sortHeads[i] = mergeSublist(sortHeads[i*2], sortHeads[i*2+1], false, id)
+			}
+			if len(sortHeads)%2 == 1 {
+				sortHeads[numEven] = sortHeads[len(sortHeads)-1]
+				clear := sortHeads[numEven+1 : len(sortHeads)]
+				for i := range clear {
+					clear[i] = nil
+				}
+				sortHeads = sortHeads[:numEven+1]
+			} else {
+				clear := sortHeads[numEven:len(sortHeads)]
+				for i := range clear {
+					clear[i] = nil
+				}
+				sortHeads = sortHeads[:numEven]
+			}
+		}
+		// this final merge fixes up the list: *.prev = nil, first.prev = last; last.next = nil
+		elem = mergeSublist(sortHeads[0], sortHeads[1], true, id)
+		sortHeads[0] = nil
+		sortHeads[1] = nil
+		sortHeads = sortHeads[:0]
+		if debugSort {
+			fmt.Println(id, "sorted list:")
+			debugList("sorted", elem, id)
+		}
+
+		out <- elem
+	}
+	close(out)
+}
+
+func makeSortWorker(in, out exportQueue, id int) {
+	go sortWorker(in, out, id)
 }
 
 func (e *ExportPipeline) init(fields []string) {
@@ -356,7 +541,12 @@ func (e *ExportPipeline) init(fields []string) {
 	e.finished = &sync.WaitGroup{}
 	for i, exporter := range e.exporter {
 		exporter.Fields(fields)
-		q := make(exportQueue, exportQueueDepth)
+		var q exportQueue
+		if e.sortOrder == SortTypeNone {
+			q = make(exportQueue, exportQueueDepth)
+		} else {
+			q = make(exportQueue, exportQueueWorkerDepth)
+		}
 		e.out[i] = q
 		e.finished.Add(1)
 		go exporterWorker(q, exporter, e.finished)
@@ -368,7 +558,17 @@ func (e *ExportPipeline) init(fields []string) {
 		for i := range e.in {
 			e.in[i] = make(exportQueue, exportQueueDepth)
 		}
-		e.sorted = makeMergeTree(e.in)[0]
+		var unmerged []exportQueue
+		if e.sortOrder == SortTypeExportTime {
+			unmerged = make([]exportQueue, e.tables)
+			for i := range unmerged {
+				unmerged[i] = make(exportQueue, exportQueueWorkerDepth)
+				makeSortWorker(e.in[i], unmerged[i], i)
+			}
+		} else {
+			unmerged = e.in
+		}
+		e.sorted = makeMergeTree(unmerged, e.sortOrder)[0]
 	}
 	go e.exportSplicer(e.sorted)
 }

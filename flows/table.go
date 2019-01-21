@@ -13,11 +13,6 @@ type TableStats struct {
 	Maxflows uint64
 }
 
-type exportList struct {
-	sorted   *exportRecord
-	unsorted *exportRecord
-}
-
 // FlowTable holds flows assigned to flow keys and handles expiry, events, and flow creation.
 type FlowTable struct {
 	FlowOptions
@@ -30,7 +25,7 @@ type FlowTable struct {
 	context   *EventContext
 	flowID    uint64
 	window    uint64
-	exports   []exportList
+	exports   []*exportRecord
 	id        uint8
 	fivetuple bool
 	eof       bool
@@ -39,10 +34,9 @@ type FlowTable struct {
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
-	exports := make([]exportList, len(records.list))
+	exports := make([]*exportRecord, len(records.list))
 	for i := range exports {
-		exports[i].sorted = makeExportHead()
-		exports[i].unsorted = makeExportHead()
+		exports[i] = makeExportHead()
 	}
 	ret := &FlowTable{
 		flows:       make(map[string]int),
@@ -61,12 +55,11 @@ func (tab *FlowTable) pushExport(r int, e *exportRecord) {
 	if tab.SortOutput == SortTypeNone {
 		return
 	}
-	e.unlink()
-	if !tab.expiring && tab.SortOutput == SortTypeExportTime { //FIXME
-		e.insert(tab.exports[r].unsorted)
+	if tab.expiring && tab.SortOutput == SortTypeExportTime {
 		return
 	}
-	e.insert(tab.exports[r].sorted)
+	e.unlink()
+	e.insert(tab.exports[r])
 }
 
 // Expire expires all unhandled timer events. Can be called periodically to conserve memory.
@@ -82,8 +75,10 @@ func (tab *FlowTable) Expire() {
 		}
 	}
 	tab.expiring = false
-	if tab.SortOutput != SortTypeNone {
-		tab.flushExports() //FIXME maybe do that every n entries
+	if tab.SortOutput == SortTypeExportTime {
+		tab.flushAllExports()
+	} else if tab.SortOutput != SortTypeNone {
+		tab.flushExports()
 	}
 }
 
@@ -141,21 +136,17 @@ func (tab *FlowTable) Event(event Event) {
 		tab.context.forward = true
 		elem.Event(event, tab.context)
 	}
-	if tab.SortOutput == SortTypeNone {
-		return
+	if tab.SortOutput != SortTypeNone {
+		tab.flushExports()
 	}
-	tab.flushExports()
 }
 
 func (tab *FlowTable) flushExports() {
 	for i, exports := range tab.exports {
-		//FIXME unsorted
-		if exports.sorted.prev == exports.sorted {
-			continue
-		}
 		var head, tail *exportRecord
-		elem := exports.sorted.prev
-		for {
+		elem := exports.prev
+		nr := 0
+		for elem != exports {
 			next := elem.prev
 			if elem.exported() {
 				if head == nil {
@@ -165,18 +156,48 @@ func (tab *FlowTable) flushExports() {
 					tail.next = elem
 					elem.prev = nil
 				}
+				nr++
 				tail = elem
 			} else {
-				if head != nil {
-					head.prev = tail
-					tail.next = nil
-					exports.sorted.prev = elem
-					elem.next = exports.sorted
-					tab.records.list[i].export.export(head, int(tab.id))
-				}
 				break
 			}
 			elem = next
+		}
+		if head != nil {
+			head.prev = tail
+			tail.next = nil
+			exports.prev = elem
+			elem.next = exports
+			tab.records.list[i].export.export(head, int(tab.id))
+		}
+	}
+}
+
+func (tab *FlowTable) flushAllExports() {
+	for i, exports := range tab.exports {
+		var head, tail *exportRecord
+		elem := exports.prev
+		nr := 0
+		for elem != exports {
+			next := elem.prev
+			if elem.exported() {
+				elem.unlink()
+				if head == nil {
+					head = elem
+					head.next = nil
+				} else {
+					tail.next = elem
+					elem.prev = nil
+				}
+				tail = elem
+				nr++
+			}
+			elem = next
+		}
+		if head != nil {
+			head.prev = tail
+			tail.next = nil
+			tab.records.list[i].export.export(head, int(tab.id))
 		}
 	}
 }
@@ -213,22 +234,8 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.eof = false
 
 	if tab.SortOutput != SortTypeNone {
-		tab.flushExports() //FIXME maybe do that every n entries
+		tab.flushExports()
 	}
-	/*
-		//FIXME
-		for i, exports := range tab.exports {
-			if exports.sorted.prev == exports.sorted && exports.sorted.next == exports.sorted {
-				fmt.Println(tab.id, i, "sorted ok")
-			} else {
-				fmt.Println(tab.id, i, "sorted fail")
-			}
-			if exports.unsorted.prev == exports.unsorted && exports.unsorted.next == exports.unsorted {
-				fmt.Println(tab.id, i, "unsorted ok")
-			} else {
-				fmt.Println(tab.id, i, "unsorted fail")
-			}
-		}*/
 }
 
 // expireWindow expires all flows in the table due to end of the window. All outstanding timers get expired, and the rest of the flows terminated with a flowReaonEnd event.
@@ -258,8 +265,10 @@ func (tab *FlowTable) expireWindow() {
 	tab.freelist = tab.freelist[:0]
 	tab.eof = false
 	tab.expiring = false
-	if tab.SortOutput != SortTypeNone {
-		tab.flushExports() //FIXME maybe do that every n entries
+	if tab.SortOutput == SortTypeExportTime {
+		tab.flushAllExports()
+	} else if tab.SortOutput != SortTypeNone {
+		tab.flushExports()
 	}
 }
 

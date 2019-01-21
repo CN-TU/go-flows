@@ -118,7 +118,6 @@ RESTART:
 	}
 	if table.SortOutput == SortTypeStopTime || table.SortOutput == SortTypeExportTime {
 		r.export.packetID = data.EventNr()
-		r.export.unlink()
 		table.pushExport(recordID, r.export)
 	}
 	if !context.now {
@@ -176,19 +175,18 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 	}
 
 	if table.SortOutput == SortTypeNone {
+		// SMELL: maybe preformance can be improved with bulk export
 		record.export.export(&exportRecord{
-			exportKey: exportKey{
-				exportTime: now,
-			},
-			template: template,
-			features: export,
+			exportTime: now,
+			template:   template,
+			features:   export,
 		}, int(table.id))
 	} else {
+		r.export.expiryTime = context.When()
 		r.export.exportTime = now
 		r.export.template = template
 		r.export.features = export
 		if table.SortOutput == SortTypeExportTime {
-			r.export.unlink()
 			table.pushExport(recordID, r.export)
 		}
 		r.export = nil
