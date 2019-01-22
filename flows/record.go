@@ -116,7 +116,7 @@ RESTART:
 	for _, feature := range r.control.event {
 		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
-	if table.SortOutput == SortTypeStopTime || table.SortOutput == SortTypeExportTime {
+	if table.SortOutput == SortTypeStopTime || table.SortOutput == SortTypeExpiryTime {
 		r.export.packetID = data.EventNr()
 		table.pushExport(recordID, r.export)
 	}
@@ -185,7 +185,7 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 		r.export.exportTime = now
 		r.export.template = template
 		r.export.features = export
-		if table.SortOutput == SortTypeExportTime {
+		if table.SortOutput == SortTypeExpiryTime {
 			table.pushExport(recordID, r.export)
 		}
 		r.export = nil

@@ -5,7 +5,7 @@ Output sorting supports 4 different modes:
 	- none
 	- start
 	- stop
-	- export
+	- expiry
 
 The following diagrams use the abbreviations:
 	r: record
@@ -26,31 +26,31 @@ none:
 	tab[m]: r.Export() -> p.export() /                                \> p.out[b] -> exportWorker() -> e.Export()
 	....
 
-start/stop/export:
+start/stop/expiry:
 	t.exports[x] is the head of a doubly linked list (empty: prev, next point to t.exports[x])
 	record.start() creates an *exportRecord, fills in packetID, recordID and pushes it into the front of t.exports[x]
-	stop, export:
+	stop, expiry:
 		record.filteredEvent() updates packetID and moves the exportRecord to the front
 	record.Export() fills out features, template, exportTime, expiryTime and removes *exportRecord from the record
-		export only:
+		expiry only:
 			exportRecord is moved to the front of t.exports[x]
 
 	after every event; expire* (start/stop only):
 		*exportRecords that contain features are popped from the back of the list and forwarded to the per-table-queue
-	after expire* (export only):
+	after expire* (expiry only):
 		all *exportRecords containing features are forwarded to the per-table-queue
 
 	*exportRecords moved to per-table-queue (and the following queues) are single linked lists, where prev of the first element points to the tail
 
-	per-table-queue (export only):
+	per-table-queue (expiry only):
 		received linked lists are sorted with natural merge sort
 
-	per-table-queue (start/stop) or sorted per-table-queues (export):
+	per-table-queue (start/stop) or sorted per-table-queues (expiry):
 		these sorted lists are merged in sortorder unto p.sorted, which is then multiplexed to the exporters
 
 	less function for sorting compares the following fields in order:
 		start/stop: packetID, recordID
-		export: expiryTime, packetID, recordID
+		expiry: expiryTime, packetID, recordID
 
 	if a flow is removed it calles r.Destroy(), which unlinks the *exportRecord in case it is still there (= was never exported)
 
@@ -60,7 +60,7 @@ start/stop/export:
 	tab[m]: t.flush*() -> p.in[m] /                                                     \> p.out[b] -> exportWorker() -> e.Export()
 	....
 
-	export:
+	expiry:
 	tab[n]: t.flush*() -> p.in[n] -> sortWorker() -> unmerged[n] -> mergeTreeWorker() -> p.sorted -> p.exportSplicer() -> p.out[a] -> exportWorker() -> e.Export()
 	tab[m]: t.flush*() -> p.in[m] -> sortWorker() -> unmerged[m] /                                                     \> p.out[b] -> exportWorker() -> e.Export()
 	....
@@ -95,7 +95,7 @@ func (e *exportRecord) lessPacket(b *exportRecord) bool {
 	return false
 }
 
-func (e *exportRecord) lessExport(b *exportRecord) bool {
+func (e *exportRecord) lessExpiry(b *exportRecord) bool {
 	if e.expiryTime == b.expiryTime {
 		if e.packetID == b.packetID {
 			if e.recordID < b.recordID {

@@ -51,8 +51,8 @@ func (e *mergeTreeQueues) append(which int, elem *exportRecord) {
 func (e *mergeTreeQueues) mergeOne() {
 	var elem *exportRecord
 	var less bool
-	if e.order == SortTypeExportTime {
-		less = e.head[0].lessExport(e.head[1])
+	if e.order == SortTypeExpiryTime {
+		less = e.head[0].lessExpiry(e.head[1])
 	} else {
 		less = e.head[0].lessPacket(e.head[1])
 	}
@@ -380,7 +380,7 @@ func findNaturalSublists(heads []*exportRecord, head *exportRecord, id int) []*e
 			continue
 		}
 
-		if !prev.lessExport(head) {
+		if !prev.lessExpiry(head) {
 			if !more {
 				// two unsorted elements
 				// add reversed (== sorted)
@@ -424,7 +424,7 @@ func mergeSublist(a, b *exportRecord, last bool, id int) *exportRecord {
 	var ret, tail *exportRecord
 	for a != nil && b != nil {
 		var elem *exportRecord
-		if a.lessExport(b) {
+		if a.lessExpiry(b) {
 			elem = a
 			a = a.next
 		} else {
@@ -556,7 +556,7 @@ func (e *ExportPipeline) init(fields []string) {
 			e.in[i] = make(exportQueue, exportQueueDepth)
 		}
 		var unmerged []exportQueue
-		if e.sortOrder == SortTypeExportTime {
+		if e.sortOrder == SortTypeExpiryTime {
 			unmerged = make([]exportQueue, e.tables)
 			for i := range unmerged {
 				unmerged[i] = make(exportQueue, exportQueueWorkerDepth)

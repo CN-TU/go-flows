@@ -58,7 +58,7 @@ func (tab *FlowTable) pushExport(r int, e *exportRecord) {
 	if tab.SortOutput == SortTypeNone {
 		return
 	}
-	if tab.expiring && tab.SortOutput == SortTypeExportTime {
+	if tab.expiring && tab.SortOutput == SortTypeExpiryTime {
 		return
 	}
 	e.unlink()
@@ -78,7 +78,7 @@ func (tab *FlowTable) Expire() {
 		}
 	}
 	tab.expiring = false
-	if tab.SortOutput == SortTypeExportTime {
+	if tab.SortOutput == SortTypeExpiryTime {
 		tab.flushAllExports()
 	} else if tab.SortOutput != SortTypeNone {
 		tab.flushExports()
@@ -268,7 +268,7 @@ func (tab *FlowTable) expireWindow() {
 	tab.freelist = tab.freelist[:0]
 	tab.eof = false
 	tab.expiring = false
-	if tab.SortOutput == SortTypeExportTime {
+	if tab.SortOutput == SortTypeExpiryTime {
 		tab.flushAllExports()
 	} else if tab.SortOutput != SortTypeNone {
 		tab.flushExports()
