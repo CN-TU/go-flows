@@ -175,7 +175,6 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 	}
 
 	if table.SortOutput == SortTypeNone {
-		// SMELL: maybe preformance can be improved with bulk export
 		record.export.export(&exportRecord{
 			exportTime: now,
 			template:   template,

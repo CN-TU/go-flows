@@ -239,7 +239,10 @@ func parseArguments(cmd string, args []string) {
 	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
 	expireTCP := set.Bool("expireTCP", true, "If true, tcp flows are expired upon RST or FIN-teardown")
-	sortOrderStr := set.String("sort", "none", `Sort output by "start" time, "stop" time, "export" time, or unsorted ("none")`)
+	sortOrderStr := set.String("sort", "none", `Sort output by "start" time, "stop" time, "export" time, or unsorted ("none")
+Beware: Worst case performance of start/stop sorting is O(1), while export is O(flow log(flow)) (with average O(flow)).
+Both need an additional O(flow) merge part if multiple tables are used.
+Additionally, stop might lead to very high memory usage (and longer execution times) in case one long lasting flow keeps all other flows from expiring (active/idle timeout!).`)
 	verbose := set.Bool("verbose", false, "Verbose output")
 
 	set.Parse(args)

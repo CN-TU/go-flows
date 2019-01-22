@@ -16,9 +16,6 @@ const exportQueueWorkerDepth = 10
 
 type exportQueue chan *exportRecord
 
-// next on last element nil
-// prev on first element point to last
-
 type mergeTreeQueues struct {
 	head, tail [3]*exportRecord
 	result     exportQueue

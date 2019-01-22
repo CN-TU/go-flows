@@ -34,9 +34,12 @@ type FlowTable struct {
 
 // NewFlowTable returns a new flow table utilizing features, the newflow function called for unknown flows, and the active and idle timeout.
 func NewFlowTable(records RecordListMaker, newflow FlowCreator, options FlowOptions, fivetuple bool, id uint8) *FlowTable {
-	exports := make([]*exportRecord, len(records.list))
-	for i := range exports {
-		exports[i] = makeExportHead()
+	var exports []*exportRecord
+	if options.SortOutput != SortTypeNone {
+		exports = make([]*exportRecord, len(records.list))
+		for i := range exports {
+			exports[i] = makeExportHead()
+		}
 	}
 	ret := &FlowTable{
 		flows:       make(map[string]int),
