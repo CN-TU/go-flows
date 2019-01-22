@@ -161,7 +161,7 @@ Less commonly used functions
   * Variant() gets called to determine which variant to use, if a feature can different types depending on data (see sourceIPAddress for an example)
   * SetArguments(args []int, all []Feature) gets called during instantiation if a feature expects constant arguments (args contains indizes of all; see select_slice for an example)
 
-See also documentation of flows for more details about which base to choose.
+See also documentation of subpackage flows for more details about which base to choose.
 
 A simple example is the protocolIdentifier:
 
@@ -266,18 +266,17 @@ Exporters must implement the flow.Exporter interface:
 	Export(Template, []Feature, DateTimeNanoseconds)
 	Finish()
 
-Exporters should start up a goroutine for the heavy lifting during Init.
+Fields, Export, Finish will never be called concurrently, are expected to be blocking until finished,
+and, therefore, don't need to take care about synchronization.
 
 The Fields function gets called before processing starts and provides a list of feature names that
 will be exported (e.g. the csv exporter uses this to create the csv header).
 
 Export gets called for every record that must be exported. Arguments are a template for this list of features,
-the actual features, and an export time. Don't hold on to the features! Those might be reused, which means internal
-values of the features can change! Use this function to convert/copy the values and then send those to the spawned
-goroutine in init for further processing.
+the actual features values, and an export time.
 
 Finish will be called after all packets and flows have been processed. This function must flush data and wait for
-the exporting goroutine to finish writing out everything and possibly closing files.
+this process to finish.
 
 */
 package main

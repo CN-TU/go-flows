@@ -18,31 +18,51 @@ const pen uint32 = 1234
 const tmpBase uint16 = 0x7000
 
 type ipfixExporter struct {
-	id         string
-	outfile    string
-	specfile   string
-	exportlist chan ipfixRecord
-	finished   chan struct{}
-	allocated  map[string]ipfix.InformationElement
-}
-
-type ipfixRecord struct {
-	template flows.Template
-	features []interface{}
-	when     flows.DateTimeNanoseconds
+	id        string
+	outfile   string
+	specfile  string
+	out       io.WriteCloser
+	spec      io.WriteCloser
+	writer    *ipfix.MessageStream
+	allocated map[string]ipfix.InformationElement
+	templates []int
+	now       flows.DateTimeNanoseconds
 }
 
 func (pe *ipfixExporter) Fields([]string) {}
 
 //Export export given features
 func (pe *ipfixExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
-	pe.exportlist <- ipfixRecord{template, features, when}
+	id := template.ID()
+	if id >= len(pe.templates) {
+		pe.templates = append(pe.templates, make([]int, id-len(pe.templates)+1)...)
+	}
+	templateID := pe.templates[id]
+	if templateID == 0 {
+		var err error
+		templateID, err = pe.writer.AddTemplate(when, pe.AllocateIE(template.InformationElements())...)
+		if err != nil {
+			log.Panic(err)
+		}
+		pe.templates[id] = templateID
+	}
+	//TODO make templates for nil features
+	pe.writer.SendData(when, templateID, features...)
+	pe.now = when
 }
 
 //Finish Write outstanding data and wait for completion
 func (pe *ipfixExporter) Finish() {
-	close(pe.exportlist)
-	<-pe.finished
+	pe.writer.Flush(pe.now)
+	if pe.out != os.Stdout {
+		pe.out.Close()
+	}
+	if pe.spec != nil {
+		pe.writeSpec(pe.spec)
+		if pe.spec != os.Stdout {
+			pe.spec.Close()
+		}
+	}
 }
 
 func (pe *ipfixExporter) writeSpec(w io.Writer) {
@@ -88,61 +108,29 @@ func (pe *ipfixExporter) AllocateIE(ies []ipfix.InformationElement) []ipfix.Info
 }
 
 func (pe *ipfixExporter) Init() {
-	pe.exportlist = make(chan ipfixRecord, 100)
-	pe.finished = make(chan struct{})
 	pe.allocated = make(map[string]ipfix.InformationElement)
-	var outfile io.WriteCloser
-	var specfile io.WriteCloser
+	var err error
 	if pe.outfile == "-" {
-		outfile = os.Stdout
+		pe.out = os.Stdout
 	} else {
-		var err error
-		outfile, err = os.Create(pe.outfile)
+		pe.out, err = os.Create(pe.outfile)
 		if err != nil {
 			log.Fatal("Couldn't open file ", pe.outfile, err)
 		}
 	}
 	if pe.specfile == "-" {
-		specfile = os.Stdout
+		pe.spec = os.Stdout
 	} else if pe.specfile != "" {
-		var err error
-		specfile, err = os.Create(pe.specfile)
+		pe.spec, err = os.Create(pe.specfile)
 		if err != nil {
 			log.Fatal("Couldn't open file ", pe.specfile, err)
 		}
 	}
-	writer, err := ipfix.MakeMessageStream(outfile, 65535, 0)
+	pe.writer, err = ipfix.MakeMessageStream(pe.out, 65535, 0)
 	if err != nil {
 		log.Fatal("Couldn't create ipfix message stream: ", err)
 	}
-	go func() {
-		defer close(pe.finished)
-		templates := make([]int, 1)
-		var now flows.DateTimeNanoseconds
-		var err error
-		for data := range pe.exportlist {
-			id := data.template.ID()
-			now = data.when
-			if id >= len(templates) {
-				templates = append(templates, make([]int, id-len(templates)+1)...)
-			}
-			template := templates[id]
-			if template == 0 {
-				template, err = writer.AddTemplate(now, pe.AllocateIE(data.template.InformationElements())...)
-				if err != nil {
-					log.Panic(err)
-				}
-				templates[id] = template
-			}
-			writer.SendData(now, template, data.features...)
-		}
-		writer.Flush(now)
-		outfile.Close()
-		if specfile != nil {
-			pe.writeSpec(specfile)
-			specfile.Close()
-		}
-	}()
+	pe.templates = make([]int, 1)
 }
 
 func newIPFIXExporter(args []string) (arguments []string, ret util.Module, err error) {

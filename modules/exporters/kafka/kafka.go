@@ -26,77 +26,74 @@ func (pe *kafkaExporter) Fields(fields []string) {
 
 //Export export given features
 func (pe *kafkaExporter) Export(template flows.Template, features []interface{}, when flows.DateTimeNanoseconds) {
-	list := make([]interface{}, len(features))
 	ies := template.InformationElements()[:len(features)]
-	list = list[:len(features)]
 	for i, elem := range features {
 		switch val := elem.(type) {
 		case byte:
-			list[i] = int(val)
+			features[i] = int(val)
 		case flows.DateTimeNanoseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = uint64(val)
+				features[i] = uint64(val)
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = uint64(val / 1e3)
+				features[i] = uint64(val / 1e3)
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = uint64(val / 1e6)
+				features[i] = uint64(val / 1e6)
 			case ipfix.DateTimeSecondsType:
-				list[i] = uint64(val / 1e9)
+				features[i] = uint64(val / 1e9)
 			default:
-				list[i] = val
+				features[i] = val
 			}
 		case flows.DateTimeMicroseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = uint64(val * 1e3)
+				features[i] = uint64(val * 1e3)
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = uint64(val)
+				features[i] = uint64(val)
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = uint64(val / 1e3)
+				features[i] = uint64(val / 1e3)
 			case ipfix.DateTimeSecondsType:
-				list[i] = uint64(val / 1e6)
+				features[i] = uint64(val / 1e6)
 			default:
-				list[i] = val
+				features[i] = val
 			}
 		case flows.DateTimeMilliseconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = uint64(val * 1e6)
+				features[i] = uint64(val * 1e6)
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = uint64(val * 1e3)
+				features[i] = uint64(val * 1e3)
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = uint64(val)
+				features[i] = uint64(val)
 			case ipfix.DateTimeSecondsType:
-				list[i] = uint64(val / 1e3)
+				features[i] = uint64(val / 1e3)
 			default:
-				list[i] = val
+				features[i] = val
 			}
 		case flows.DateTimeSeconds:
 			switch ies[i].Type {
 			case ipfix.DateTimeNanosecondsType:
-				list[i] = uint64(val * 1e9)
+				features[i] = uint64(val * 1e9)
 			case ipfix.DateTimeMicrosecondsType:
-				list[i] = uint64(val * 1e6)
+				features[i] = uint64(val * 1e6)
 			case ipfix.DateTimeMillisecondsType:
-				list[i] = uint64(val * 1e3)
+				features[i] = uint64(val * 1e3)
 			case ipfix.DateTimeSecondsType:
-				list[i] = uint64(val)
+				features[i] = uint64(val)
 			default:
-				list[i] = val
+				features[i] = val
 			}
 		case flows.FlowEndReason:
-			list[i] = int(val)
+			features[i] = int(val)
 		default:
-			list[i] = val
+			features[i] = val
 		}
 	}
-	out, err := bson.Marshal(bson.M{"ts": int(when), "features": list})
+	out, err := bson.Marshal(bson.M{"ts": int(when), "features": features})
 	if err != nil {
 		fmt.Println(err)
 	}
 	pe.producer.Input() <- &sarama.ProducerMessage{Topic: pe.topic, Key: nil, Value: sarama.ByteEncoder(out)}
-	//pe.exportlist <- bson.Marshal(&Flow{ts: int(when), features: list})
 }
 
 //Finish Write outstanding data and wait for completion

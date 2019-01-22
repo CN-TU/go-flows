@@ -19,6 +19,7 @@ import (
 )
 
 // produces RFC4180 conforming csv (except for the line ending, which is LF instead of CRLF)
+// this does not use encoding/csv since this results in a huge performance drop due to first writing to strings and then checking those for commas, which is unnessecary for all the numbers/ips
 
 const writeBufferSize = 64 * 1024
 

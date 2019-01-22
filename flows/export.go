@@ -31,7 +31,7 @@ start/stop/export:
 	record.start() creates an *exportRecord, fills in packetID, recordID and pushes it into the front of t.exports[x]
 	stop, export:
 		record.filteredEvent() updates packetID and moves the exportRecord to the front
-	record.Export() fills out features, template, exportTime, expiryTime
+	record.Export() fills out features, template, exportTime, expiryTime and removes *exportRecord from the record
 		export only:
 			exportRecord is moved to the front of t.exports[x]
 
@@ -51,6 +51,8 @@ start/stop/export:
 	less function for sorting compares the following fields in order:
 		start/stop: packetID, recordID
 		export: expiryTime, packetID, recordID
+
+	if a flow is removed it calles r.Destroy(), which unlinks the *exportRecord in case it is still there (= was never exported)
 
 
 	start/stop:
