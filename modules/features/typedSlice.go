@@ -3,6 +3,7 @@ package features
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/CN-TU/go-flows/flows"
 )
@@ -17,6 +18,8 @@ type TypedSlice interface {
 	Equal(i, j int) bool
 	Swap(i, j int)
 	IsNumeric() bool
+	Select(left, right, k int)
+	Max(left, right int) int
 }
 
 type uint64Slice []uint64
@@ -53,6 +56,91 @@ func (s *uint64Slice) IsNumeric() bool {
 	return true
 }
 
+func sign(x float64) float64 {
+	if x == 0 {
+		return 0
+	}
+	if x < 0 {
+		return -1
+	}
+	return 1
+}
+
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *uint64Slice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if array[right] > t {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for array[i] < t {
+				i++
+			}
+			for array[j] > t {
+				j--
+			}
+		}
+		if array[left] == t {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *uint64Slice) Max(left, right int) int {
+	array := *s
+	m := array[left]
+	id := left
+	for i := left + 1; i <= right; i++ {
+		if array[i] > m {
+			m = array[i]
+			id = i
+		}
+	}
+	return id
+}
+
 type int64Slice []int64
 
 func (s *int64Slice) Append(val interface{}) {
@@ -87,6 +175,67 @@ func (s *int64Slice) IsNumeric() bool {
 	return true
 }
 
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *int64Slice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if array[right] > t {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for array[i] < t {
+				i++
+			}
+			for array[j] > t {
+				j--
+			}
+		}
+		if array[left] == t {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *int64Slice) Max(left, right int) int {
+	array := *s
+	m := array[left]
+	id := left
+	for i := left + 1; i <= right; i++ {
+		if array[i] > m {
+			m = array[i]
+			id = i
+		}
+	}
+	return id
+}
+
 type float64Slice []float64
 
 func (s *float64Slice) Append(val interface{}) {
@@ -119,6 +268,67 @@ func (s *float64Slice) GetFloat(i int) float64 {
 
 func (s *float64Slice) IsNumeric() bool {
 	return true
+}
+
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *float64Slice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if array[right] > t {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for array[i] < t {
+				i++
+			}
+			for array[j] > t {
+				j--
+			}
+		}
+		if array[left] == t {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *float64Slice) Max(left, right int) int {
+	array := *s
+	m := array[left]
+	id := left
+	for i := left + 1; i <= right; i++ {
+		if array[i] > m {
+			m = array[i]
+			id = i
+		}
+	}
+	return id
 }
 
 type boolSlice []bool
@@ -158,6 +368,67 @@ func (s *boolSlice) IsNumeric() bool {
 	return true
 }
 
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *boolSlice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if array[right] && !t {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for !array[i] && t {
+				i++
+			}
+			for array[j] && !t {
+				j--
+			}
+		}
+		if array[left] == t {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *boolSlice) Max(left, right int) int {
+	array := *s
+	if array[left] {
+		return left
+	}
+	for i := left + 1; i <= right; i++ {
+		if array[i] {
+			return i
+		}
+	}
+	return left
+}
+
 type stringSlice []string
 
 func (s *stringSlice) Append(val interface{}) {
@@ -192,6 +463,67 @@ func (s *stringSlice) IsNumeric() bool {
 	return false
 }
 
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *stringSlice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if array[right] > t {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for array[i] < t {
+				i++
+			}
+			for array[j] > t {
+				j--
+			}
+		}
+		if array[left] == t {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *stringSlice) Max(left, right int) int {
+	array := *s
+	m := array[left]
+	id := left
+	for i := left + 1; i <= right; i++ {
+		if array[i] > m {
+			m = array[i]
+			id = i
+		}
+	}
+	return id
+}
+
 type bytesSlice [][]byte
 
 func (s *bytesSlice) Append(val interface{}) {
@@ -224,6 +556,67 @@ func (s *bytesSlice) GetFloat(i int) float64 {
 
 func (s *bytesSlice) IsNumeric() bool {
 	return false
+}
+
+// Select implements Floyd-Rivest-Selection-Algorithm for finding the k-lowest number
+// 600 and 0.5 are constants from the original paper
+func (s *bytesSlice) Select(left, right, k int) {
+	array := *s
+	for right > left {
+		if right-left > 600 {
+			n := float64(right - left + 1)
+			i := float64(k - left + 1)
+			z := math.Log(n)
+			S := 0.5 * math.Exp(2*z/3)
+			sd := 0.5 * math.Sqrt(z*S*(n-S)/n) * sign(i-n/2)
+			newleft := max(left, int(float64(k)-i*S/n+sd))
+			newright := min(right, int(float64(k)+(n-i)*S/n+sd))
+			s.Select(newleft, newright, k)
+		}
+		t := array[k]
+		i := left
+		j := right
+		array[left], array[k] = array[k], array[left]
+		if bytes.Compare(array[right], t) > 0 {
+			array[right], array[left] = array[left], array[right]
+		}
+		for i < j {
+			array[i], array[j] = array[j], array[i]
+			i++
+			j--
+			for bytes.Compare(array[i], t) < 0 {
+				i++
+			}
+			for bytes.Compare(array[j], t) > 0 {
+				j--
+			}
+		}
+		if bytes.Equal(array[left], t) {
+			array[left], array[j] = array[j], array[left]
+		} else {
+			j++
+			array[j], array[right] = array[right], array[j]
+		}
+		if j <= k {
+			left = j + 1
+		}
+		if k <= j {
+			right = j - 1
+		}
+	}
+}
+
+func (s *bytesSlice) Max(left, right int) int {
+	array := *s
+	m := array[left]
+	id := left
+	for i := left + 1; i <= right; i++ {
+		if bytes.Compare(array[i], m) > 0 {
+			m = array[i]
+			id = i
+		}
+	}
+	return id
 }
 
 // NewTypedSlice returns a new TypedSlice with a backing implementation depending on val type.

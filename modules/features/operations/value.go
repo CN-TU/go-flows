@@ -3,8 +3,7 @@ package operations
 import (
 	"errors"
 	"math"
-
-	"github.com/wangjohn/quickselect"
+	"sort"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/modules/features"
@@ -290,48 +289,20 @@ func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 		f.SetValue(f.vector.Get(1), context, f)
 		return
 	}
-	// Ok we need to find the median -> do a quickselect to get the k/2+1 lowest values
-	nlowest := k/2 + 1
-	quickselect.QuickSelect(f.vector, nlowest)
-	if k%2 == 0 {
-		// no middle element -> find two highest values in the k/2+1 lowest values
-		var max, max2 int
-		if f.vector.Less(0, 1) {
-			max = 1
-			max2 = 0
-		} else {
-			max = 0
-			max2 = 1
-		}
-		for i := 2; i < nlowest; i++ {
-			if f.vector.Less(max, i) {
-				if f.vector.Less(max2, max) {
-					max2 = max
-				}
-				max = i
-			} else if f.vector.Equal(max, i) {
-				max2 = i
-			} else if f.vector.Less(max2, i) {
-				max2 = i
-			}
-		}
-		if f.vector.IsNumeric() {
-			// numeric -> value between the two highest values in the lowest values
-			f.SetValue((f.vector.GetFloat(max)+f.vector.GetFloat(max2))/2, context, f)
-			return
-		}
-		// non-numeric -> lower value
-		f.SetValue(f.vector.Get(max2), context, f)
+	sort.Sort(f.vector)
+	if k%2 == 1 {
+		median := k / 2 // middle element
+		f.SetValue(f.vector.Get(median), context, f)
 		return
 	}
-	// we have middle element -> find highest in the k/2+1 lowest => this is the median
-	max := 0
-	for i := 1; i < nlowest; i++ {
-		if f.vector.Less(max, i) {
-			max = i
-		}
+	if !f.vector.IsNumeric() {
+		// non-numeric elements -> take the smaller one
+		median := k/2 - 1
+		f.SetValue(f.vector.Get(median), context, f)
 	}
-	f.SetValue(f.vector.Get(max), context, f)
+	median1 := k/2 - 1
+	median2 := median1 + 1
+	f.SetValue((f.vector.GetFloat(median1)+f.vector.GetFloat(median2))/2, context, f)
 }
 
 func (f *median) Event(new interface{}, context *flows.EventContext, src interface{}) {
