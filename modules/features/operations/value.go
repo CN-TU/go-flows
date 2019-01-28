@@ -233,7 +233,7 @@ func (f *variance) Start(context *flows.EventContext) {
 }
 
 func (f *variance) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	if f.count != 0 {
+	if f.count > 1 {
 		f.SetValue(f.m2/(float64(f.count)-1), context, f)
 	}
 }
