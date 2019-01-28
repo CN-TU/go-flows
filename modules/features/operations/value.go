@@ -3,7 +3,6 @@ package operations
 import (
 	"errors"
 	"math"
-	"sort"
 
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/modules/features"
@@ -289,19 +288,21 @@ func (f *median) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 		f.SetValue(f.vector.Get(1), context, f)
 		return
 	}
-	sort.Sort(f.vector)
 	if k%2 == 1 {
 		median := k / 2 // middle element
+		f.vector.Select(0, k-1, median)
 		f.SetValue(f.vector.Get(median), context, f)
 		return
 	}
 	if !f.vector.IsNumeric() {
 		// non-numeric elements -> take the smaller one
 		median := k/2 - 1
+		f.vector.Select(0, k-1, median)
 		f.SetValue(f.vector.Get(median), context, f)
 	}
-	median1 := k/2 - 1
-	median2 := median1 + 1
+	median1 := k / 2
+	f.vector.Select(0, k-1, median1)
+	median2 := f.vector.Max(0, median1-1)
 	f.SetValue((f.vector.GetFloat(median1)+f.vector.GetFloat(median2))/2, context, f)
 }
 
