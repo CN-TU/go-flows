@@ -69,8 +69,17 @@ func (f *flowDirection) Event(new interface{}, context *flows.EventContext, src 
 	}
 }
 
+type flowDirectionPacket struct {
+	flows.BaseFeature
+}
+
+func (f *flowDirectionPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.SetValue(context.Forward(), context, f)
+}
+
 func init() {
 	flows.RegisterStandardFeature("flowDirection", flows.FlowFeature, func() flows.Feature { return &flowDirection{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("flowDirection", flows.PacketFeature, func() flows.Feature { return &flowDirectionPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
