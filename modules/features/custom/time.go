@@ -41,9 +41,9 @@ func (f *flowExportNanoseconds) Stop(reason flows.FlowEndReason, context *flows.
 
 func init() {
 	flows.RegisterTemporaryFeature("__flowExportNanoseconds", "Export time in nanoseconds", ipfix.DateTimeNanosecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryFeature("__flowEndMilliseconds", "Export time in milliseconds", ipfix.DateTimeMillisecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryFeature("__flowEndMicroseconds", "Export time in microseconds", ipfix.DateTimeMicrosecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
-	flows.RegisterTemporaryFeature("__flowEndSeconds", "Export time in seconds", ipfix.DateTimeSecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowExportMilliseconds", "Export time in milliseconds", ipfix.DateTimeMillisecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowExportMicroseconds", "Export time in microseconds", ipfix.DateTimeMicrosecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
+	flows.RegisterTemporaryFeature("__flowExportSeconds", "Export time in seconds", ipfix.DateTimeSecondsType, 0, flows.FlowFeature, func() flows.Feature { return &flowExportNanoseconds{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
