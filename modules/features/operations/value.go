@@ -360,3 +360,34 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type distinct struct {
+	flows.BaseFeature
+	vector map[interface{}]uint64
+}
+
+func (f *distinct) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.vector = make(map[interface{}]uint64)
+}
+
+func (f *distinct) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+
+	f.SetValue(len(f.vector), context, f)
+
+}
+
+func (f *distinct) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	switch val := new.(type) {
+	case []byte:
+		f.vector[string(val)]++
+	default:
+		f.vector[val]++
+	}
+}
+
+func init() {
+	flows.RegisterFunction("distinct", "number of distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &distinct{} }, flows.PacketFeature)
+}
+
+////////////////////////////////////////////////////////////////////////////////
