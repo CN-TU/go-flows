@@ -2,6 +2,7 @@ package operations
 
 import (
 	"errors"
+	"net"
 	"math"
 
 	"github.com/CN-TU/go-flows/flows"
@@ -350,6 +351,8 @@ func (f *mode) Event(new interface{}, context *flows.EventContext, src interface
 	switch val := new.(type) {
 	case []byte:
 		f.vector[string(val)]++
+	case net.IP:
+                f.vector[val.String()]++
 	default:
 		f.vector[val]++
 	}
@@ -372,14 +375,14 @@ func (f *distinct) Start(context *flows.EventContext) {
 }
 
 func (f *distinct) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-
 	f.SetValue(len(f.vector), context, f)
-
 }
 
 func (f *distinct) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	switch val := new.(type) {
 	case []byte:
+		f.vector[string(val)]++
+	case net.IP:
 		f.vector[string(val)]++
 	default:
 		f.vector[val]++
@@ -391,3 +394,47 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type modeCount struct {
+        flows.BaseFeature
+        vector map[interface{}]uint64
+}
+
+func (f *modeCount) Start(context *flows.EventContext) {
+        f.BaseFeature.Start(context)
+        f.vector = make(map[interface{}]uint64)
+}
+
+func (f *modeCount) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+        var max uint64
+        var m interface{}
+        for val, num := range f.vector {
+                if num > max {
+                        max = num
+                        m = val
+                } else if num == max && features.Less(val, m) {
+                        m = val
+                }
+        }
+        if max > 0 {
+                f.SetValue(max, context, f)
+        }
+}
+
+func (f *modeCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+        switch val := new.(type) {
+        case []byte:
+                f.vector[string(val)]++
+        case net.IP:
+                f.vector[val.String()]++
+        default:
+                f.vector[val]++
+        }
+}
+
+func init() {
+        flows.RegisterFunction("modeCount", "NUmber of packets for the mode of value; if multimodal then smallest value; no special handling for continous", flows.FlowFeature, func() flows.Feature { return &modeCount{} }, flows.PacketFeature)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

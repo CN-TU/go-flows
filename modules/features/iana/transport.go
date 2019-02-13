@@ -467,3 +467,47 @@ func init() {
 	flows.RegisterStandardFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &tcpSequenceNumber{} }, flows.RawPacket)
 	flows.RegisterStandardReverseFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &reverseTCPSequenceNumber{} }, flows.RawPacket)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+type sourceTransportPortPacket struct {
+	flows.BaseFeature
+}
+
+func (f *sourceTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	transport := new.(packet.Buffer).TransportLayer()
+	if transport != nil {
+		srcp := transport.TransportFlow().Src().Raw()
+		if srcp != nil {
+			fin := binary.BigEndian.Uint16(srcp)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("sourceTransportPort", flows.PacketFeature, func() flows.Feature { return &sourceTransportPortPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type destinationTransportPortPacket struct {
+	flows.BaseFeature
+}
+
+func (f *destinationTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	transport := new.(packet.Buffer).TransportLayer()
+	if transport != nil {
+		dstp := transport.TransportFlow().Dst().Raw()
+		if dstp != nil {
+			fin := binary.BigEndian.Uint16(dstp)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("destinationTransportPort", flows.PacketFeature, func() flows.Feature { return &destinationTransportPortPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////

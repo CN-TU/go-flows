@@ -344,3 +344,48 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type tcpflagsPacket struct {
+	flows.BaseFeature
+}
+
+func (f *tcpflagsPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	flag := ""
+	if tcp != nil {
+		if tcp.SYN {
+			flag += "S"
+		}
+		if tcp.FIN {
+			flag += "F"
+		}
+		if tcp.RST {
+			flag += "R"
+		}
+		if tcp.PSH {
+			flag += "P"
+		}
+		if tcp.ACK {
+			flag += "A"
+		}
+		if tcp.URG {
+			flag += "U"
+		}
+		if tcp.ECE {
+			flag += "E"
+		}
+		if tcp.CWR {
+			flag += "C"
+		}
+		if tcp.NS {
+			flag += "N"
+		}
+	}
+	f.SetValue(flag, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpFlags", "returns a textual representation of the tcpflags", ipfix.StringType, 1, flows.PacketFeature, func() flows.Feature { return &tcpflags{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
