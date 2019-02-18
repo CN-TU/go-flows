@@ -8,11 +8,11 @@ import (
 	"github.com/CN-TU/go-flows/packet"
 )
 
-type sourceTransportPort struct {
+type sourceTransportPortFlow struct {
 	flows.BaseFeature
 }
 
-func (f *sourceTransportPort) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *sourceTransportPortFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
 		transport := new.(packet.Buffer).TransportLayer()
 		if transport != nil {
@@ -26,16 +26,37 @@ func (f *sourceTransportPort) Event(new interface{}, context *flows.EventContext
 }
 
 func init() {
-	flows.RegisterStandardFeature("sourceTransportPort", flows.FlowFeature, func() flows.Feature { return &sourceTransportPort{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("sourceTransportPort", flows.FlowFeature, func() flows.Feature { return &sourceTransportPortFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type destinationTransportPort struct {
+type sourceTransportPortPacket struct {
 	flows.BaseFeature
 }
 
-func (f *destinationTransportPort) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *sourceTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	transport := new.(packet.Buffer).TransportLayer()
+	if transport != nil {
+		srcp := transport.TransportFlow().Src().Raw()
+		if srcp != nil {
+			fin := binary.BigEndian.Uint16(srcp)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("sourceTransportPort", flows.PacketFeature, func() flows.Feature { return &sourceTransportPortPacket{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type destinationTransportPortFlow struct {
+	flows.BaseFeature
+}
+
+func (f *destinationTransportPortFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
 		transport := new.(packet.Buffer).TransportLayer()
 		if transport != nil {
@@ -49,7 +70,28 @@ func (f *destinationTransportPort) Event(new interface{}, context *flows.EventCo
 }
 
 func init() {
-	flows.RegisterStandardFeature("destinationTransportPort", flows.FlowFeature, func() flows.Feature { return &destinationTransportPort{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("destinationTransportPort", flows.FlowFeature, func() flows.Feature { return &destinationTransportPortFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type destinationTransportPortPacket struct {
+	flows.BaseFeature
+}
+
+func (f *destinationTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	transport := new.(packet.Buffer).TransportLayer()
+	if transport != nil {
+		dstp := transport.TransportFlow().Dst().Raw()
+		if dstp != nil {
+			fin := binary.BigEndian.Uint16(dstp)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("destinationTransportPort", flows.PacketFeature, func() flows.Feature { return &destinationTransportPortPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -466,48 +508,6 @@ func (f *reverseTCPSequenceNumber) Event(new interface{}, context *flows.EventCo
 func init() {
 	flows.RegisterStandardFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &tcpSequenceNumber{} }, flows.RawPacket)
 	flows.RegisterStandardReverseFeature("tcpSequenceNumber", flows.FlowFeature, func() flows.Feature { return &reverseTCPSequenceNumber{} }, flows.RawPacket)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type sourceTransportPortPacket struct {
-	flows.BaseFeature
-}
-
-func (f *sourceTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	transport := new.(packet.Buffer).TransportLayer()
-	if transport != nil {
-		srcp := transport.TransportFlow().Src().Raw()
-		if srcp != nil {
-			fin := binary.BigEndian.Uint16(srcp)
-			f.SetValue(fin, context, f)
-		}
-	}
-}
-
-func init() {
-	flows.RegisterStandardFeature("sourceTransportPort", flows.PacketFeature, func() flows.Feature { return &sourceTransportPortPacket{} }, flows.RawPacket)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type destinationTransportPortPacket struct {
-	flows.BaseFeature
-}
-
-func (f *destinationTransportPortPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	transport := new.(packet.Buffer).TransportLayer()
-	if transport != nil {
-		dstp := transport.TransportFlow().Dst().Raw()
-		if dstp != nil {
-			fin := binary.BigEndian.Uint16(dstp)
-			f.SetValue(fin, context, f)
-		}
-	}
-}
-
-func init() {
-	flows.RegisterStandardFeature("destinationTransportPort", flows.PacketFeature, func() flows.Feature { return &destinationTransportPortPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

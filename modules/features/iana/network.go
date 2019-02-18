@@ -14,11 +14,11 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type sourceIPAddress struct {
+type sourceIPAddressFlow struct {
 	flows.BaseFeature
 }
 
-func (f *sourceIPAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *sourceIPAddressFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
 		network := new.(packet.Buffer).NetworkLayer()
 		if network != nil {
@@ -31,7 +31,7 @@ func (f *sourceIPAddress) Event(new interface{}, context *flows.EventContext, sr
 	}
 }
 
-func (f *sourceIPAddress) Variant() int {
+func (f *sourceIPAddressFlow) Variant() int {
 	val := f.Value()
 	if val == nil || len(val.(net.IP)) == 4 {
 		return 0 // "sourceIPv4Address"
@@ -51,16 +51,56 @@ func init() {
 	flows.RegisterStandardVariantFeature("sourceIPAddress", "sourceIPv4Address or sourceIPv6Address depending on ip version", []ipfix.InformationElement{
 		ip4,
 		ip6,
-	}, flows.FlowFeature, func() flows.Feature { return &sourceIPAddress{} }, flows.RawPacket)
+	}, flows.FlowFeature, func() flows.Feature { return &sourceIPAddressFlow{} }, flows.RawPacket)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+type sourceIPAddressPacket struct {
+	flows.BaseFeature
+}
+
+func (f *sourceIPAddressPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if network != nil {
+		ipaddr := network.NetworkFlow().Src().Raw() // this makes a copy of the ip
+		if ipaddr != nil {
+			fin := net.IP(ipaddr)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func (f *sourceIPAddressPacket) Variant() int {
+	val := f.Value()
+	if val == nil || len(val.(net.IP)) == 4 {
+		return 0 // "sourceIPv4Address"
+	}
+	return 1 // "sourceIPv6Address"
+}
+
+func init() {
+	ip4, err := ipfix.GetInformationElement("sourceIPv4Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	ip6, err := ipfix.GetInformationElement("sourceIPv6Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	flows.RegisterStandardVariantFeature("sourceIPAddress", "sourceIPv4Address or sourceIPv6Address depending on ip version", []ipfix.InformationElement{
+		ip4,
+		ip6,
+	}, flows.PacketFeature, func() flows.Feature { return &sourceIPAddressPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type destinationIPAddress struct {
+type destinationIPAddressFlow struct {
 	flows.BaseFeature
 }
 
-func (f *destinationIPAddress) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *destinationIPAddressFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
 		network := new.(packet.Buffer).NetworkLayer()
 		if network != nil {
@@ -73,7 +113,7 @@ func (f *destinationIPAddress) Event(new interface{}, context *flows.EventContex
 	}
 }
 
-func (f *destinationIPAddress) Variant() int {
+func (f *destinationIPAddressFlow) Variant() int {
 	val := f.Value()
 	if val == nil || len(val.(net.IP)) == 4 {
 		return 0 // "destinationIPv4Address"
@@ -93,23 +133,77 @@ func init() {
 	flows.RegisterStandardVariantFeature("destinationIPAddress", "destinationIPv4Address or destinationIPv6Address depending on ip version", []ipfix.InformationElement{
 		ip4,
 		ip6,
-	}, flows.FlowFeature, func() flows.Feature { return &destinationIPAddress{} }, flows.RawPacket)
+	}, flows.FlowFeature, func() flows.Feature { return &destinationIPAddressFlow{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type protocolIdentifier struct {
+type destinationIPAddressPacket struct {
 	flows.BaseFeature
 }
 
-func (f *protocolIdentifier) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *destinationIPAddressPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if network != nil {
+		ipaddr := network.NetworkFlow().Dst().Raw() // this makes a copy of the ip
+		if ipaddr != nil {
+			fin := net.IP(ipaddr)
+			f.SetValue(fin, context, f)
+		}
+	}
+}
+
+func (f *destinationIPAddressPacket) Variant() int {
+	val := f.Value()
+	if val == nil || len(val.(net.IP)) == 4 {
+		return 0 // "destinationIPv4Address"
+	}
+	return 1 // "destinationIPv6Address"
+}
+
+func init() {
+	ip4, err := ipfix.GetInformationElement("destinationIPv4Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	ip6, err := ipfix.GetInformationElement("destinationIPv6Address")
+	if err != nil {
+		log.Panic(err)
+	}
+	flows.RegisterStandardVariantFeature("destinationIPAddress", "destinationIPv4Address or destinationIPv6Address depending on ip version", []ipfix.InformationElement{
+		ip4,
+		ip6,
+	}, flows.PacketFeature, func() flows.Feature { return &destinationIPAddressPacket{} }, flows.RawPacket)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+type protocolIdentifierFlow struct {
+	flows.BaseFeature
+}
+
+func (f *protocolIdentifierFlow) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	if f.Value() == nil {
 		f.SetValue(new.(packet.Buffer).Proto(), context, f)
 	}
 }
 
 func init() {
-	flows.RegisterStandardFeature("protocolIdentifier", flows.FlowFeature, func() flows.Feature { return &protocolIdentifier{} }, flows.RawPacket)
+	flows.RegisterStandardFeature("protocolIdentifier", flows.FlowFeature, func() flows.Feature { return &protocolIdentifierFlow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type protocolIdentifierPacket struct {
+	flows.BaseFeature
+}
+
+func (f *protocolIdentifierPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	f.SetValue(new.(packet.Buffer).Proto(), context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("protocolIdentifier", flows.PacketFeature, func() flows.Feature { return &protocolIdentifierPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,101 +368,6 @@ func (f *ipClassOfService) Event(new interface{}, context *flows.EventContext, s
 
 func init() {
 	flows.RegisterStandardFeature("ipClassOfService", flows.PacketFeature, func() flows.Feature { return &ipClassOfService{} }, flows.RawPacket)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-type destinationIPAddressPacket struct {
-	flows.BaseFeature
-}
-
-func (f *destinationIPAddressPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	network := new.(packet.Buffer).NetworkLayer()
-	if network != nil {
-		ipaddr := network.NetworkFlow().Dst().Raw() // this makes a copy of the ip
-		if ipaddr != nil {
-			fin := net.IP(ipaddr)
-			f.SetValue(fin, context, f)
-		}
-	}
-}
-
-func (f *destinationIPAddressPacket) Variant() int {
-	val := f.Value()
-	if val == nil || len(val.(net.IP)) == 4 {
-		return 0 // "destinationIPv4Address"
-	}
-	return 1 // "destinationIPv6Address"
-}
-
-func init() {
-	ip4, err := ipfix.GetInformationElement("destinationIPv4Address")
-	if err != nil {
-		log.Panic(err)
-	}
-	ip6, err := ipfix.GetInformationElement("destinationIPv6Address")
-	if err != nil {
-		log.Panic(err)
-	}
-	flows.RegisterStandardVariantFeature("destinationIPAddress", "destinationIPv4Address or destinationIPv6Address depending on ip version", []ipfix.InformationElement{
-		ip4,
-		ip6,
-	}, flows.PacketFeature, func() flows.Feature { return &destinationIPAddressPacket{} }, flows.RawPacket)
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-type sourceIPAddressPacket struct {
-	flows.BaseFeature
-}
-
-func (f *sourceIPAddressPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	network := new.(packet.Buffer).NetworkLayer()
-	if network != nil {
-		ipaddr := network.NetworkFlow().Src().Raw() // this makes a copy of the ip
-		if ipaddr != nil {
-			fin := net.IP(ipaddr)
-			f.SetValue(fin, context, f)
-		}
-	}
-}
-
-func (f *sourceIPAddressPacket) Variant() int {
-	val := f.Value()
-	if val == nil || len(val.(net.IP)) == 4 {
-		return 0 // "sourceIPv4Address"
-	}
-	return 1 // "sourceIPv6Address"
-}
-
-func init() {
-	ip4, err := ipfix.GetInformationElement("sourceIPv4Address")
-	if err != nil {
-		log.Panic(err)
-	}
-	ip6, err := ipfix.GetInformationElement("sourceIPv6Address")
-	if err != nil {
-		log.Panic(err)
-	}
-	flows.RegisterStandardVariantFeature("sourceIPAddress", "sourceIPv4Address or sourceIPv6Address depending on ip version", []ipfix.InformationElement{
-		ip4,
-		ip6,
-	}, flows.PacketFeature, func() flows.Feature { return &sourceIPAddressPacket{} }, flows.RawPacket)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type protocolIdentifierPacket struct {
-	flows.BaseFeature
-}
-
-func (f *protocolIdentifierPacket) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	f.SetValue(new.(packet.Buffer).Proto(), context, f)
-}
-
-func init() {
-	flows.RegisterStandardFeature("protocolIdentifier", flows.PacketFeature, func() flows.Feature { return &protocolIdentifierPacket{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
