@@ -50,7 +50,7 @@ func (r *record) start(data Event, context *EventContext, table *FlowTable, reco
 		feature.Start(context)
 	}
 	for _, feature := range r.control.event {
-		r.features[feature].FinishEvent(context) //Same for finishevents
+		r.features[feature].FinishEvent(context) //finishevent trickles down the tree
 	}
 	if table.SortOutput == SortTypeNone {
 		return
@@ -79,9 +79,6 @@ func (r *record) stop(reason FlowEndReason, context *EventContext, recordID int)
 	for _, feature := range r.filter {
 		feature.Stop(reason, context)
 		r.alive = (context.keep || r.alive) && !context.hard
-	}
-	for _, feature := range r.control.event {
-		r.features[feature].FinishEvent(context) //Same for finishevents
 	}
 }
 
