@@ -559,7 +559,11 @@ func (e *ExportPipeline) init(fields []string) {
 		} else {
 			unmerged = e.in
 		}
-		e.sorted = makeMergeTree(unmerged, e.sortOrder)[0]
+		if e.tables == 1 {
+			e.sorted = unmerged[0]
+		} else {
+			e.sorted = makeMergeTree(unmerged, e.sortOrder)[0]
+		}
 	}
 	go e.exportSplicer(e.sorted)
 }
