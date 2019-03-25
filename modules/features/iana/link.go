@@ -100,3 +100,39 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type dot1qVlanID struct {
+	flows.BaseFeature
+}
+
+func (f *dot1qVlanID) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		dot1q := new.(packet.Buffer).Dot1QLayers()
+		if len(dot1q) != 0 {
+			f.SetValue(dot1q[0].VLANIdentifier, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("dot1qVlanId", flows.FlowFeature, func() flows.Feature { return &dot1qVlanID{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type dot1qPriority struct {
+	flows.BaseFeature
+}
+
+func (f *dot1qPriority) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	if f.Value() == nil {
+		dot1q := new.(packet.Buffer).Dot1QLayers()
+		if len(dot1q) != 0 {
+			f.SetValue(dot1q[0].Priority, context, f)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("dot1qPriority", flows.FlowFeature, func() flows.Feature { return &dot1qPriority{} }, flows.RawPacket)
+}

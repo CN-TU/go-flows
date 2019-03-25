@@ -43,3 +43,21 @@ func init() {
 		"protocol identifier of link layer",
 		packet.KeyTypeUnidirectional, packet.KeyLayerLink, func(string) packet.KeyFunc { return ethernetTypeKey })
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+func vlanKey(packet packet.Buffer, scratch, scratchNoSort []byte) (int, int) {
+	t := packet.Dot1QLayers()
+	for i := range t {
+		vlan := t[i].VLANIdentifier
+		scratch[i*2] = byte(vlan >> 8)
+		scratch[i*2+1] = byte(vlan & 0x00FF)
+	}
+	return len(t) * 2, 0
+}
+
+func init() {
+	packet.RegisterStringKey("vlanID",
+		"vlan ID",
+		packet.KeyTypeUnidirectional, packet.KeyLayerLink, func(string) packet.KeyFunc { return vlanKey })
+}

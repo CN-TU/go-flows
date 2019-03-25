@@ -19,6 +19,8 @@ import (
 type Buffer interface {
 	gopacket.Packet
 	flows.Event
+	// Dot1QLayers returns a slice with all Dot1Q (=VLAN) headers
+	Dot1QLayers() []layers.Dot1Q
 	//// Functions for querying additional packet attributes
 	//// ------------------------------------------------------------------
 	// EtherType returns the EthernetType of the link layer
@@ -60,6 +62,7 @@ type packetBuffer struct {
 	first       gopacket.LayerType
 	sll         layers.LinuxSLL
 	eth         layers.Ethernet
+	dot1q       []layers.Dot1Q
 	ip4         layers.IPv4
 	ip6         layers.IPv6
 	ip6skipper  layers.IPv6ExtensionSkipper
@@ -108,6 +111,8 @@ func BufferFromLayers(when flows.DateTimeNanoseconds, layerList ...SerializableL
 				log.Panic("Can only assign one Link Layer")
 			}
 			pb.link = layer.(gopacket.LinkLayer)
+		case layers.LayerTypeDot1Q:
+			pb.dot1q = append(pb.dot1q, *layer.(*layers.Dot1Q))
 		case layers.LayerTypeIPv4:
 			if pb.first != layers.LayerTypeEthernet {
 				pb.first = layers.LayerTypeIPv4
@@ -303,6 +308,9 @@ func (pb *packetBuffer) Layers() []gopacket.Layer {
 	if pb.link != nil {
 		ret = append(ret, pb.link)
 	}
+	for i := range pb.dot1q {
+		ret = append(ret, &pb.dot1q[i])
+	}
 	if pb.network != nil {
 		ret = append(ret, pb.network)
 	}
@@ -314,6 +322,11 @@ func (pb *packetBuffer) Layers() []gopacket.Layer {
 func (pb *packetBuffer) Layer(lt gopacket.LayerType) gopacket.Layer {
 	if pb.link != nil && pb.link.LayerType() == lt {
 		return pb.link
+	}
+	for i := range pb.dot1q {
+		if pb.dot1q[i].LayerType() == lt {
+			return &pb.dot1q[i]
+		}
 	}
 	if pb.network != nil && pb.network.LayerType() == lt {
 		return pb.network
@@ -327,6 +340,11 @@ func (pb *packetBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 	if pb.link != nil && lc.Contains(pb.link.LayerType()) {
 		return pb.link
 	}
+	for i := range pb.dot1q {
+		if lc.Contains(pb.dot1q[i].LayerType()) {
+			return &pb.dot1q[i]
+		}
+	}
 	if pb.network != nil && lc.Contains(pb.network.LayerType()) {
 		return pb.network
 	}
@@ -338,6 +356,7 @@ func (pb *packetBuffer) LayerClass(lc gopacket.LayerClass) gopacket.Layer {
 func (pb *packetBuffer) LinkLayer() gopacket.LinkLayer               { return pb.link }
 func (pb *packetBuffer) NetworkLayer() gopacket.NetworkLayer         { return pb.network }
 func (pb *packetBuffer) TransportLayer() gopacket.TransportLayer     { return pb.transport }
+func (pb *packetBuffer) Dot1QLayers() []layers.Dot1Q                 { return pb.dot1q }
 func (pb *packetBuffer) ApplicationLayer() gopacket.ApplicationLayer { return nil }
 func (pb *packetBuffer) ErrorLayer() gopacket.ErrorLayer             { return nil }
 func (pb *packetBuffer) Data() []byte                                { return pb.buffer }
@@ -348,7 +367,11 @@ func (pb *packetBuffer) LinkLayerLength() int {
 	if eth, ok := pb.link.(*layers.Ethernet); ok && eth.Length != 0 {
 		return int(eth.Length)
 	}
-	return pb.ci.CaptureLength
+	res := pb.ci.CaptureLength
+	for _, dot1q := range pb.dot1q {
+		res += len(dot1q.LayerContents())
+	}
+	return res
 }
 
 func (pb *packetBuffer) NetworkLayerLength() int {
@@ -442,6 +465,22 @@ func (pb *packetBuffer) decode() (ret bool) {
 
 	if len(data) == 0 {
 		return true
+	}
+
+	pb.dot1q = pb.dot1q[:0]
+
+	for typ == layers.LayerTypeDot1Q {
+		if cap(pb.dot1q) > len(pb.dot1q) {
+			pb.dot1q = pb.dot1q[:len(pb.dot1q)+1]
+		} else {
+			pb.dot1q = append(pb.dot1q, layers.Dot1Q{})
+		}
+		cur := len(pb.dot1q) - 1
+		if err := pb.dot1q[cur].DecodeFromBytes(data, pb); err != nil {
+			return false
+		}
+		typ = pb.dot1q[cur].NextLayerType()
+		data = pb.dot1q[cur].LayerPayload()
 	}
 
 	// network layer
