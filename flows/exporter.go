@@ -250,17 +250,11 @@ PARTIAL:
 				queue.mergeOne()
 			}
 			// now only one should have elements
-			for i := range []int{1, 2} {
-				elem := queue.head[i]
-				for elem != nil {
-					next := elem.next
-					elem.prev = nil
-					queue.tail[2].next = elem
-					queue.tail[2] = elem
-					queue.head[2].prev = elem
-					elem = next
-				}
+			elem := queue.head[0]
+			if elem == nil {
+				elem = queue.head[1]
 			}
+			queue.append(2, elem)
 			queue.publish(verbose)
 			goto DONE
 		}
