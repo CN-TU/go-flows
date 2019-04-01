@@ -24,7 +24,7 @@ func (tf *timeFilter) ID() string {
 func (tf *timeFilter) Init() {
 }
 
-func (tf *timeFilter) Matches(ci gopacket.CaptureInfo, data []byte) bool {
+func (tf *timeFilter) Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool {
 	if tf.checkbefore && tf.before.Before(ci.Timestamp) {
 		return true
 	}

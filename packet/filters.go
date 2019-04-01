@@ -11,16 +11,16 @@ const filterName = "filter"
 type Filter interface {
 	util.Module
 	// Matches must return true, if this packet should be filtered out
-	Matches(ci gopacket.CaptureInfo, data []byte) bool
+	Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool
 }
 
 // Filters holds a collection of filters that are tried one after another
 type Filters []Filter
 
 // Matches returns true if this packet should be filtered
-func (f Filters) Matches(ci gopacket.CaptureInfo, data []byte) bool {
+func (f Filters) Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool {
 	for _, filter := range f {
-		if filter.Matches(ci, data) {
+		if filter.Matches(lt, data, ci, n) {
 			return true
 		}
 	}
