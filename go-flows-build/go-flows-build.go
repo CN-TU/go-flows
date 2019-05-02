@@ -100,6 +100,7 @@ func getFiles(flags []string, path string) ([]string, string) {
 	}
 	args := append([]string{"list", "-json"}, flags...)
 	cmd := exec.Command("go", args...)
+	cmd.Stderr = os.Stderr
 	cmd.Dir = path
 	out, err := cmd.Output()
 	if err != nil {
@@ -139,7 +140,8 @@ Build go-flows:
 
 Builds the binary and includes or excludes specific modules. If modules is
 given, then all excluded modules are built as plugins. The special word all
-can be used to affect all modules.
+can be used to affect all modules. The special word include can be used to
+add modules from additional directories.
 
 The following modules are available (+ modules are default):
 %s
@@ -247,6 +249,7 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 	buildModules := len(args) > 0 && args[0] == "modules"
 
 	var goflags []string
+	var includes []string
 	modules := make(map[string]bool)
 	imports := make(map[string]string)
 	for _, mod := range builtin {
@@ -263,6 +266,8 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 				}
 			} else if _, ok := modules[f[1:]]; ok {
 				modules[f[1:]] = plus
+			} else if strings.HasPrefix(f[1:], "include") {
+				includes = append(includes, f[8:])
 			} else {
 				goflags = append(goflags, f)
 			}
@@ -277,6 +282,9 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 			break
 		}
 	}
+	if len(includes) != 0 {
+		nonstd = true
+	}
 	if !nonstd {
 		args := append([]string{"build"}, goflags...)
 		cmd := exec.Command("go", args...)
@@ -289,6 +297,9 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 		}
 		return
 	}
+
+	f := filepath.Join(thisPath, "builderBuiltin.go")
+	os.Remove(f)
 
 	flist, _ := getFiles(goflags, thisPath)
 	for i, f := range flist {
@@ -308,14 +319,26 @@ func build(flags []string, args []string, builtin modules, tempdir string) {
 		}
 	}
 
-	f := filepath.Join(thisPath, "builderBuiltin.go")
-
 	importfile, err := os.Create(f)
 	defer os.Remove(f)
 	if err != nil {
 		panic(fmt.Sprint("Error creating temporary file for integrating modules: ", err))
 	}
 
+	srcPathList := strings.Split(thisPath, string(filepath.Separator))
+	srcPath := strings.Join(srcPathList[:len(srcPathList)-3], string(filepath.Separator))
+	for i := range includes {
+		abs, err := filepath.Abs(includes[i])
+		if err != nil {
+			panic(fmt.Sprintf("Error converting %s into absolute path: %s", includes[i], err))
+		}
+		rel, err := filepath.Rel(srcPath, abs)
+		if err != nil {
+			panic(fmt.Sprintf("Error converting %s into relative path: %s", includes[i], err))
+		}
+		includes[i] = rel
+	}
+	importlist = append(importlist, includes...)
 	builtinTemplate.Execute(importfile, importlist)
 	importfile.Close()
 
