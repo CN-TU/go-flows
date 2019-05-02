@@ -193,6 +193,9 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 	var npackets, nskipped, nfiltered uint64
 	var lastTime flows.DateTimeNanoseconds
 	warned := false
+
+	input.sources.Init()
+
 	for {
 		lt, data, ci, skipped, filtered, err := input.sources.ReadPacket()
 		if err != nil {

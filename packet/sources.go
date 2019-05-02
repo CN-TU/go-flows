@@ -56,6 +56,13 @@ func (s *Sources) Stop() {
 	s.sources[0].Stop()
 }
 
+// Init initializes the sources
+func (s *Sources) Init() {
+	for _, source := range s.sources {
+		source.Init()
+	}
+}
+
 // RegisterSource registers an source (see module system in util)
 func RegisterSource(name, desc string, new util.ModuleCreator, help util.ModuleHelp) {
 	util.RegisterModule(sourceName, name, desc, new, help)
