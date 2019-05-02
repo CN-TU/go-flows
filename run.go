@@ -75,7 +75,7 @@ func init() {
 	addCommand("callgraph", "Create a callgraph from a flowspecification", parseArguments)
 }
 
-func parseFeatures(cmd string, args []string) (arguments []string, features []interface{}, control, filter, key []string, bidirectional bool) {
+func parseFeatures(cmd string, args []string) (arguments []string, features []interface{}, control, filter, key []string, bidirectional, allowZero bool, opt flows.FlowOptions) {
 	set := flag.NewFlagSet("features", flag.ExitOnError)
 	set.Usage = func() {
 		fmt.Fprint(os.Stderr, `
@@ -89,12 +89,11 @@ Args:
 		set.PrintDefaults()
 	}
 	selection := set.Uint("select", 0, "Use nth flow selection (key:nth flow in specification)")
-	v1 := set.Bool("v1", false, "Force v1 format")
 	v2 := set.Bool("v2", false, "Force v2 format")
 	simple := set.Bool("simple", false, "Treat file as if it only contains the flow specification")
 	set.Parse(args)
-	if (*v1 && *v2) || (*v1 && *simple) || (*v2 && *simple) {
-		log.Fatalf("Only one of -v1, -v2, or -simple can be chosen\n")
+	if *v2 && *simple {
+		log.Fatalf("Only one of -v2, or -simple can be chosen\n")
 	}
 	if set.NArg() == 0 {
 		log.Fatalln("features needs a json file as input.")
@@ -103,15 +102,13 @@ Args:
 
 	format := jsonAuto
 	switch {
-	case *v1:
-		format = jsonV1
 	case *v2:
 		format = jsonV2
 	case *simple:
 		format = jsonSimple
 	}
 
-	features, control, filter, key, bidirectional = decodeJSON(set.Arg(0), format, int(*selection))
+	features, control, filter, key, bidirectional, allowZero, opt = decodeJSON(set.Arg(0), format, int(*selection))
 	if features == nil {
 		log.Fatalf("Couldn't parse %s (%d) - features missing\n", set.Arg(0), *selection)
 	}
@@ -127,6 +124,8 @@ type featureSpec struct {
 	filter        []string
 	key           []string
 	bidirectional bool
+	allowZero     bool
+	opt           flows.FlowOptions
 }
 
 type exportedFeatures struct {
@@ -157,7 +156,7 @@ func parseCommandLine(cmd string, args []string) (result []exportedFeatures, exp
 				exportset = nil
 			}
 			var f featureSpec
-			args, f.features, f.control, f.filter, f.key, f.bidirectional = parseFeatures(cmd, args[1:])
+			args, f.features, f.control, f.filter, f.key, f.bidirectional, f.allowZero, f.opt = parseFeatures(cmd, args[1:])
 			featureset = append(featureset, f)
 		case "export":
 			if firstexporter == nil {
@@ -229,16 +228,11 @@ func parseArguments(cmd string, args []string) {
 	set := flag.NewFlagSet("table", flag.ExitOnError)
 	set.Usage = func() { tableUsage(cmd, set) }
 	numProcessing := set.Uint("n", 4, "Number of parallel processing tables")
-	activeTimeout := set.Float64("active", 1800, "Active timeout in seconds")
-	idleTimeout := set.Float64("idle", 300, "Idle timeout in seconds")
-	perPacket := set.Bool("perpacket", false, "Export one flow per Packet")
 	expireWindow := set.Bool("expireWindow", false, "Expire all flows after every window. Useful if flow key contains a window function")
 	flowExpire := set.Uint("expire", 100, "Check for expired timers with this period in seconds. expire↓ ⇒ memory↓, execution time↑")
 	maxPacket := set.Uint("size", 9000, "Maximum packet size handled internally. 0 = automatic")
 	printStats := set.Bool("stats", false, "Output statistics")
-	allowZero := set.Bool("allowZero", false, "Allow zero values in flow keys (e.g. accept packets that have no transport port to be used with transport port set to zero")
 	autoGC := set.Bool("scantFlows", false, "If you not have many flows setting this speeds up processing speed, but might cause a huge increase in memory usage.")
-	expireTCP := set.Bool("expireTCP", true, "If true, tcp flows are expired upon RST or FIN-teardown")
 	sortOrderStr := set.String("sort", "stop", `Sort output by "start" time, "stop" time, "expiry" time, or unsorted ("none")
 Beware: Worst case performance of start/stop sorting is O(1), while expiry is O(flow log(flow)) (with average O(flow)).
 Both need an additional O(flow) merge part if multiple tables are used.
@@ -270,7 +264,8 @@ Additionally, stop might lead to very high memory usage (and longer execution ti
 	var recordList flows.RecordListMaker
 
 	var key []string
-	var bidirectional bool
+	var bidirectional, allowZero bool
+	var opts flows.FlowOptions
 	first := true
 
 	sortOrder, err := flows.AtoSort(*sortOrderStr)
@@ -289,12 +284,20 @@ Additionally, stop might lead to very high memory usage (and longer execution ti
 				first = false
 				key = feature.key
 				bidirectional = feature.bidirectional
+				allowZero = feature.allowZero
+				opts = feature.opt
 			} else {
 				if !reflect.DeepEqual(key, feature.key) {
 					log.Fatalln("key_features of every flowspec must match")
 				}
 				if bidirectional != feature.bidirectional {
 					log.Fatalln("bidirectional of every flow must match")
+				}
+				if allowZero != feature.allowZero {
+					log.Fatalln("allowZero of every flow must match")
+				}
+				if !reflect.DeepEqual(opts, feature.opt) {
+					log.Fatalln("timeouts and per packet of every flow must match")
 				}
 			}
 			if err := recordList.AppendRecord(feature.features, feature.control, feature.filter, pipeline, *verbose); err != nil {
@@ -303,7 +306,7 @@ Additionally, stop might lead to very high memory usage (and longer execution ti
 		}
 	}
 
-	keyselector := packet.MakeDynamicKeySelector(key, bidirectional, *allowZero)
+	keyselector := packet.MakeDynamicKeySelector(key, bidirectional, allowZero)
 
 	if cmd == "callgraph" {
 		recordList.CallGraph(os.Stdout)
@@ -324,15 +327,11 @@ Additionally, stop might lead to very high memory usage (and longer execution ti
 		debug.SetGCPercent(10000000) //We manually call gc after timing out flows; make that optional?
 	}
 
-	flowtable := packet.NewFlowTable(int(*numProcessing), recordList, packet.NewFlow,
-		flows.FlowOptions{
-			ActiveTimeout: flows.DateTimeNanoseconds(*activeTimeout * float64(flows.SecondsInNanoseconds)),
-			IdleTimeout:   flows.DateTimeNanoseconds(*idleTimeout * float64(flows.SecondsInNanoseconds)),
-			PerPacket:     *perPacket,
-			WindowExpiry:  *expireWindow,
-			SortOutput:    sortOrder,
-		},
-		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *expireTCP, *autoGC)
+	opts.WindowExpiry = *expireWindow
+	opts.SortOutput = sortOrder
+
+	flowtable := packet.NewFlowTable(int(*numProcessing), recordList, packet.NewFlow, opts,
+		flows.DateTimeNanoseconds(*flowExpire)*flows.SecondsInNanoseconds, keyselector, *autoGC)
 
 	engine := packet.NewEngine(int(*maxPacket), flowtable, filters, sources, labels)
 

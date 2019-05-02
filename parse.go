@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/CN-TU/go-flows/flows"
 )
 
 func decodeOneFeature(feature interface{}) interface{} {
@@ -58,26 +60,11 @@ type jsonType int
 
 const (
 	jsonAuto jsonType = iota
-	jsonV1
 	jsonV2
 	jsonSimple
 )
 
-func decodeV1(decoded featureJSONv1, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
-	flows := decoded.Flows
-	if id < 0 || id >= len(flows) {
-		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
-	}
-	flow := flows[id]
-	features = decodeFeatures(flow.Features)
-	key = flow.Key.Key
-	bidirectional = flow.Key.Bidirectional
-	control = flow.Control
-	filter = flow.Filter
-	return
-}
-
-func decodeV2(decoded featureJSONv2, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
+func decodeV2(decoded featureJSONv2, id int) (features []interface{}, control, filter, key []string, bidirectional, allowZero bool, opt flows.FlowOptions) {
 	flows := decoded.Preprocessing.Flows
 	if id < 0 || id >= len(flows) {
 		log.Fatalf("Only %d flows in the file ⇒ id must be between 0 and %d (is %d)\n", len(flows), len(flows)-1, id)
@@ -85,60 +72,119 @@ func decodeV2(decoded featureJSONv2, id int) (features []interface{}, control, f
 	return decodeSimple(flows[id], id)
 }
 
-func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, control, filter, key []string, bidirectional bool) {
-	features = decodeFeatures(decoded.Features)
-	key = decoded.Key
-	bidirectional = decoded.Bidirectional
-	control = decoded.Control
-	filter = decoded.Filter
+var requiredKeys = []string{"active_timeout", "idle_timeout", "bidirectional", "features", "key_features"}
+
+func toStringArray(decoded featureJSONsimple, name string) []string {
+	arr, ok := decoded[name].([]interface{})
+	if !ok {
+		log.Fatalf("%s must be array of strings", name)
+	}
+	ret := make([]string, len(arr))
+	for i := range ret {
+		ret[i], ok = arr[i].(string)
+		if !ok {
+			log.Fatalf("%s must be an array of strings", name)
+		}
+	}
+	return ret
+}
+
+func toTimeout(decoded featureJSONsimple, name string) flows.DateTimeNanoseconds {
+	val := decoded[name].(json.Number)
+	if val, ok := val.Float64(); ok == nil {
+		return flows.DateTimeNanoseconds(val * float64(flows.SecondsInNanoseconds))
+	}
+	if val, ok := val.Int64(); ok == nil {
+		return flows.DateTimeNanoseconds(val) * flows.SecondsInNanoseconds
+	}
+	log.Fatalf("%s must be a number", name)
+	return 0
+}
+
+func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, control, filter, key []string, bidirectional, allowZero bool, opt flows.FlowOptions) {
+	// Check if we have every required value
+	for _, val := range requiredKeys {
+		if _, ok := decoded[val]; !ok {
+			log.Fatalf("Key %s is required in the flow description, but missing", val)
+		}
+	}
+	features = decodeFeatures(decoded["features"])
+	key = toStringArray(decoded, "key_features")
+	bidirectional, ok := decoded["bidirectional"].(bool)
+	if !ok {
+		log.Fatalf("bidirectional must be a boolean")
+	}
+
+	if _, ok := decoded["_control_features"]; ok {
+		control = toStringArray(decoded, "_control_features")
+	}
+	if _, ok := decoded["_filter_features"]; ok {
+		filter = toStringArray(decoded, "_filter_features")
+	}
+
+	if zero, ok := decoded["_allow_zero"]; ok {
+		if val, ok := zero.(bool); ok {
+			allowZero = val
+		} else {
+			log.Fatal("_allow_zero must be a boolean")
+		}
+	}
+
+	if packet, ok := decoded["_per_packet"]; ok {
+		if val, ok := packet.(bool); ok {
+			opt.PerPacket = val
+		} else {
+			log.Fatal("_per_packet must be a boolean")
+		}
+	}
+
+	opt.ActiveTimeout = toTimeout(decoded, "active_timeout")
+	opt.IdleTimeout = toTimeout(decoded, "idle_timeout")
+
+	opt.TCPExpiry = true
+
+	if expiry, ok := decoded["_expire_TCP"]; ok {
+		if val, ok := expiry.(bool); ok {
+			opt.TCPExpiry = val
+		} else {
+			log.Fatal("_expire_TCP must be a boolean")
+		}
+	}
+
+	opt.CustomSettings = decoded
+
 	return
 }
 
 /*	simple format:
 	{
+		"active_timeout": <Number>,
+		"idle_timeout": <Number>,
+		"bidirectional": <bool>,
 		"features": [...],
 		"key_features": [...],
 		"_control_features": [...],
 		"_filter_features": [...],
-		"bidirectional": <bool>
+		"_per_packet": <bool>,
+		"_allow_zero": <bool>,
+		"_expire_TCP": <bool>
 	}
+
+	timeouts, features, key_features and bidirectional are required
+	_per_packet, _allow_zero are assumed false if missing
+	_expire_TCP is assumed true if missing (tcp expire works only if at least the five tuple is present in the key)
+	further keys can be queried from features
 */
 
-type featureJSONsimple struct {
+type featureJSONsimple map[string]interface{}
+
+/*struct {
 	Features      interface{}
 	Control       []string `json:"_control_features"`
 	Filter        []string `json:"_filter_features"`
 	Bidirectional bool
 	Key           []string `json:"key_features"`
-}
-
-/*	v1 format:
-	{
-		"flows": [
-			{
-				"features": [...],
-				"_control_features": [...],
-				"_filter_features": [...],
-				"key": {
-					"bidirectional": <bool>|"string",
-					"key_features": [...]
-				}
-			}
-		]
-	}
-*/
-
-type featureJSONv1 struct {
-	Flows []struct {
-		Features interface{}
-		Control  []string `json:"_control_features"`
-		Filter   []string `json:"_filter_features"`
-		Key      struct {
-			Bidirectional bool
-			Key           []string `json:"key_features"`
-		}
-	}
-}
+}*/
 
 /*	v2 format:
 	{
@@ -158,7 +204,7 @@ type featureJSONv2 struct {
 	}
 }
 
-func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, control, filter, key []string, bidirectional bool) {
+func decodeJSON(inputfile string, format jsonType, id int) (features []interface{}, control, filter, key []string, bidirectional, allowZero bool, opt flows.FlowOptions) {
 	f, err := os.Open(inputfile)
 	if err != nil {
 		log.Fatalln("Can't open ", inputfile)
@@ -167,37 +213,38 @@ func decodeJSON(inputfile string, format jsonType, id int) (features []interface
 	dec := json.NewDecoder(f)
 	dec.UseNumber()
 
-	var decoded struct {
-		featureJSONv1
-		featureJSONv2
-		featureJSONsimple
-	}
-
-	if err := dec.Decode(&decoded); err != nil {
-		log.Fatalln("Couldn' parse feature spec:", err)
-	}
-
 	switch format {
-	case jsonV1:
-		return decodeV1(decoded.featureJSONv1, id)
 	case jsonV2:
-		return decodeV2(decoded.featureJSONv2, id)
+		var decoded featureJSONv2
+		if err := dec.Decode(&decoded); err != nil {
+			log.Fatalln("Couldn' parse feature spec:", err)
+		}
+		return decodeV2(decoded, id)
 	case jsonSimple:
-		return decodeSimple(decoded.featureJSONsimple, id)
+		var decoded featureJSONsimple
+		if err := dec.Decode(&decoded); err != nil {
+			log.Fatalln("Couldn' parse feature spec:", err)
+		}
+		return decodeSimple(decoded, id)
 	case jsonAuto:
 		//first see if we have a version in the file
+		var decoded featureJSONv2
+		if err := dec.Decode(&decoded); err != nil {
+			log.Fatalln("Couldn' parse feature spec:", err)
+		}
 		if decoded.Version != "" {
 			if strings.HasPrefix(decoded.Version, "v2") {
-				return decodeV2(decoded.featureJSONv2, id)
+				return decodeV2(decoded, id)
 			}
 			log.Fatalf("Unknown file format version '%s'\n", decoded.Version)
 		}
-		//no :( -> could be v1 or simple
-		if decoded.Flows != nil {
-			return decodeV1(decoded.featureJSONv1, id)
+		f.Seek(0, 0)
+		var decodedSimple featureJSONsimple
+		if err := dec.Decode(&decodedSimple); err != nil {
+			log.Fatalln("Couldn' parse feature spec:", err)
 		}
 		//should be simple - or something we don't know
-		return decodeSimple(decoded.featureJSONsimple, id)
+		return decodeSimple(decodedSimple, id)
 	}
 	panic("Unknown format specification")
 }

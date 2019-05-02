@@ -1,4 +1,6 @@
 {
+    "active_timeout": 0,
+    "idle_timeout": 0,
     "features": [
         "flowStartSeconds",
         "__NTAFlowID",

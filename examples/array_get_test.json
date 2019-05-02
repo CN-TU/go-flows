@@ -1,4 +1,6 @@
 {
+    "active_timeout": 1800,
+    "idle_timeout": 300,
     "features": [
         "sourceIPAddress",
         "destinationIPAddress",

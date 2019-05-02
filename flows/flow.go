@@ -74,8 +74,12 @@ type FlowOptions struct {
 	WindowExpiry bool
 	// PerPacket specifies single flow per packet
 	PerPacket bool
+	// TCPExpiry specifies if tcp expiry is wanted (only works if the key contains at least the five tuple)
+	TCPExpiry bool
 	// SortOutput specifies how the output should be sorted
 	SortOutput SortType
+	// CustomSettings contains a map with all the settings read from the flow specification
+	CustomSettings map[string]interface{}
 }
 
 // BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
