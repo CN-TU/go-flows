@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,10 @@ import (
 
 // LayerTypeIPv46 holds either a raw IPv4 or raw IPv6 packet
 var LayerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata{Name: "IPv4 or IPv6"})
+
+// ErrTimeout should be returned by sources, if no packet has been observed for some timeout (e.g., 1 second).
+// In this case ci MUST hold the current timestamp
+var ErrTimeout = errors.New("Timeout")
 
 const (
 	batchSize    = 1000
@@ -77,6 +82,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 			if !ok {
 				return
 			}
+			forward.setTimestamp(multibuffer.Timestamp())
 			for {
 				buffer := multibuffer.read()
 				if buffer == nil {
@@ -98,9 +104,7 @@ func NewEngine(plen int, flowtable EventTable, filters Filters, sources Sources,
 				}
 			}
 			multibuffer.recycleEmpty()
-			if !forward.empty() {
-				flowtable.event(forward)
-			}
+			flowtable.event(forward)
 			forward.reset()
 			discard.recycle()
 		}
@@ -199,6 +203,15 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 	for {
 		lt, data, ci, skipped, filtered, err := input.sources.ReadPacket()
 		if err != nil {
+			if err == ErrTimeout {
+				input.current.setTimestamp(flows.DateTimeNanoseconds(ci.Timestamp.UnixNano()))
+				input.current.finalizeWritten()
+				var ok bool
+				if input.current, ok = input.todecode.popEmpty(); !ok {
+					break
+				}
+				continue
+			}
 			if err == io.EOF {
 				break
 			}
@@ -224,6 +237,7 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 		}
 		lastTime = time
 		if input.current.full() {
+			input.current.setTimestamp(time)
 			input.current.finalize()
 			var ok bool
 			if input.current, ok = input.todecode.popEmpty(); !ok {

@@ -93,10 +93,11 @@ func (mpb *multiPacketBuffer) Pop(buffer *shallowMultiPacketBuffer, low func(int
 }
 
 type shallowMultiPacketBuffer struct {
-	buffers []*packetBuffer
-	owner   *shallowMultiPacketBufferRing
-	rindex  int
-	windex  int
+	buffers   []*packetBuffer
+	owner     *shallowMultiPacketBufferRing
+	rindex    int
+	windex    int
+	timestamp flows.DateTimeNanoseconds
 }
 
 func newShallowMultiPacketBuffer(size int, owner *shallowMultiPacketBufferRing) *shallowMultiPacketBuffer {
@@ -181,11 +182,12 @@ func (smpb *shallowMultiPacketBuffer) recycle() {
 	}
 }
 
+func (smpb *shallowMultiPacketBuffer) setTimestamp(t flows.DateTimeNanoseconds) {
+	smpb.timestamp = t
+}
+
 func (smpb *shallowMultiPacketBuffer) Timestamp() flows.DateTimeNanoseconds {
-	if !smpb.empty() {
-		return smpb.buffers[0].Timestamp()
-	}
-	return 0
+	return smpb.timestamp
 }
 
 func (smpb *shallowMultiPacketBuffer) Copy(other *shallowMultiPacketBuffer) {
