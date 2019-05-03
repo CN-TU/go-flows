@@ -1,7 +1,7 @@
 package operations
 
 // Created by gen_logic.go, don't edit manually!
-// Generated at 2019-01-14 16:24:14.288346497 +0100 CET m=+0.000808639
+// Generated at 2019-05-03 16:04:30.469237292 +0200 CEST m=+0.000798366
 
 import (
 	"github.com/CN-TU/go-flows/flows"
@@ -48,8 +48,8 @@ func (f *geqFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) 
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("geq", "returns true if a >= b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &geqPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("geq", "returns true if a >= b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &geqFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("geq", "returns true if a >= b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &geqPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("geq", "returns true if a >= b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &geqFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type leqPacket struct {
@@ -92,8 +92,8 @@ func (f *leqFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext) 
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("leq", "returns true if a <= b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &leqPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("leq", "returns true if a <= b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &leqFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("leq", "returns true if a <= b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &leqPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("leq", "returns true if a <= b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &leqFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type lessPacket struct {
@@ -136,8 +136,8 @@ func (f *lessFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext)
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("less", "returns true if a < b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &lessPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("less", "returns true if a < b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &lessFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("less", "returns true if a < b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &lessPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("less", "returns true if a < b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &lessFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type greaterPacket struct {
@@ -180,8 +180,8 @@ func (f *greaterFlow) Stop(reason flows.FlowEndReason, context *flows.EventConte
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("greater", "returns true if a > b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &greaterPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("greater", "returns true if a > b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &greaterFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("greater", "returns true if a > b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &greaterPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("greater", "returns true if a > b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &greaterFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
 
 type equalPacket struct {
@@ -224,6 +224,6 @@ func (f *equalFlow) Stop(reason flows.FlowEndReason, context *flows.EventContext
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("equal", "returns true if a == b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &equalPacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("equal", "returns true if a == b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &equalFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("equal", "returns true if a == b", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &equalPacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("equal", "returns true if a == b", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &equalFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }

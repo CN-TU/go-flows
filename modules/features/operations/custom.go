@@ -84,7 +84,7 @@ func (f *concatenate) Stop(reason flows.FlowEndReason, context *flows.EventConte
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("concatenate", "concatenates per-packet values into a string", ipfix.OctetArrayType, 0, flows.FlowFeature, func() flows.Feature { return &concatenate{} }, flows.PacketFeature)
+	flows.RegisterTypedFunction("concatenate", "concatenates per-packet values into a string", ipfix.OctetArrayType, 0, flows.FlowFeature, func() flows.Feature { return &concatenate{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

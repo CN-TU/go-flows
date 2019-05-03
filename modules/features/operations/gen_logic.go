@@ -79,8 +79,8 @@ func (f *{{.Name}}Flow) Stop(reason flows.FlowEndReason, context *flows.EventCon
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterTemporaryFeature("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterTypedFunction("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &{{.Name}}Packet{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterTypedFunction("{{.Name}}", "{{.Description}}", ipfix.BooleanType, 0, flows.FlowFeature, func() flows.Feature { return &{{.Name}}Flow{} }, flows.FlowFeature, flows.FlowFeature)
 }`))
 
 func main() {
