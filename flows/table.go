@@ -66,8 +66,8 @@ func (tab *FlowTable) pushExport(r int, e *exportRecord) {
 }
 
 // Expire expires all unhandled timer events. Can be called periodically to conserve memory.
-func (tab *FlowTable) Expire() {
-	when := tab.context.when
+func (tab *FlowTable) Expire(when DateTimeNanoseconds) {
+	tab.context.when = when
 	tab.expiring = true
 	for _, elem := range tab.flowlist {
 		if elem == nil {

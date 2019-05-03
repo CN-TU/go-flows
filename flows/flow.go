@@ -135,7 +135,7 @@ func (flow *BaseFlow) HasTimer(id TimerID) bool {
 
 // RemoveTimer deletes the timer with the given id.
 func (flow *BaseFlow) RemoveTimer(id TimerID) {
-	flow.timers.removeTimer(id)
+	flow.expireNext = flow.timers.removeTimer(id)
 }
 
 // Export exports the features of the flow with reason as FlowEndReason, at time when, with current time now. Afterwards the flow is removed from the table.

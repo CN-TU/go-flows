@@ -70,10 +70,18 @@ func (fe *funcEntries) hasTimer(id TimerID) bool {
 	return true
 }
 
-func (fe *funcEntries) removeTimer(id TimerID) {
+func (fe *funcEntries) removeTimer(id TimerID) DateTimeNanoseconds {
 	fep := *fe
-	if int(id) >= len(fep) || id < 0 {
-		return
+	if !(int(id) >= len(fep) || id < 0) {
+		fep[id].expires = 0
 	}
-	fep[id].expires = 0
+	var ret DateTimeNanoseconds
+	for _, v := range fep {
+		if v.expires != 0 {
+			if ret == 0 || v.expires < ret {
+				ret = v.expires
+			}
+		}
+	}
+	return ret
 }
