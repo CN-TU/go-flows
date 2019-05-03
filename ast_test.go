@@ -80,7 +80,7 @@ func TestAST(t *testing.T) {
 			[]interface{}{
 				[]interface{}{"mean", "sourceIPAddress"},
 			},
-			1,
+			-1,
 		},
 		{
 			[]interface{}{

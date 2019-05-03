@@ -534,6 +534,8 @@ func (a *astCall) resolve() error {
 		return nil
 	}
 
+	// SMELL: SetName for variants doesn't use the variants name in the argument list
+
 	if a.feature.function {
 		// resolved function
 		if a.feature.resolver != nil {
@@ -545,19 +547,24 @@ func (a *astCall) resolve() error {
 			if err != nil {
 				return err
 			}
+			variant.SetName(a.exportName)
 			a.SetVariants(variant)
 			return nil
 		}
 		// typed function
 		if a.feature.ie.Type != ipfix.IllegalType {
 			// no variant typed function
-			a.SetVariants(toVariant(a.feature.ie, a))
+			variant := toVariant(a.feature.ie, a)
+			variant.SetName(a.exportName)
+			a.SetVariants(variant)
 			return nil
 		}
 		// unresolved function
 		if len(a.args) == 1 {
 			// 1 argument: default is to just use the type of the argument
-			a.SetVariants(a.args[0].Variants())
+			variant := a.args[0].Variants()
+			variant.SetName(a.exportName)
+			a.SetVariants(variant)
 			return nil
 		}
 		if len(a.args) == 2 {
@@ -566,20 +573,29 @@ func (a *astCall) resolve() error {
 			if err != nil {
 				return err
 			}
+			variants.SetName(a.exportName)
 			a.SetVariants(variants)
 			return nil
 		}
 		return fmt.Errorf("can't resolve type of %s with %d arguments", a.name, len(a.args))
 	}
 
+	var variant maybeASTVariant
+
 	// variant feature
 	if len(a.feature.variants) != 0 {
-		a.SetVariants(toVariant(a.feature.variants, a))
-		return nil
+		variant = toVariant(a.feature.variants, a)
+	} else {
+		variant = toVariant(a.feature.ie, a)
+	}
+
+	if len(a.args) > 1 || !a.args[0].IsRaw() {
+		// this happens for apply/map
+		variant.SetName(a.exportName)
 	}
 
 	// feature
-	a.SetVariants(toVariant(a.feature.ie, a))
+	a.SetVariants(variant)
 	return nil
 }
 

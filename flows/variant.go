@@ -126,7 +126,6 @@ func resolveASTVariants(resolver TypeResolver, args ...maybeASTVariant) (maybeAS
 	if err != nil {
 		return nil, err
 	}
-
 	return &singleVariant{res}, nil
 }
 
@@ -182,6 +181,7 @@ type maybeASTVariant interface {
 	Source() astFragment
 	SubVariants() []maybeASTVariant
 	HasVariants() bool
+	SetName(string)
 	simplify() maybeVariant
 }
 
@@ -277,6 +277,12 @@ func (v *astVariant) SubVariants() []maybeASTVariant {
 	return v.ies
 }
 
+func (v *astVariant) SetName(name string) {
+	for i := range v.ies {
+		v.ies[i].SetName(name)
+	}
+}
+
 type singleVariant struct {
 	ie ipfix.InformationElement
 }
@@ -313,6 +319,12 @@ func (s *singleVariant) SubVariants() []maybeASTVariant {
 	return nil
 }
 
+func (s *singleVariant) SetName(name string) {
+	s.ie.Name = name
+	s.ie.ID = 0
+	s.ie.Pen = 0
+}
+
 type noVariant struct{}
 
 func (n *noVariant) simplify() maybeVariant {
@@ -337,4 +349,8 @@ func (n *noVariant) SubVariants() []maybeASTVariant {
 
 func (n *noVariant) GetSpecific(map[astFragment]int) maybeASTVariant {
 	return n
+}
+
+func (n *noVariant) SetName(string) {
+
 }
