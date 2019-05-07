@@ -32,7 +32,6 @@ type record struct {
 	filter   []Feature
 	control  *control
 	export   *exportRecord
-	last     DateTimeNanoseconds
 	active   bool // this record forwards events to features
 	alive    bool // this record forwards events to filters
 }
@@ -92,13 +91,11 @@ RESTART:
 		r.features[feature].Event(data, context, nil) // no tree for control
 		if context.stop {
 			r.stop(context.reason, context, recordID)
-			goto OUT
+			return
 		}
 		if context.now {
 			if context.export {
-				tmp := *context
-				tmp.when = r.last
-				r.Export(context.reason, &tmp, context.when, table, recordID)
+				r.Export(context.reason, context, context.when, table, recordID)
 				goto RESTART
 			}
 			if context.restart {
@@ -125,8 +122,6 @@ RESTART:
 			r.start(data, context, table, recordID)
 		}
 	}
-OUT:
-	r.last = context.when
 }
 
 func (r *record) Event(data Event, context *EventContext, table *FlowTable, recordID int) {
