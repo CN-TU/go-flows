@@ -386,9 +386,13 @@ func findNaturalSublists(heads []*exportRecord, head *exportRecord, id int) []*e
 					fmt.Println(id, "unsorted")
 				}
 				heads = append(heads, head)
+				first = nil
 
 				prev = nil
 				head = newhead
+				if debugSort {
+					fmt.Println(id, "head:", head)
+				}
 				continue
 			}
 			// two or more sorted elements
@@ -396,6 +400,7 @@ func findNaturalSublists(heads []*exportRecord, head *exportRecord, id int) []*e
 				fmt.Println(id, "sorted")
 			}
 			heads = append(heads, first)
+			first = nil
 			prev.next = nil
 
 			more = false
@@ -407,7 +412,9 @@ func findNaturalSublists(heads []*exportRecord, head *exportRecord, id int) []*e
 		prev = head
 		head = head.next
 	}
-	heads = append(heads, first)
+	if first != nil {
+		heads = append(heads, first)
+	}
 	if debugSort {
 		fmt.Println(id, "Went trough", len(heads))
 	}
@@ -484,6 +491,10 @@ func sortWorker(in, out exportQueue, id int) {
 			sortHeads = sortHeads[:0]
 			// already sorted
 			out <- elem
+			if debugSort {
+				fmt.Println(id, "already sorted list:")
+				debugList("already sorted", elem, id)
+			}
 			continue
 		}
 
