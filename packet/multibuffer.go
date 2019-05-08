@@ -98,6 +98,7 @@ type shallowMultiPacketBuffer struct {
 	rindex    int
 	windex    int
 	timestamp flows.DateTimeNanoseconds
+	expire    bool
 }
 
 func newShallowMultiPacketBuffer(size int, owner *shallowMultiPacketBufferRing) *shallowMultiPacketBuffer {

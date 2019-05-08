@@ -40,7 +40,6 @@ func (bt baseTable) getSelector() DynamicKeySelector {
 type parallelFlowTable struct {
 	baseTable
 	tables      []*flows.FlowTable
-	expire      []chan flows.DateTimeNanoseconds
 	expirewg    sync.WaitGroup
 	buffers     []*shallowMultiPacketBufferRing
 	tmp         []*shallowMultiPacketBuffer
@@ -55,7 +54,6 @@ type singleFlowTable struct {
 	baseTable
 	table       *flows.FlowTable
 	buffer      *shallowMultiPacketBufferRing
-	expire      chan flows.DateTimeNanoseconds
 	done        chan struct{}
 	usageBuffer [1]bufferUsage
 	decodeStats decodeStats
@@ -80,24 +78,20 @@ func (sft *singleFlowTable) getDecodeStats() *decodeStats {
 	return &sft.decodeStats
 }
 
-func (sft *singleFlowTable) Expire(when flows.DateTimeNanoseconds) {
-	sft.expire <- when
-	if !sft.autoGC {
-		go runtime.GC()
-	}
-}
-
 func (sft *singleFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	current := buffer.Timestamp()
+	expire := false
 	if current > sft.nextExpire {
-		sft.Expire(current)
+		expire = true
 		sft.nextExpire = current + sft.expireTime
 	}
-	if buffer.empty() {
+	if buffer.empty() && !expire {
 		return
 	}
 	b, _ := sft.buffer.popEmpty()
 	buffer.Copy(b)
+	b.expire = expire
+	b.timestamp = current
 	b.finalize()
 }
 
@@ -131,31 +125,28 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 			expireTime: expire,
 		}
 		ret.buffer = newShallowMultiPacketBufferRing(fullBuffers, batchSize)
-		ret.expire = make(chan flows.DateTimeNanoseconds, 1)
 		ret.done = make(chan struct{})
 		go func() {
 			t := ret.table
 			defer close(ret.done)
-			for {
-				select {
-				case when := <-ret.expire:
-					t.Expire(when)
-				case buffer, ok := <-ret.buffer.full:
-					if !ok {
-						return
+			for buffer := range ret.buffer.full {
+				// fixup buffer stats -> not possible with popFull due to select
+				atomic.AddInt32(&ret.buffer.currentBuffers, -1)
+				atomic.AddInt32(&ret.buffer.currentPackets, -int32(buffer.windex))
+				for {
+					b := buffer.read()
+					if b == nil {
+						break
 					}
-					// fixup buffer stats -> not possible with popFull due to select
-					atomic.AddInt32(&ret.buffer.currentBuffers, -1)
-					atomic.AddInt32(&ret.buffer.currentPackets, -int32(buffer.windex))
-					for {
-						b := buffer.read()
-						if b == nil {
-							break
-						}
-						t.Event(b)
-					}
-					buffer.recycle()
+					t.Event(b)
 				}
+				if buffer.expire {
+					t.Expire(buffer.timestamp)
+					if !autoGC {
+						go runtime.GC()
+					}
+				}
+				buffer.recycle()
 			}
 		}()
 		return ret
@@ -169,40 +160,34 @@ func NewFlowTable(num int, features flows.RecordListMaker, newflow flows.FlowCre
 		buffers:     make([]*shallowMultiPacketBufferRing, num),
 		usageBuffer: make([]bufferUsage, num),
 		tmp:         make([]*shallowMultiPacketBuffer, num),
-		expire:      make([]chan flows.DateTimeNanoseconds, num),
 		expireTime:  expire,
 	}
 	for i := 0; i < num; i++ {
 		c := newShallowMultiPacketBufferRing(fullBuffers, batchSize)
-		expire := make(chan flows.DateTimeNanoseconds, 1)
-		ret.expire[i] = expire
 		ret.buffers[i] = c
 		t := flows.NewFlowTable(features, newflow, options, selector.fivetuple && options.TCPExpiry, uint8(i))
 		ret.tables[i] = t
 		ret.wg.Add(1)
 		go func() {
 			defer ret.wg.Done()
-			for {
-				select {
-				case when := <-expire:
-					t.Expire(when)
-					ret.expirewg.Done()
-				case buffer, ok := <-c.full:
-					if !ok {
-						return
+			for buffer := range c.full {
+				// fixup buffer stats -> not possible with popFull due to select
+				atomic.AddInt32(&c.currentBuffers, -1)
+				atomic.AddInt32(&c.currentPackets, -int32(buffer.windex))
+				for {
+					b := buffer.read()
+					if b == nil {
+						break
 					}
-					// fixup buffer stats -> not possible with popFull due to select
-					atomic.AddInt32(&c.currentBuffers, -1)
-					atomic.AddInt32(&c.currentPackets, -int32(buffer.windex))
-					for {
-						b := buffer.read()
-						if b == nil {
-							break
-						}
-						t.Event(b)
-					}
-					buffer.recycle()
+					t.Event(b)
 				}
+				if buffer.expire {
+					t.Expire(buffer.timestamp)
+					if !autoGC {
+						ret.expirewg.Done()
+					}
+				}
+				buffer.recycle()
 			}
 		}()
 	}
@@ -241,30 +226,29 @@ func (pft *parallelFlowTable) getDecodeStats() *decodeStats {
 	return &pft.decodeStats
 }
 
-func (pft *parallelFlowTable) Expire(when flows.DateTimeNanoseconds) {
-	for _, e := range pft.expire {
-		pft.expirewg.Add(1)
-		e <- when
-	}
-	pft.expirewg.Wait()
-	if !pft.autoGC {
-		go runtime.GC()
-	}
-}
-
 func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	current := buffer.Timestamp()
+	expire := false
 	if current > pft.nextExpire {
-		pft.Expire(current)
+		expire = true
 		pft.nextExpire = current + pft.expireTime
+		if !pft.autoGC {
+			pft.expirewg.Add(len(pft.buffers))
+			go func() {
+				pft.expirewg.Wait()
+				runtime.GC()
+			}()
+		}
 	}
-	if buffer.empty() {
+	if buffer.empty() && !expire {
 		return
 	}
 
 	tmp := pft.tmp[:len(pft.buffers)]
 	for i, buf := range pft.buffers {
 		tmp[i], _ = buf.popEmpty()
+		tmp[i].timestamp = current
+		tmp[i].expire = expire
 	}
 	for {
 		b := buffer.read()

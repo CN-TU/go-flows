@@ -1,5 +1,7 @@
 package flows
 
+import "log"
+
 // FlowCreator is responsible for creating new flows. Supplied values are event, the flowtable, a flow key, and the current time.
 type FlowCreator func(Event, *FlowTable, string, bool, *EventContext, uint64) Flow
 
@@ -67,6 +69,9 @@ func (tab *FlowTable) pushExport(r int, e *exportRecord) {
 
 // Expire expires all unhandled timer events. Can be called periodically to conserve memory.
 func (tab *FlowTable) Expire(when DateTimeNanoseconds) {
+	if when < tab.context.when {
+		log.Printf("Warning: Time jumped backwards on expiry (%d -> %d = %d)\n", tab.context.when, when, tab.context.when-when)
+	}
 	tab.context.when = when
 	tab.expiring = true
 	for _, elem := range tab.flowlist {
