@@ -139,7 +139,7 @@ func (tab *FlowTable) Event(event Event) {
 		tab.context.forward = true
 		elem.Event(event, tab.context)
 	}
-	if tab.SortOutput != SortTypeNone {
+	if tab.SortOutput == SortTypeStartTime || tab.SortOutput == SortTypeStopTime {
 		tab.flushExports()
 	}
 }
@@ -237,7 +237,7 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 	tab.eof = false
 
 	if tab.SortOutput != SortTypeNone {
-		tab.flushExports()
+		tab.flushAllExports()
 	}
 }
 
