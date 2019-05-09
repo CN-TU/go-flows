@@ -481,6 +481,7 @@ func (pb *packetBuffer) decode() (ret bool) {
 		}
 		typ = pb.dot1q[cur].NextLayerType()
 		data = pb.dot1q[cur].LayerPayload()
+		pb.ethertype = pb.dot1q[cur].Type
 	}
 
 	// network layer
