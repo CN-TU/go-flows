@@ -3,6 +3,7 @@ package csv
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -28,6 +29,7 @@ type csvExporter struct {
 	outfile string
 	f       io.WriteCloser
 	writer  *bufio.Writer
+	flush   bool
 }
 
 func (pe *csvExporter) writeString(field string) {
@@ -99,6 +101,12 @@ func (pe *csvExporter) Fields(fields []string) {
 	err := pe.writer.WriteByte('\n')
 	if err != nil {
 		panic(err)
+	}
+	if pe.flush {
+		err = pe.writer.Flush()
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -213,6 +221,12 @@ func (pe *csvExporter) Export(template flows.Template, features []interface{}, w
 	if err != nil {
 		panic(err)
 	}
+	if pe.flush {
+		err = pe.writer.Flush()
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 //Finish Write outstanding data and wait for completion
@@ -241,13 +255,22 @@ func (pe *csvExporter) Init() {
 }
 
 func newCSVExporter(args []string) (arguments []string, ret util.Module, err error) {
-	if len(args) < 1 {
+	set := flag.NewFlagSet("csv", flag.ExitOnError)
+	set.Usage = func() { csvhelp("csv") }
+
+	flush := set.Bool("flush", false, "Flush after each line")
+
+	set.Parse(args)
+
+	arguments = set.Args()
+
+	if len(arguments) < 1 {
 		return nil, nil, errors.New("CSV exporter needs a filename as argument")
 	}
-	outfile := args[0]
-	arguments = args[1:]
+	outfile := arguments[0]
+	arguments = arguments[1:]
 
-	ret = &csvExporter{id: "CSV|" + outfile, outfile: outfile}
+	ret = &csvExporter{id: "CSV|" + outfile, outfile: outfile, flush: *flush}
 	return
 }
 
@@ -260,6 +283,10 @@ As argument, the output file is needed.
 
 Usage:
   export %s file.csv
+
+Flags:
+-flush
+	  Flush after each line (default off).
 `, name, name)
 }
 
