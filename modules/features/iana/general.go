@@ -3,6 +3,7 @@ package iana
 import (
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
+	"github.com/CN-TU/go-ipfix"
 )
 
 type flowEndReason struct {
@@ -128,29 +129,30 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type flowDurationMicroSeconds struct {
+type flowDurationNanoseconds struct {
 	flows.BaseFeature
 	start    flows.DateTimeNanoseconds
 	lastTime flows.DateTimeNanoseconds
 }
 
-func (f *flowDurationMicroSeconds) Start(context *flows.EventContext) {
+func (f *flowDurationNanoseconds) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
 	f.start = context.When()
 	f.lastTime = context.When()
 }
 
-func (f *flowDurationMicroSeconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *flowDurationNanoseconds) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	f.lastTime = context.When()
 }
 
-func (f *flowDurationMicroSeconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	f.SetValue((f.lastTime-f.start)/1000, context, f)
+func (f *flowDurationNanoseconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.lastTime-f.start, context, f)
 }
 
 func init() {
-	flows.RegisterStandardFeature("flowDurationMicroseconds", flows.FlowFeature, func() flows.Feature { return &flowDurationMicroSeconds{} }, flows.RawPacket)
-	flows.RegisterStandardCompositeFeature("flowDurationMilliseconds", "divide", "flowDurationMicroseconds", 1000)
+	flows.RegisterTemporaryFeature("flowDurationNanoseconds", "flow duration in nanoseconds", ipfix.Unsigned64Type, 0, flows.FlowFeature, func() flows.Feature { return &flowDurationNanoseconds{} }, flows.RawPacket)
+	flows.RegisterStandardCompositeFeature("flowDurationMicroseconds", "divide", "flowDurationNanoseconds", 1000)
+	flows.RegisterStandardCompositeFeature("flowDurationMilliseconds", "divide", "flowDurationNanoseconds", 1000000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
