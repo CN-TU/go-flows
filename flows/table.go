@@ -228,6 +228,7 @@ func (tab *FlowTable) EOF(now DateTimeNanoseconds) {
 		if v == nil {
 			continue
 		}
+		context.initFlow(v)
 		if now > v.nextEvent() {
 			v.expire(context)
 		}
