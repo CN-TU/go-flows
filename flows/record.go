@@ -68,16 +68,28 @@ func (r *record) start(data Event, context *EventContext, table *FlowTable, reco
 }
 
 func (r *record) stop(reason FlowEndReason, context *EventContext, recordID int) {
-	// make a two-level stop for filter and rest
-	context.record = r
-	for _, feature := range r.features {
-		feature.Stop(reason, context)
-	}
 	r.active = false
 	r.alive = false
 	for _, feature := range r.filter {
 		feature.Stop(reason, context)
 		r.alive = (context.keep || r.alive) && !context.hard
+		if r.alive {
+			return
+		}
+	}
+
+	for _, feature := range r.control.control {
+		context.stop = false
+		r.features[feature].Stop(reason, context)
+		if context.stop {
+			// exit early - we want to forget what we did
+			return
+		}
+	}
+
+	context.record = r
+	for _, feature := range r.features {
+		feature.Stop(reason, context)
 	}
 }
 
@@ -155,6 +167,10 @@ func (r *record) Export(reason FlowEndReason, context *EventContext, now DateTim
 	}
 	context.record = r
 	r.stop(reason, context, recordID)
+	if context.stop {
+		r.alive = false
+		return
+	}
 
 	record := table.records.list[recordID]
 	template := record.template
