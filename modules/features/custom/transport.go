@@ -242,16 +242,17 @@ func (f *tcpReorder) Start(*flows.EventContext) {
 }
 
 func (f *tcpReorder) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	if context.IsHard() {
-		for _, sequence := range f.forward.fragments {
-			sequence.packet.Recycle()
-		}
-		for _, sequence := range f.backward.fragments {
-			sequence.packet.Recycle()
-		}
-	} else {
-		context.Keep()
+	//FIXME: do timeout for tcp wait close, or replay left over packets?
+	//	if context.IsHard() {
+	for _, sequence := range f.forward.fragments {
+		sequence.packet.Recycle()
 	}
+	for _, sequence := range f.backward.fragments {
+		sequence.packet.Recycle()
+	}
+	/*	} else {
+		context.Keep()
+	}*/
 }
 
 func (f *tcpReorder) Event(new interface{}, context *flows.EventContext, src interface{}) {
