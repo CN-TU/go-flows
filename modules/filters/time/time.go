@@ -26,12 +26,12 @@ func (tf *timeFilter) Init() {
 
 func (tf *timeFilter) Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool {
 	if tf.checkbefore && tf.before.Before(ci.Timestamp) {
-		return true
+		return false
 	}
 	if tf.checkafter && ci.Timestamp.Before(tf.after) {
-		return true
+		return false
 	}
-	return false
+	return true
 }
 
 func newTimeFilter(args []string) (arguments []string, ret util.Module, err error) {

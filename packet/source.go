@@ -221,7 +221,7 @@ func (input *Engine) Run() (time flows.DateTimeNanoseconds) {
 		nskipped += skipped
 		nfiltered += filtered
 
-		if input.filters.Matches(lt, data, ci, npackets) {
+		if !input.filters.Matches(lt, data, ci, npackets) {
 			nfiltered++
 			continue
 		}

@@ -10,21 +10,21 @@ const filterName = "filter"
 // Filter represents a generic packet filter
 type Filter interface {
 	util.Module
-	// Matches must return true, if this packet should be filtered out
+	// Matches must return true, if this packet should be used
 	Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool
 }
 
 // Filters holds a collection of filters that are tried one after another
 type Filters []Filter
 
-// Matches returns true if this packet should be filtered
+// Matches returns true if this packet matches all filters
 func (f Filters) Matches(lt gopacket.LayerType, data []byte, ci gopacket.CaptureInfo, n uint64) bool {
 	for _, filter := range f {
-		if filter.Matches(lt, data, ci, n) {
-			return true
+		if !filter.Matches(lt, data, ci, n) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // RegisterFilter registers an filter (see module system in util)
