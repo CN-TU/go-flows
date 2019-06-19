@@ -232,13 +232,6 @@ func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	if current > pft.nextExpire {
 		expire = true
 		pft.nextExpire = current + pft.expireTime
-		if !pft.autoGC {
-			pft.expirewg.Add(len(pft.buffers))
-			go func() {
-				pft.expirewg.Wait()
-				runtime.GC()
-			}()
-		}
 	}
 	if buffer.empty() && !expire {
 		return
@@ -260,6 +253,13 @@ func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	}
 	for _, buf := range pft.tmp {
 		buf.finalize()
+	}
+	if expire && !pft.autoGC {
+		pft.expirewg.Add(len(pft.buffers))
+		pft.expirewg.Wait()
+		go func() {
+			runtime.GC()
+		}()
 	}
 }
 
