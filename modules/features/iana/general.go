@@ -146,7 +146,7 @@ func (f *flowDurationNanoseconds) Event(new interface{}, context *flows.EventCon
 }
 
 func (f *flowDurationNanoseconds) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	f.SetValue(f.lastTime-f.start, context, f)
+	f.SetValue(uint64(f.lastTime-f.start), context, f)
 }
 
 func init() {
