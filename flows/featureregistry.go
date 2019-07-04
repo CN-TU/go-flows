@@ -58,7 +58,7 @@ func RegisterFeature(ie ipfix.InformationElement, description string, ret Featur
 		})
 }
 
-// RegisterFunction registers a function (feature with arguments - e.g. min()), which data type can
+// RegisterFunction registers a function (feature with arguments - e.g. min()), whose data type can
 // be resolved from the arguments
 //
 // This is the case for one-argument functions, where return type (e.g. min()) is the same as argument
@@ -91,7 +91,7 @@ func RegisterTypedFunction(name string, description string, t ipfix.Type, tl uin
 		})
 }
 
-// RegisterCustomFunction registers a function that needs custom type resolution to get the return type
+// RegisterCustomFunction registers a function that needs custom type resolution to get the return type.
 func RegisterCustomFunction(name string, description string, resolver TypeResolver, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
 	featureRegistry[ret][name] = append(featureRegistry[ret][name],
@@ -106,7 +106,7 @@ func RegisterCustomFunction(name string, description string, resolver TypeResolv
 		})
 }
 
-// RegisterVariantFeature registers a feature that represents more than one information element depending on the data
+// RegisterVariantFeature registers a feature that represents more than one information element depending on the data.
 func RegisterVariantFeature(name string, description string, ies []ipfix.InformationElement, ret FeatureType, make MakeFeature, arguments ...FeatureType) {
 	ie := ipfix.InformationElement{Type: ipfix.IllegalType}
 	featureRegistry[ret][name] = append(featureRegistry[ret][name],

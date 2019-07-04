@@ -7,6 +7,22 @@ import (
 	"github.com/CN-TU/go-flows/flows"
 )
 
+/*
+Internal handling of batches of buffers with following features:
+ - Packets can have a preallocated buffer and/or dynamically resized
+ - Unused Packets go back into the pool
+ - Packets are kept and exchanged in batches
+ - Single packets can be recycled from a full batch - no need to recycled everything at once
+
+This is implemented with the following components:
+ packetBuffer: buffer holding one packet (data + decoded); see buffer.go
+ multiPacketBuffer: source of empty packets. Holds every allocated packet and keeps track of used empty packets with ref counting in packetBuffer. Uses a lockless algorithm in the fast path (enough packets free) for returning and reserving packets.
+ shallowMultiPacketBuffer: Holds a batch of packets for processing.
+ shallowMultiPacketBufferRing: Helper for moving shallowMultiPacketBuffer from one go routine to another using channels and a bit of tracking which packets are used and which can be recycled.
+
+WARNING! The lockless algorithm necessitates, that ONLY the user of multiPacketBuffer.Pop is allowed to write to modify packet contents.
+*/
+
 type bufferUsage struct {
 	buffers int
 	packets int
@@ -40,15 +56,16 @@ func (mpb *multiPacketBuffer) replenish() {
 	atomic.AddInt32(&mpb.numFree, mpb.allocSize)
 }
 
+// release releases allocSize buffers. NEVER call concurrently with Pop!
 func (mpb *multiPacketBuffer) release() {
-	newlist := make([]*packetBuffer, len(mpb.buffers)-1000)
+	newlist := make([]*packetBuffer, len(mpb.buffers)-int(mpb.allocSize))
 	i := 0
-	freed := 0
+	freed := int32(0)
 	for _, b := range mpb.buffers {
 		if atomic.LoadInt32(&b.inUse) != 0 {
 			newlist[i] = b
 			i++
-		} else if freed == 1000 {
+		} else if freed == mpb.allocSize {
 			newlist[i] = b
 			i++
 		} else {

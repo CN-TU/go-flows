@@ -1,0 +1,111 @@
+1 ##############00000000            #######0000000   |
+2      ############00000000                          |
+3   #                                                |
+4         ###                                        |
+5                    #########0000000000             |
+6                        ##00000000                  |
+7                                        #####       |
+8                                                  #######
+
+startorder:
+    should: 1,3,2,4,5,6,1,7
+
+    exportlist:
+        1O
+        3X,1O
+        2O,3X,1O
+        4O,2O,3X,1O
+        4X,2O,3X,1O
+        5O,4O,2O,3X,1O
+        6O,5O,4O,2O,3X,1O
+        6O,5O,4O,2O,3X,1X <- expire 1,3
+        1O,6O,5O,4O,2O
+        7O,1O,6O,5O,4O,2O
+        7X,1O,6O,5O,4O,2O
+        8O,7X,1O,6O,5O,4O,2O
+        8O,7X,1X,6X,5X,4X,2X <- mark from behind
+        8O,7X,1X,6X,5X,4X,2X <- expire 2,4,5,6,7,1
+        8O
+
+    store start# as identifier
+        smaller start# comes first
+    on start: move exportrecord to front of table
+    export finished from behind
+
+
+stoporder:
+    should:
+        3,4,1,2,6,5,1,7
+        8
+
+    exportlist:
+        1O
+        3O,1O
+        3O,1O
+        3X,1O
+        2O,3X,1O
+        4O,2O,3X,1O
+        4O,2O,3X,1O
+        4X,2O,3X,1O
+        1O,4X,2O,3X <- expire 3
+        2O,1O,4X <- expire 4
+        5O,2O,1O
+        6O,5O,2O,1O
+        6O,5O,2O,1O
+        5O,6O,2O,1O
+        5O,6O,2O,1X <- expire 1
+        1O,5O,6O,2O
+        7O,1O,5O,6O,2O
+        1O,7O,5O,6O,2O
+        7O,1O,5O,6O,2O
+        7X,1O,5O,6O,2O
+        8O,7O,1O,5O,6O,2O
+        8O,7X,1X,5X,6X,2X <- mark from behind
+        8O,7X,1X,5X,6X,2X <- expire 2,6,5,1,7
+        80
+
+        3,4,1,2,6,5,1,7
+        8
+
+    store end# as identifier
+        smaller end# comes first
+    on start: move exportrecord to front of table
+    event: move exportrecord to front of table
+    export finished from behind
+
+exportorder:
+    should: 3,4,1,2,6,5,7,1
+    8
+
+    on event|export to front?
+    exportlist:
+        1O
+        3O,1O
+        3O,1O
+        3X,1O
+        2O,3X,1O
+        4O,2O,3X,1O
+        4O,2O,3X,1O
+        4X,2O,3X,1O
+        1O,4X,2O,3X <- export 3
+        2O,1O,4X <- export 4
+        5O,2O,1O
+        6O,5O,2O,1O
+        6O,5O,2O,1O
+        5O,6O,2O,1O
+        1X,5O,6O,2O
+        1O,1X,5O,6O,2O
+        7O,1O,1X,5O,6O,2O
+        1O,7O,1X,5O,6O,2O
+        7O,1O,1X,5O,6O,2O
+        7X,1O,1X,5O,6O,2O
+        8O,7X,1bO,1aX,5O,6O,2O
+        |
+        expire without moving!
+        sort unsorted: 7X,1bX,1aX,5X,6X,2X (1a,1b,2,5,6,7)
+        sort after expirytime/last packetid: 1a,2,6,5,7,1b
+
+        merge sort before merge sort?
+
+        3,4,1a,2,6,5,7,1b
+        8

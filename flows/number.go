@@ -65,7 +65,7 @@ func ToFloat(a interface{}) float64 {
 	panic(fmt.Sprintf("Can't convert %v to float", a))
 }
 
-// ToInt converts the given value to a float64
+// ToInt converts the given value to a int64
 func ToInt(a interface{}) int64 {
 	switch i := a.(type) {
 	case float64:

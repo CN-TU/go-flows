@@ -178,14 +178,6 @@ func decodeSimple(decoded featureJSONsimple, _ int) (features []interface{}, con
 
 type featureJSONsimple map[string]interface{}
 
-/*struct {
-	Features      interface{}
-	Control       []string `json:"_control_features"`
-	Filter        []string `json:"_filter_features"`
-	Bidirectional bool
-	Key           []string `json:"key_features"`
-}*/
-
 /*	v2 format:
 	{
 		"version": "v2",

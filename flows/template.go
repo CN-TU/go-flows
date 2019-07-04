@@ -16,6 +16,8 @@ type Template interface {
 	ID() int
 }
 
+// Templates are held in a tree, with every possible combination of variants, so the final template can be retrieved with subTemplate(variant1).subTemplate(variant2)...
+
 type leafTemplate struct {
 	ies []ipfix.InformationElement
 	id  int

@@ -13,9 +13,9 @@ const (
 	// RawFlow is a flow from the flow source
 	RawFlow
 
-	// PacketFeature is a packet feature
+	// PacketFeature is a packet feature, i.e., emits one value per packet
 	PacketFeature
-	// FlowFeature is a flow feature
+	// FlowFeature is a flow feature, i.e., emits one value per flow
 	FlowFeature
 
 	// MatchType specifies that the argument type has to match the return type

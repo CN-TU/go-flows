@@ -66,5 +66,7 @@ Events are forwarded in the following way:
  7. Record: Forward event to every feature
  8. Record: If control feature demands it, handle export (call stop, export, continue with 9), restart (call start, continue with 9)
  9. Flow: If no Record is active, kill the flow
+
+ During Stop control features can prevent an eventual export by calling context.Stop()
 */
 package flows

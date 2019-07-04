@@ -82,7 +82,7 @@ type FlowOptions struct {
 	CustomSettings map[string]interface{}
 }
 
-// BaseFlow holds the base information a flow needs. Needs to be embedded into every flow.
+// BaseFlow holds the base information a flow needs. Needs to be embedded into every flow. The actual features are help in one or more records.
 type BaseFlow struct {
 	key          string
 	table        *FlowTable

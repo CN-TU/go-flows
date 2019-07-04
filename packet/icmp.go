@@ -7,6 +7,8 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// This makes icmp look like a transport layer with src port 0 and dst port type,code
+
 var emptyPort = make([]byte, 2)
 
 var icmpEndpointType = gopacket.RegisterEndpointType(1000, gopacket.EndpointTypeMetadata{Name: "ICMP", Formatter: func(b []byte) string {

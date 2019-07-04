@@ -73,7 +73,7 @@ var _ Feature = (*NoopFeature)(nil)
 
 // EmptyBaseFeature implements the feature interface with some added functionality to support the most basic operation (e.g. value passing to dependent features).
 //
-// Use this as a base for features that don't need to hold values.
+// Use this as a base for features that don't need to hold values, but must emit them.
 type EmptyBaseFeature struct {
 	dependent []int
 }
@@ -270,6 +270,7 @@ type MultiBasePacketFeature struct {
 }
 
 // EventResult returns the list of values for a multievent or nil if not every argument had an event
+// Call this function at the beginning of Event.
 func (f *MultiBasePacketFeature) EventResult(new interface{}, which interface{}) []interface{} {
 	return f.eventReady.CheckAll(new, which)
 }

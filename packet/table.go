@@ -226,6 +226,9 @@ func (pft *parallelFlowTable) getDecodeStats() *decodeStats {
 	return &pft.decodeStats
 }
 
+// event partitions all packets from buffer over the tables based on fnvHash of the flow key.
+// Expiry is carried out in every table at about the same time (a flag in the buffer is set - after this buffer is handle the table does expiry).
+// event waits for every table to finish expiry and does GC afterwards - this hurts concurrency a bit, but improves memory usage.
 func (pft *parallelFlowTable) event(buffer *shallowMultiPacketBuffer) {
 	current := buffer.Timestamp()
 	expire := false

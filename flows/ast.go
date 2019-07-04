@@ -25,6 +25,31 @@ func (f FeatureError) Error() string {
 	return fmt.Sprintf("Feature #%d \"%s\": %s", f.id, f.name, f.err)
 }
 
+/*
+AST is built using following steps:
+1. parsing
+	this splits the feature specification into fragments:
+	- astCall: used for all features (features without input get an astRawPacket as input)
+	- astConstant: for numbers
+2. composite expansion
+	replaces astCalls that are found in the composite table with the expanded version
+3. building
+	attaches return feature type and actual features to astCalls
+	return feature types are matched based on required ones (outer most features must return FlowFeature)
+	if multiple variants are possible, every variant is tried out (not possible ones are pruned as soon as the failure is encountered)
+	   until one that fulfills return types is found
+4. expand select
+	select astCall get additional astRawPacket as last argument
+5. lower map/apply
+	astRawPacket in the first argumet of map/apply is replace with second argument
+	map(X(RawPacket), selection(..., RawPacket)) -> X(selection(..., RawPacket))
+6. type resolution
+	Return type (ipfix type) is built for every exported feature (either type of feature or something combined, or variants)
+7. simplify
+	List is converted to a single astCall per entry
+	Common subtrees are merged
+*/
+
 type astFragment interface {
 	fmt.Stringer
 	Name() string
@@ -915,7 +940,7 @@ func simplifyFragments(fragment astFragment, subtrees map[string]astFragment, ou
 	return nil
 }
 
-// merge merges common subtrees
+// simplify merges common subtrees
 func (a *ast) simplify() error {
 	subtrees := make(map[string]astFragment)
 	var out []astFragment
@@ -984,6 +1009,7 @@ func (a *ast) compile(verbose bool) error {
 	return nil
 }
 
+// convert builds MakeFeature lists, used to instantiate features upon flow creation, from an ast
 func (a *ast) convert() (features []MakeFeature, filters []MakeFeature, args [][]int, tocall [][]int, ctrl *control) {
 	ctrl = &control{}
 	args = make([][]int, len(a.fragments))

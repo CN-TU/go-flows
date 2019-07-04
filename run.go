@@ -36,15 +36,19 @@ be provided. It is possible to specify multiple feature statements and
 multiple export statements. All the specified exporters always export the
 features specified by the preceeding feature group.
 
-If multiple sources are specified, those are queried in order.
+If multiple sources are specified, processing starts with the first source.
+Upon EOF from the source, the next source is used, until every source is
+exhausted, after which go-flows exits.
 
-If multiple filters are specified, those are tried in order.
+If multiple filters are specified, those are tried in order. All filters
+must accept the packet - otherwise it is ignored. If a filter rejects a
+packet, the remaining filters are not considered.
 
-If multiple labels are specified, those are queried in order.
+If multiple labels are specified, they are used like with multiple sources.
 
 At least one feature specification and one exporter is needed.
 
-Identical exportes can be specified multiple times. Beware, that those will
+Identical exporters can be specified multiple times. Beware, that those will
 share a common exporter instance, resulting in a field set specification
 per specified featureset, and mixed field sets (depending on the feature
 specification).

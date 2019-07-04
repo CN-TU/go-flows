@@ -42,7 +42,7 @@ func (ec *EventContext) Event(new interface{}, context *EventContext, data inter
 	ec.event(new, context, data)
 }
 
-// Stop removes the current record and discards the current event
+// Stop removes the current record and discards the current event. If this is called during stop, flow export can be cancelled
 func (ec *EventContext) Stop() {
 	ec.stop = true
 }

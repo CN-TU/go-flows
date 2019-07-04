@@ -4,7 +4,7 @@ This contains a highly customizable general-purpose flow exporter.
 Building
 
 For building either "go build", "go install", or the program provided in go-flows-build can be used.
-The latter allows for customizing builtin modules and can help with building modules as plugins.
+The latter allows for customizing builtin modules and can help with building modules as plugins or combined binaries.
 
 Overview
 
@@ -17,7 +17,7 @@ callgraph) from this definition.
 
 Packets are then read from a source and processed in the following pipeline:
 
-	source -> filter -> (parse) -> [key] -> label -> (table) -> (flow) -> (record) -> {feature} -> export
+	source -> filter -> (parse) -> label -> [key] -> (table) -> (flow) -> (record) -> {feature} -> (merge) -> export
 
 () parts in the pipeline are fixed, [] parts can be configured via the specification, {} can be configured
 via the specification and provided via modules, and everything else can be provided from a module and
@@ -39,6 +39,8 @@ key is a fixed step that calculates the flow key. Key parameters can be configur
 
 table, flow, record are fixed steps that are described in more detail in the flows package.
 
+merge merges the output from every table into one record stream.
+
 The feature step calculates the actual feature values. Features can be provided via modules, and the
 selection of which features to calculate must be provided via the specification. Features are described
 in more detail in the flows package.
@@ -51,47 +53,41 @@ The whole pipeline is executed concurrently with the following four subpipelines
 
 	source -> filter
 
-	parse -> key -> label
+	parse -> label -> key
 
-	n times table -> flow -> record -> feature
+	n times:
+		table -> flow -> record -> feature
+
+	log n times:
+		merge
 
 	export
 
 The "table"-pipeline exists n times, where n can be configured on the command line. Packets are divided
 onto the different "table"-pipelines according to flow-key.
 
-WARNING: Due to this concurrent processing flow output is neither order nor deterministic!
+WARNING: Due to this concurrent processing flow output is neither order nor deterministic (without sorting)!
+To ensure deterministic output, flow output can be order by start time, stop time (default), or export time.
 
 Specification
 
 Specification files are JSON files based on the NTARC format (https://nta-meta-analysis.readthedocs.io/en/latest/).
-Both version 1 and version 2 files can be used. It is also possible to use a simpler format, if a paper specification
+Only version 2 files can be used. It is also possible to use a simpler format, if a paper specification
 is not needed.
-
-V1-formated file:
-
-	{
-	  "flows": [
-	    {
-	      "features": [...],
-	      "_control_features": [...],
-	      "_filter_features": [...],
-	      "key": {
-	        "bidirectional": <bool>|"string",
-	        "key_features": [...]
-	      }
-	    }
-	  ]
-	}
 
 Simpleformat specification:
 
 	{
-	  "features": [...],
-	  "_control_features": [...],
-	  "_filter_features": [...],
-	  "key_features": [...],
-	  "bidirectional": <bool>
+		"active_timeout": <Number>,
+		"idle_timeout": <Number>,
+		"bidirectional": <bool>,
+		"features": [...],
+		"key_features": [...],
+		"_control_features": [...],
+		"_filter_features": [...],
+		"_per_packet": <bool>,
+		"_allow_zero": <bool>,
+		"_expire_TCP": <bool>
 	}
 
 V2-formated file:
@@ -105,6 +101,9 @@ V2-formated file:
 	  }
 	}
 
+Unlike in the NTARC specification active_timeout and idle_timeout MUST be specified (there are no defaults).
+If bidirectional is true, every flow contains packets from both directions.
+
 key features give a list of features, which are used to compute a flow key. features is a formated list
 of features to export. This list can also contain combinations of features and operations
 (https://nta-meta-analysis.readthedocs.io/en/latest/features.html).
@@ -113,6 +112,10 @@ Only single pass operations can ever be supported due to design restrictions in 
 In addition to the features specified in the nta-meta-analysis, two addional types of features are present:
 Filter features which can exclude packets from a whole flow, and control features which can change flow
 behaviour like exporting the flow before the end, restarting the flow, or discarding the flow.
+_per_packet allows exporting one flow per packet. If _allow_zero is true, then packets are accepted, where
+one of the parts of the flow key would be zero (e.g. non-IP packets for flow keys that contain IP-Addresses).
+If _expire_TCP is set to false, no TCP-based expiry is carried out (e.g. RST packets). TCP expiry is
+only carried out if at least the five-tuple is part of the flow key.
 
 A list of supported features can be queried with "./go-flows features"
 
@@ -246,7 +249,7 @@ Filters must implement the packet.Filter interface:
 	Matches(ci gopacket.CaptureInfo, data []byte) bool
 
 Matches will be called for every packet with the capture info and the raw data as argument.
-If this function returns true, then the current packet gets filtered out (i.e. processing of this packet stops and the next one is used).
+If this function returns false, then the current packet gets filtered out (i.e. processing of this packet stops and the next one is used).
 
 Don't hold on to data! This will be reused for the next packet.
 

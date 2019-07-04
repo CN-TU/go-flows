@@ -15,7 +15,8 @@ import (
 //
 // Never hold references to this buffer or modify it, since it will be reused!
 // If you need to keep a packet around for a short time, it must be copied with Copy() and this
-// copy later destroyed with Recycle()
+// copy later destroyed with Recycle(). This doesn't actually copy the packet, but increases the refcount.
+// NEVER change the contents of a packet.
 type Buffer interface {
 	gopacket.Packet
 	flows.Event
@@ -43,7 +44,7 @@ type Buffer interface {
 	//// ------------------------------------------------------------------
 	// Copy reserves the buffer, creates a reference, and returns it. Use this if you need to hold on to a packet.
 	Copy() Buffer
-	// Recycle frees this buffer
+	// Recycle frees this buffer. WARNING: Use this only on buffers that got returned from Copy!
 	Recycle()
 	//// Internal interface - don't use (necessa)
 	//// ------------------------------------------------------------------

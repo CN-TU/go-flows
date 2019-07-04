@@ -17,9 +17,10 @@ For increased performance, the Link/Network/TransportLayer functions should be u
 Size calculations should use the *Length functions, since those already try to handle all the guess
 work that is needed, if something goes wrong (e.g. zero ip.length parameter, truncated packets, ...).
 
-Never hold onto one of these buffers, as they are resued for following packets. To store a packet for
+Never hold onto one of these buffers, as they are resued for later packets. To store a packet for
 later, the Copy() function must be used. As soon as this copy is not needed any longer, the Recycle()
-must be called on this copy. Beware that there is only a limited number of Buffers is available and
-this implementation deadlocks if it runs out of Buffers.
+must be called on this copy. Never every call Recycle() on not-copied packets!. Beware to never
+Copy() all packets - there is no upper limit on memory consumption and packet allocation requires at
+least some packets to be reusable.
 */
 package packet

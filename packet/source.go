@@ -18,14 +18,22 @@ var LayerTypeIPv46 = gopacket.RegisterLayerType(1000, gopacket.LayerTypeMetadata
 var ErrTimeout = errors.New("Timeout")
 
 const (
-	batchSize    = 1000
-	fullBuffers  = 5
-	releaseMark  = 10
-	freeMark     = 3000
-	lowMark      = 1
+	// batchSize is the number of packets handled in one go, and allocation size
+	batchSize = 1000
+	// fullBuffers is the number of buffers holding batchSize packets that can be enqueued before blocking
+	fullBuffers = 5
+	// number of consecutive empty buffer fetches with empty buffers > freeMark after which batchSize buffers are freed
+	releaseMark = 10
+	// number of empty buffers needed to consider freeing some (see releaseMark)
+	freeMark = 3000
+	// new buffers are allocated if number of enqueued batches is below this for any of the rings (only considered if we didn't get a full batch)
+	lowMark = 1
+	// new buffers are not allocated if the number of enqueued batches is greater than this for any of the rings (only considered if we didn't get a full batch)
 	highMark     = 2
 	debugBuffers = false
 )
+
+// see multibuffer.go for an explanation of rings, buffers, batches
 
 // Stats holds number of packets, skipped packets, and filtered packets
 type Stats struct {
@@ -140,6 +148,7 @@ func (input *Engine) Finish() {
 	input.flowtable.flush()
 }
 
+// starved gets executed if we couldn't get batchSizes empty packets in one go
 func (input *Engine) starved(have int, max int) {
 	todecode := input.todecode.usage()
 	table := input.flowtable.usage()
@@ -171,6 +180,7 @@ func (input *Engine) starved(have int, max int) {
 	}
 }
 
+// ok gets executed if we could successfully get batchSizes empty packets in one go
 func (input *Engine) ok(have int, max int) {
 	if max > input.packetStats.maxBuffers {
 		input.packetStats.maxBuffers = max
