@@ -440,35 +440,44 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type _set struct {
+type set struct {
 	flows.BaseFeature
-	vector map[interface{}]uint64
+	vector map[interface{}]bool
+	set []interface{}
 }
 
-func (f *_set) Start(context *flows.EventContext) {
+func (f *set) Start(context *flows.EventContext) {
 	f.BaseFeature.Start(context)
-	f.vector = make(map[interface{}]uint64)
+	f.vector = make(map[interface{}]bool)
+	f.set = make([]interface{}, 0)
 }
 
-func (f *_set) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	if len(f.vector) != 0 {
-		f.SetValue(f.vector, context, f)
-	}
+func (f *set) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.set, context, f)
 }
 
-func (f *_set) Event(new interface{}, context *flows.EventContext, src interface{}) {
+func (f *set) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	switch val := new.(type) {
 	case []byte:
-		f.vector[string(val)]++
+		if _, ok := f.vector[string(val)]; !ok {
+			f.vector[string(val)] = true
+			f.set = append(f.set, string(val))
+		}
 	case net.IP:
-		f.vector[string(val)]++
+		if _, ok := f.vector[string(val)]; !ok {
+			f.vector[string(val)] = true
+			f.set = append(f.set, val.String())
+		}
 	default:
-		f.vector[val]++
+		if _, ok := f.vector[val]; !ok {
+			f.vector[val] = true
+			f.set = append(f.set, val)
+		}
 	}
 }
 
 func init() {
-	flows.RegisterFunction("_set", "distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &_set{} }, flows.PacketFeature)
+	flows.RegisterFunction("set", "distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &set{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
