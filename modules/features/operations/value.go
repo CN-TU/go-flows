@@ -375,19 +375,21 @@ func (f *modeCount) Start(context *flows.EventContext) {
 }
 
 func (f *modeCount) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-	var max uint64
-	var m interface{}
-	for val, num := range f.vector {
-		if num > max {
-			max = num
-			m = val
-		} else if num == max && features.Less(val, m) {
-			m = val
-		}
-	}
-	if max > 0 {
-		f.SetValue(max, context, f)
-	}
+        var max uint64
+        var m interface{}
+        for val, num := range f.vector {
+            if num > max {
+                max = num
+                m = val
+            } else if num == max && features.Less(val, m) {
+                m = val
+            }
+        }
+        if max > 0 {
+            f.SetValue(max, context, f)
+        } else {
+        	f.SetValue(math.NaN(), context, f)
+        }
 }
 
 func (f *modeCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
@@ -434,6 +436,39 @@ func (f *distinct) Event(new interface{}, context *flows.EventContext, src inter
 
 func init() {
 	flows.RegisterFunction("distinct", "number of distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &distinct{} }, flows.PacketFeature)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _set struct {
+	flows.BaseFeature
+	vector map[interface{}]uint64
+}
+
+func (f *_set) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.vector = make(map[interface{}]uint64)
+}
+
+func (f *_set) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	if len(f.vector) != 0 {
+		f.SetValue(f.vector, context, f)
+	}
+}
+
+func (f *_set) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	switch val := new.(type) {
+	case []byte:
+		f.vector[string(val)]++
+	case net.IP:
+		f.vector[string(val)]++
+	default:
+		f.vector[val]++
+	}
+}
+
+func init() {
+	flows.RegisterFunction("_set", "distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &_set{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
