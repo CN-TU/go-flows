@@ -469,7 +469,7 @@ func (f *set) Event(new interface{}, context *flows.EventContext, src interface{
 			f.set = append(f.set, val.String())
 		}
 	default:
-		if !f.vector[string(val)] {
+		if !f.vector[val] {
 			f.vector[val] = true
 			f.set = append(f.set, val)
 		}
