@@ -260,3 +260,26 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type milliSecwindow struct {
+	flows.EmptyBaseFeature
+	tsec uint32
+}
+
+func (f *milliSecwindow) Start(context *flows.EventContext) {
+	f.tsec = 0
+}
+
+func (f *milliSecwindow) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tsec := uint32(new.(packet.Buffer).Timestamp() / flows.MillisecondsInNanoseconds)
+	if f.tsec != tsec {
+		f.tsec = tsec
+		f.Emit(tsec, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("__NTAMilliSecWindow", "1ms time window for packets", ipfix.Unsigned64Type, 0, flows.Selection, func() flows.Feature { return &milliSecwindow{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////

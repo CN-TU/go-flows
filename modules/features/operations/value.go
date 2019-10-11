@@ -387,6 +387,8 @@ func (f *modeCount) Stop(reason flows.FlowEndReason, context *flows.EventContext
 	}
 	if max > 0 {
 		f.SetValue(max, context, f)
+	} else {
+		f.SetValue(math.NaN(), context, f)
 	}
 }
 
@@ -434,6 +436,48 @@ func (f *distinct) Event(new interface{}, context *flows.EventContext, src inter
 
 func init() {
 	flows.RegisterFunction("distinct", "number of distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &distinct{} }, flows.PacketFeature)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type set struct {
+	flows.BaseFeature
+	vector map[interface{}]bool
+	set []interface{}
+}
+
+func (f *set) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+	f.vector = make(map[interface{}]bool)
+	f.set = make([]interface{}, 0)
+}
+
+func (f *set) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+	f.SetValue(f.set, context, f)
+}
+
+func (f *set) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	switch val := new.(type) {
+	case []byte:
+		if !f.vector[string(val)] {
+			f.vector[string(val)] = true
+			f.set = append(f.set, string(val))
+		}
+	case net.IP:
+		if !f.vector[string(val)] {
+			f.vector[string(val)] = true
+			f.set = append(f.set, val.String())
+		}
+	default:
+		if !f.vector[val] {
+			f.vector[val] = true
+			f.set = append(f.set, val)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterFunction("set", "distinct elements in a list", flows.FlowFeature, func() flows.Feature { return &set{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
