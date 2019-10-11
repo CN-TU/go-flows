@@ -271,7 +271,7 @@ func (f *milliSecwindow) Start(context *flows.EventContext) {
 }
 
 func (f *milliSecwindow) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	tsec := uint32(new.(packet.Buffer).Timestamp() / flows.SecondsInNanoseconds)
+	tsec := uint32(new.(packet.Buffer).Timestamp() / flows.MillisecondsInNanoseconds)
 	if f.tsec != tsec {
 		f.tsec = tsec
 		f.Emit(tsec, context, src)

@@ -375,21 +375,21 @@ func (f *modeCount) Start(context *flows.EventContext) {
 }
 
 func (f *modeCount) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
-        var max uint64
-        var m interface{}
-        for val, num := range f.vector {
-            if num > max {
-                max = num
-                m = val
-            } else if num == max && features.Less(val, m) {
-                m = val
-            }
-        }
-        if max > 0 {
-            f.SetValue(max, context, f)
-        } else {
-        	f.SetValue(math.NaN(), context, f)
-        }
+	var max uint64
+	var m interface{}
+	for val, num := range f.vector {
+		if num > max {
+			max = num
+			m = val
+		} else if num == max && features.Less(val, m) {
+			m = val
+		}
+	}
+	if max > 0 {
+		f.SetValue(max, context, f)
+	} else {
+		f.SetValue(math.NaN(), context, f)
+	}
 }
 
 func (f *modeCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
@@ -459,17 +459,17 @@ func (f *set) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 func (f *set) Event(new interface{}, context *flows.EventContext, src interface{}) {
 	switch val := new.(type) {
 	case []byte:
-		if _, ok := f.vector[string(val)]; !ok {
+		if !f.vector[string(val)] {
 			f.vector[string(val)] = true
 			f.set = append(f.set, string(val))
 		}
 	case net.IP:
-		if _, ok := f.vector[string(val)]; !ok {
+		if !f.vector[string(val)] {
 			f.vector[string(val)] = true
 			f.set = append(f.set, val.String())
 		}
 	default:
-		if _, ok := f.vector[val]; !ok {
+		if !f.vector[string(val)] {
 			f.vector[val] = true
 			f.set = append(f.set, val)
 		}

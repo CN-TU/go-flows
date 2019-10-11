@@ -13,6 +13,4 @@ const (
 	MinutesInNanoseconds DateTimeNanoseconds = 60 * SecondsInNanoseconds
 	// HoursInNanoseconds holds the time value of one hour.
 	HoursInNanoseconds DateTimeNanoseconds = 60 * MinutesInNanoseconds
-	// SecondsInMilliseconds holds the time value of one second.
-	SecondsInMilliseconds DateTimeNanoseconds = MillisecondsInNanoseconds
 )
