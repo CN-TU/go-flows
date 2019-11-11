@@ -156,7 +156,7 @@ func (f *_DNSDomain) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterTemporaryFeature("_DNSDomain", "returns domains from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSDomain{} }, flows.PacketFeature)
+	flows.RegisterTemporaryFeature("_DNSDomain", "returns domains from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSDomain{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
