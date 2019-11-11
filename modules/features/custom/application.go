@@ -6,6 +6,7 @@ import (
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
 	ipfix "github.com/CN-TU/go-ipfix"
+	"github.com/google/gopacket/layers"
 )
 
 type _payload struct {
@@ -129,6 +130,33 @@ func (f *httpRequestHost) Event(new interface{}, context *flows.EventContext, sr
 func init() {
 	flows.RegisterTemporaryFeature("__httpRequestHost", "extract the host header from lines of text", ipfix.StringType, 0, flows.FlowFeature, func() flows.Feature { return &httpRequestHost{} }, flows.PacketFeature)
 	flows.RegisterStandardCompositeFeature("httpRequestHost", "__httpRequestHost", "_HTTPLines")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSDomain struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSDomain) Start(context *flows.EventContext) {
+	f.BaseFeature.Start(context)
+}
+
+func (f *_DNSDomain) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	layer := new.(packet.Buffer).Layer(layers.LayerTypeDNS)
+	if layer != nil {
+		dns := layer.(*layers.DNS)
+		for _, dnsQuestion := range dns.Questions {
+			f.SetValue(string(dnsQuestion.Name), context, src)
+		}
+	}
+}
+
+func (f *_DNSDomain) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSDomain", "returns domains from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSDomain{} }, flows.PacketFeature)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
