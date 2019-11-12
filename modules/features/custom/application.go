@@ -135,20 +135,29 @@ func init() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type _DNSDomain struct {
-	flows.BaseFeature
-}
-
-func (f *_DNSDomain) Event(new interface{}, context *flows.EventContext, src interface{}) {
+// GetDNS returns the DNS layer of the packet or nil
+func GetDNS(new interface{}) *layers.DNS {
 	tl := new.(packet.Buffer).TransportLayer()
 	if tl != nil {
 		payload := tl.LayerPayload()
 		dns := &layers.DNS{}
 		err := dns.DecodeFromBytes(payload, gopacket.NilDecodeFeedback)
 		if err == nil {
-			for _, dnsQuestion := range dns.Questions {
-				f.SetValue(string(dnsQuestion.Name), context, src)
-			}
+			return dns
+		}
+	}
+	return nil
+}
+
+type _DNSDomain struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSDomain) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsQuestion := range dns.Questions {
+			f.SetValue(string(dnsQuestion.Name), context, src)
 		}
 	}
 }
