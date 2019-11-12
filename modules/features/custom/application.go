@@ -6,6 +6,7 @@ import (
 	"github.com/CN-TU/go-flows/flows"
 	"github.com/CN-TU/go-flows/packet"
 	ipfix "github.com/CN-TU/go-ipfix"
+	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 )
 
@@ -138,21 +139,18 @@ type _DNSDomain struct {
 	flows.BaseFeature
 }
 
-func (f *_DNSDomain) Start(context *flows.EventContext) {
-	f.BaseFeature.Start(context)
-}
-
 func (f *_DNSDomain) Event(new interface{}, context *flows.EventContext, src interface{}) {
-	layer := new.(packet.Buffer).Layer(layers.LayerTypeDNS)
-	if layer != nil {
-		dns := layer.(*layers.DNS)
-		for _, dnsQuestion := range dns.Questions {
-			f.SetValue(string(dnsQuestion.Name), context, src)
+	tl := new.(packet.Buffer).TransportLayer()
+	if tl != nil {
+		payload := tl.LayerPayload()
+		dns := &layers.DNS{}
+		err := dns.DecodeFromBytes(payload, gopacket.NilDecodeFeedback)
+		if err == nil {
+			for _, dnsQuestion := range dns.Questions {
+				f.SetValue(string(dnsQuestion.Name), context, src)
+			}
 		}
 	}
-}
-
-func (f *_DNSDomain) Stop(reason flows.FlowEndReason, context *flows.EventContext) {
 }
 
 func init() {
