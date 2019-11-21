@@ -26,7 +26,7 @@ func (f *_sllAddr) Event(new interface{}, context *flows.EventContext, src inter
 	if sll == nil {
 		return
 	}
-	f.SetValue(string(sll.Addr), context, src)
+	f.SetValue(sll.Addr.String(), context, src)
 }
 
 func init() {
