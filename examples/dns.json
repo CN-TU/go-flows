@@ -10,7 +10,19 @@
         "flowEndReason",
         "flowEndNanoseconds",
         "ipTotalLength",
-        {"accumulate": ["_DNSDomain"]}
+        {"accumulate": ["_dnsDomain"]},
+        {"accumulate": ["_dnsResponseCode"]},
+        {"accumulate": ["_dnsQDCount"]},
+        {"accumulate": ["_dnsANCount"]},
+        {"accumulate": ["_dnsNSCount"]},
+        {"accumulate": ["_dnsARCount"]},
+        {"accumulate": ["_dnsType"]},
+        {"accumulate": ["_dnsClass"]},
+        {"accumulate": ["_dnsAnsName"]},
+        {"accumulate": ["_dnsAnsType"]},
+        {"accumulate": ["_dnsAnsClass"]},
+        {"accumulate": ["_dnsAnsTTL"]},
+        {"accumulate": ["_dnsAnsDataLength"]}
     ],
     "bidirectional": true,
     "key_features": [
