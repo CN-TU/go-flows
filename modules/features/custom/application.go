@@ -1,6 +1,7 @@
 package custom
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/CN-TU/go-flows/flows"
@@ -143,8 +144,10 @@ func GetDNS(new interface{}) *layers.DNS {
 		dns := &layers.DNS{}
 		err := dns.DecodeFromBytes(payload, gopacket.NilDecodeFeedback)
 		if err == nil {
+			fmt.Printf("YES %T\n", tl)
 			return dns
 		}
+		fmt.Printf("NAH %T, %#v, %s\n", tl, payload, err)
 	}
 	return nil
 }
@@ -164,6 +167,40 @@ func (f *_dnsDomain) Event(new interface{}, context *flows.EventContext, src int
 
 func init() {
 	flows.RegisterTemporaryFeature("_dnsDomain", "returns domains from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_dnsDomain{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _dnsID struct {
+	flows.BaseFeature
+}
+
+func (f *_dnsID) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.ID, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_dnsID", "returns ID of DNS query.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_dnsID{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _dnsQR struct {
+	flows.BaseFeature
+}
+
+func (f *_dnsQR) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.QR, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_dnsQR", "returns QR of DNS query.", ipfix.BooleanType, 0, flows.PacketFeature, func() flows.Feature { return &_dnsQR{} }, flows.RawPacket)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
