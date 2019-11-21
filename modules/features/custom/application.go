@@ -1,7 +1,6 @@
 package custom
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/CN-TU/go-flows/flows"
@@ -144,10 +143,8 @@ func GetDNS(new interface{}) *layers.DNS {
 		dns := &layers.DNS{}
 		err := dns.DecodeFromBytes(payload, gopacket.NilDecodeFeedback)
 		if err == nil {
-			fmt.Printf("YES %T\n", tl)
 			return dns
 		}
-		fmt.Printf("NAH %T, %#v, %s\n", tl, payload, err)
 	}
 	return nil
 }
