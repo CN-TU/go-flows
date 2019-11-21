@@ -140,19 +140,18 @@ func GetDNS(new interface{}) *layers.DNS {
 	tl := new.(packet.Buffer).TransportLayer()
 	if tl != nil {
 		payload := tl.LayerPayload()
+		if tl.LayerType() == layers.LayerTypeTCP {
+			// when TCP, omit DNS length field (otherwise DNS parser fails)
+			if len(payload) > 2 {
+				payload = payload[2:]
+			} else {
+				return nil
+			}
+		}
 		dns := &layers.DNS{}
 		err := dns.DecodeFromBytes(payload, gopacket.NilDecodeFeedback)
 		if err == nil {
 			return dns
-		}
-		if len(payload) > 2 {
-			// when TCP, omit DNS length field (otherwise DNS parser fails)
-			// TODO there should be a better way to check for TCP before trying to decode
-			err2 := dns.DecodeFromBytes(payload[2:], gopacket.NilDecodeFeedback)
-			if err2 == nil {
-				return dns
-			}
-
 		}
 	}
 	return nil
