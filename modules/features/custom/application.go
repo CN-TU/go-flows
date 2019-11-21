@@ -167,3 +167,221 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type _DNSResponseCode struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSResponseCode) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.ResponseCode.String(), context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSResponseCode", "returns response code from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSResponseCode{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSQDCount struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSQDCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.QDCount, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSQDCount", "returns number of questions in DNS packets.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSQDCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSANCount struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSANCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.ANCount, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSANCount", "returns number of answers in DNS packets.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSANCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSNSCount struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSNSCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.NSCount, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSNSCount", "returns number of authorities in DNS packets.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSNSCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSARCount struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSARCount) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		f.SetValue(dns.ARCount, context, src)
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSARCount", "returns number of additional records in DNS packets.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSARCount{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSType struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSType) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsQuestion := range dns.Questions {
+			f.SetValue(string(dnsQuestion.Type), context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSType", "returns request types from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSType{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSClass struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSClass) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsQuestion := range dns.Questions {
+			f.SetValue(string(dnsQuestion.Class), context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSClass", "returns request classes from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSClass{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSAnsName struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSAnsName) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsAnswer := range dns.Answers {
+			f.SetValue(string(dnsAnswer.Name), context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSAnsName", "returns answer domain names from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSAnsName{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSAnsType struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSAnsType) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsAnswer := range dns.Answers {
+			f.SetValue(string(dnsAnswer.Type), context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSAnsType", "returns answer DNS type from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSAnsType{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSAnsClass struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSAnsClass) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsAnswer := range dns.Answers {
+			f.SetValue(string(dnsAnswer.Class), context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSAnsClass", "returns answer DNS class from DNS packets.", ipfix.StringType, 0, flows.PacketFeature, func() flows.Feature { return &_DNSAnsClass{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSAnsTTL struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSAnsTTL) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsAnswer := range dns.Answers {
+			f.SetValue(dnsAnswer.TTL, context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSAnsTTL", "returns answer TTL from DNS packets.", ipfix.Unsigned32Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSAnsTTL{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type _DNSAnsDataLength struct {
+	flows.BaseFeature
+}
+
+func (f *_DNSAnsDataLength) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	dns := GetDNS(new)
+	if dns != nil {
+		for _, dnsAnswer := range dns.Answers {
+			f.SetValue(dnsAnswer.DataLength, context, src)
+		}
+	}
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_DNSAnsDataLength", "returns length of data in answers from DNS packets.", ipfix.Unsigned16Type, 0, flows.PacketFeature, func() flows.Feature { return &_DNSAnsDataLength{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
