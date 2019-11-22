@@ -303,7 +303,7 @@ func (f *_dnsType) Event(new interface{}, context *flows.EventContext, src inter
 	dns := GetDNS(new)
 	if dns != nil {
 		for _, dnsQuestion := range dns.Questions {
-			f.SetValue(string(dnsQuestion.Type), context, src)
+			f.SetValue(dnsQuestion.Type.String(), context, src)
 		}
 	}
 }
@@ -322,7 +322,7 @@ func (f *_dnsClass) Event(new interface{}, context *flows.EventContext, src inte
 	dns := GetDNS(new)
 	if dns != nil {
 		for _, dnsQuestion := range dns.Questions {
-			f.SetValue(string(dnsQuestion.Class), context, src)
+			f.SetValue(dnsQuestion.Class.String(), context, src)
 		}
 	}
 }
@@ -360,7 +360,7 @@ func (f *_dnsAnsType) Event(new interface{}, context *flows.EventContext, src in
 	dns := GetDNS(new)
 	if dns != nil {
 		for _, dnsAnswer := range dns.Answers {
-			f.SetValue(string(dnsAnswer.Type), context, src)
+			f.SetValue(dnsAnswer.Type.String(), context, src)
 		}
 	}
 }
@@ -379,7 +379,7 @@ func (f *_dnsAnsClass) Event(new interface{}, context *flows.EventContext, src i
 	dns := GetDNS(new)
 	if dns != nil {
 		for _, dnsAnswer := range dns.Answers {
-			f.SetValue(string(dnsAnswer.Class), context, src)
+			f.SetValue(dnsAnswer.Class.String(), context, src)
 		}
 	}
 }
