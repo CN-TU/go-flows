@@ -371,3 +371,54 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type fragmentFlags struct {
+	flows.BaseFeature
+}
+
+func (f *fragmentFlags) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.Flags, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("fragmentFlags", flows.PacketFeature, func() flows.Feature { return &fragmentFlags{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type fragmentIdentification struct {
+	flows.BaseFeature
+}
+
+func (f *fragmentIdentification) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.Id, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("fragmentIdentification", flows.PacketFeature, func() flows.Feature { return &fragmentIdentification{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type fragmentOffset struct {
+	flows.BaseFeature
+}
+
+func (f *fragmentOffset) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.FragOffset, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("fragmentOffset", flows.PacketFeature, func() flows.Feature { return &fragmentOffset{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
