@@ -422,3 +422,37 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type ipVersion struct {
+	flows.BaseFeature
+}
+
+func (f *ipVersion) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.Version, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("ipVersion", flows.PacketFeature, func() flows.Feature { return &ipVersion{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type ipHeaderLength struct {
+	flows.BaseFeature
+}
+
+func (f *ipHeaderLength) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	network := new.(packet.Buffer).NetworkLayer()
+	if ip, ok := network.(*layers.IPv4); ok {
+		f.SetValue(ip.IHL, context, f)
+	}
+}
+
+func init() {
+	flows.RegisterStandardFeature("ipHeaderLength", flows.PacketFeature, func() flows.Feature { return &ipHeaderLength{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
