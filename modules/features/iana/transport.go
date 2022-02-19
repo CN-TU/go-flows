@@ -511,3 +511,91 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type tcpWindowSize struct {
+	flows.BaseFeature
+}
+
+func (f *tcpWindowSize) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.Window, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpWindowSize", flows.PacketFeature, func() flows.Feature { return &tcpWindowSize{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpUrgentPointer struct {
+	flows.BaseFeature
+}
+
+func (f *tcpUrgentPointer) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.Urgent, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpUrgentPointer", flows.PacketFeature, func() flows.Feature { return &tcpUrgentPointer{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpOptions struct {
+	flows.BaseFeature
+}
+
+func (f *tcpOptions) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.Options, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpOptions", flows.PacketFeature, func() flows.Feature { return &tcpOptions{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpAcknowledgementNumber struct {
+	flows.BaseFeature
+}
+
+func (f *tcpAcknowledgementNumber) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.Ack, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpAcknowledgementNumber", flows.PacketFeature, func() flows.Feature { return &tcpAcknowledgementNumber{} }, flows.RawPacket)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type tcpHeaderLength struct {
+	flows.BaseFeature
+}
+
+func (f *tcpHeaderLength) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.DataOffset, context, f)
+}
+
+func init() {
+	flows.RegisterStandardFeature("tcpHeaderLength", flows.PacketFeature, func() flows.Feature { return &tcpHeaderLength{} }, flows.RawPacket)
+}

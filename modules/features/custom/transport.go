@@ -390,3 +390,19 @@ func init() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+type _tcpChecksum struct {
+	flows.BaseFeature
+}
+
+func (f *_tcpChecksum) Event(new interface{}, context *flows.EventContext, src interface{}) {
+	tcp := features.GetTCP(new)
+	if tcp == nil {
+		return
+	}
+	f.SetValue(tcp.Checksum, context, f)
+}
+
+func init() {
+	flows.RegisterTemporaryFeature("_tcpChecksum", "returns a textual representation of the tcpchecksum", ipfix.StringType, 1, flows.PacketFeature, func() flows.Feature { return &_tcpChecksum{} }, flows.RawPacket)
+}
