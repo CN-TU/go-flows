@@ -258,9 +258,9 @@ func (f *dividePacket) Event(new interface{}, context *flows.EventContext, src i
 	var result interface{}
 	switch fl {
 	case flows.UIntType:
-		result = a.(uint64) / b.(uint64)
+		result = a.(uint64) / uint64(math.Max(float64(b.(int64)), 1))
 	case flows.IntType:
-		result = a.(int64) / b.(int64)
+		result = a.(int64) / int64(math.Max(float64(b.(int64)), 1))
 	case flows.FloatType:
 		result = a.(float64) / b.(float64)
 	}
@@ -278,9 +278,9 @@ func (f *divideFlow) Stop(reason flows.FlowEndReason, context *flows.EventContex
 	var result interface{}
 	switch fl {
 	case flows.UIntType:
-		result = a.(uint64) / b.(uint64)
+		result = a.(uint64) / uint64(math.Max(float64(b.(int64)), 1))
 	case flows.IntType:
-		result = a.(int64) / b.(int64)
+		result = a.(int64) / int64(math.Max(float64(b.(int64)), 1))
 	case flows.FloatType:
 		result = a.(float64) / b.(float64)
 	}
@@ -288,6 +288,6 @@ func (f *divideFlow) Stop(reason flows.FlowEndReason, context *flows.EventContex
 }
 
 func init() {
-	flows.RegisterFunction("divide", "returns a / b", flows.PacketFeature, func() flows.Feature { return &dividePacket{} }, flows.PacketFeature, flows.PacketFeature)
-	flows.RegisterFunction("divide", "returns a / b", flows.FlowFeature, func() flows.Feature { return &divideFlow{} }, flows.FlowFeature, flows.FlowFeature)
+	flows.RegisterFunction("divide", "returns a / b. If b == 0 then divide by 1", flows.PacketFeature, func() flows.Feature { return &dividePacket{} }, flows.PacketFeature, flows.PacketFeature)
+	flows.RegisterFunction("divide", "returns a / b. If b == 0 then divide by 1", flows.FlowFeature, func() flows.Feature { return &divideFlow{} }, flows.FlowFeature, flows.FlowFeature)
 }
